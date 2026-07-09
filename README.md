@@ -14,8 +14,8 @@ notes below for the honest trade-offs.
 | Phase | Scope | State |
 |------|-------|-------|
 | **1** | Target → candidate SMILES (ChEMBL retrieval) | ✅ done |
-| 2 | Drug-likeness filtering (Lipinski Ro5, PAINS) | planned |
-| 3 | Lightweight property models (RF/XGBoost on MoleculeNet) | planned |
+| **2** | Drug-likeness filtering (Lipinski Ro5, PAINS) | ✅ done |
+| 3 | Per-target activity model (QSAR) + generic property models | planned |
 | 4 | Pipeline integration + composite scoring | planned |
 | 5 | Streamlit dashboard + deploy | planned |
 
@@ -56,7 +56,28 @@ target, candidates = get_candidates("EGFR", max_records=500)
 python -m pytest tests/         # unit tests offline; live smoke test self-skips
 ```
 
-## Known limitations (Phase 1)
+## Phase 2 — drug-likeness filtering
+
+Adds RDKit descriptors and two standard gates to any candidate table:
+
+- **Lipinski Rule of 5** — `mw ≤ 500, logp ≤ 5, hbd ≤ 5, hba ≤ 10`; at most one
+  violation allowed (configurable).
+- **PAINS** — pan-assay interference substructures; any match fails.
+
+```python
+from src.data.chembl_client import get_candidates
+from src.filters.druglikeness import apply_druglikeness
+
+target, candidates = get_candidates("EGFR", max_records=500)
+filtered = apply_druglikeness(candidates)   # adds mw, logp, hbd, hba, tpsa,
+                                            # ro5_violations, ro5_pass, pains_pass, druglike
+keep = filtered[filtered["druglike"]]
+```
+
+On EGFR this keeps ~88% of retrieved actives; the rejects are mostly large,
+lipophilic molecules failing two Ro5 criteria at once.
+
+## Known limitations
 
 - **No novelty.** Retrieval returns molecules already known to ChEMBL for the
   target. Generating truly novel structures needs generative models (GPU) and is
