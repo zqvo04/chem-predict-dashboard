@@ -17,7 +17,7 @@ notes below for the honest trade-offs.
 | **2** | Drug-likeness filtering (Lipinski Ro5, PAINS) | ✅ done |
 | **3** | Per-target activity model (QSAR pchembl regression) | ✅ done |
 | **4** | Pipeline integration + composite scoring + PubChem expansion | ✅ done |
-| 5 | Streamlit dashboard + deploy | planned |
+| **5** | Streamlit dashboard + deploy | ✅ done |
 
 ## Phase 1 — target → candidate SMILES
 
@@ -134,6 +134,36 @@ Key design decisions (and why):
 
 On EGFR this yields ~1900 drug-like known actives (control) plus ~37 novel
 drug-like candidates with predicted pchembl ≈ 7.5–9.0.
+
+## Phase 5 — Streamlit dashboard
+
+```bash
+streamlit run app.py
+```
+
+Enter a target, and the app runs the full pipeline and shows two tabs — novel
+candidates (the discovery) and known actives (the control) — each with molecule
+structures, predicted/measured potency, QED, and the composite score, plus the
+model's scaffold-split metrics.
+
+The activity model is **HistGradientBoosting**, not RandomForest: it scored
+slightly better (R² 0.573 vs 0.557) at ~1/35th the pickle size (1.5 MB vs 54 MB),
+which is what makes shipping a model and running on a 1 GB free host practical.
+EGFR ships pre-baked in `assets/models/` for an instant demo; other targets train
+on first run (~30–40 s) and are cached.
+
+### Deploy to Streamlit Community Cloud (free)
+
+1. Push this repo to GitHub.
+2. On [share.streamlit.io](https://share.streamlit.io), create an app pointing at
+   `app.py` on this branch.
+3. `requirements.txt` and `packages.txt` (system libs for RDKit drawing) are
+   picked up automatically.
+
+Honest deployment caveats: the free tier is 1 vCPU / ~1 GB RAM. Pre-baked targets
+are instant; a cold target does a one-off ~30–40 s fetch-and-train (Streamlit's
+spinner covers it, but a very data-rich target can approach request limits).
+PubChem/ChEMBL calls need outbound network, which the hosted runtime allows.
 
 ## Known limitations
 

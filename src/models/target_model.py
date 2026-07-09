@@ -24,14 +24,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 
 from ..data import chembl_client as cc
 from .features import morgan_matrix
 from .scaffold_split import scaffold_split
 
-MODEL_DIR = Path(__file__).resolve().parents[2] / "data" / "models"
+_ROOT = Path(__file__).resolve().parents[2]
+BUNDLED_MODEL_DIR = _ROOT / "assets" / "models"  # committed demo models (instant load)
+MODEL_DIR = _ROOT / "data" / "models"            # runtime cache (gitignored)
 MIN_TRAIN_MOLECULES = 50  # data-sufficiency gate: below this we refuse to train
 
 
@@ -48,7 +50,7 @@ class ModelMetrics:
 @dataclass
 class TargetModel:
     target: cc.Target
-    model: RandomForestRegressor
+    model: HistGradientBoostingRegressor
     metrics: ModelMetrics
 
     def predict(self, smiles: list[str]) -> np.ndarray:
@@ -80,10 +82,22 @@ def build_training_set(target_id: str, max_records: int = 4000) -> pd.DataFrame:
     )
 
 
-def _fit_rf(X: np.ndarray, y: np.ndarray) -> RandomForestRegressor:
-    rf = RandomForestRegressor(n_estimators=300, n_jobs=-1, random_state=0)
-    rf.fit(X, y)
-    return rf
+def _fit_model(X: np.ndarray, y: np.ndarray) -> HistGradientBoostingRegressor:
+    # Gradient boosting beats RandomForest here on both accuracy and pickle
+    # size (~1.5 MB vs ~54 MB), which matters for the free-tier deployment.
+    model = HistGradientBoostingRegressor(max_iter=400, learning_rate=0.08, random_state=0)
+    model.fit(X, y)
+    return model
+
+
+def _load_cached(chembl_id: str) -> TargetModel | None:
+    """Prefer a committed demo model, then the runtime cache."""
+    for directory in (BUNDLED_MODEL_DIR, MODEL_DIR):
+        path = directory / f"{chembl_id}.pkl"
+        if path.exists():
+            with open(path, "rb") as fh:
+                return pickle.load(fh)
+    return None
 
 
 def train_target_model(query: str, organism: str | None = "Homo sapiens",
@@ -91,10 +105,10 @@ def train_target_model(query: str, organism: str | None = "Homo sapiens",
                        use_cache: bool = True) -> TargetModel:
     """Resolve a target, train a scaffold-validated pchembl regressor, cache it."""
     target = cc.resolve_target(query, organism=organism)
-    cache_path = MODEL_DIR / f"{target.chembl_id}.pkl"
-    if use_cache and cache_path.exists():
-        with open(cache_path, "rb") as fh:
-            return pickle.load(fh)
+    if use_cache:
+        cached = _load_cached(target.chembl_id)
+        if cached is not None:
+            return cached
 
     data = build_training_set(target.chembl_id, max_records=max_records)
     if len(data) < MIN_TRAIN_MOLECULES:
@@ -112,7 +126,7 @@ def train_target_model(query: str, organism: str | None = "Homo sapiens",
     if len(test_idx) == 0 or len(train_idx) == 0:
         raise ValueError("Scaffold split produced an empty train or test set.")
 
-    eval_model = _fit_rf(X[train_idx], y[train_idx])
+    eval_model = _fit_model(X[train_idx], y[train_idx])
     pred = eval_model.predict(X[test_idx])
     metrics = ModelMetrics(
         n_molecules=len(y),
@@ -124,12 +138,12 @@ def train_target_model(query: str, organism: str | None = "Homo sapiens",
     )
 
     # Deployed model is refit on all data (eval model was only for honest metrics).
-    final_model = _fit_rf(X, y)
+    final_model = _fit_model(X, y)
     bundle = TargetModel(target=target, model=final_model, metrics=metrics)
 
     if use_cache:
         MODEL_DIR.mkdir(parents=True, exist_ok=True)
-        with open(cache_path, "wb") as fh:
+        with open(MODEL_DIR / f"{target.chembl_id}.pkl", "wb") as fh:
             pickle.dump(bundle, fh)
     return bundle
 
