@@ -7,3 +7,4 @@ venv/
 # runtime API cache + trained models (regenerated on demand)
 data/cache/
 data/models/
+data/moleculenet/

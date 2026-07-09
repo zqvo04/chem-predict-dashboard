@@ -13,13 +13,14 @@ import streamlit as st
 from rdkit import Chem
 from rdkit.Chem import Draw
 
+from src.models.property_models import load_property_models
 from src.pipeline import screen
 
 st.set_page_config(page_title="Target → Candidate Screening", page_icon="🧪", layout="wide")
 
 _DISPLAY_COLS = {
     "id": "ID", "pred_pchembl": "Predicted pChEMBL", "measured_pchembl": "Measured pChEMBL",
-    "qed": "QED", "mw": "MW", "logp": "LogP", "composite": "Score",
+    "qed": "QED", "logS_pred": "logS (sol.)", "tox_prob": "Tox risk", "composite": "Score",
 }
 
 
@@ -87,6 +88,17 @@ if go or target:
     c2.metric("RMSE (pChEMBL)", f"{metrics.rmse:.2f}")
     c3.metric("Drug-like known actives", f"{len(known)}")
     c4.metric("Novel candidates", f"{len(novel)}")
+
+    with st.expander("Model quality & scoring"):
+        prop = load_property_models()
+        st.markdown(
+            f"- **Activity** (per-target QSAR): scaffold-split R² = {metrics.r2:.3f}, "
+            f"RMSE = {metrics.rmse:.2f} pChEMBL, n = {metrics.n_molecules}\n"
+            + (f"- **Solubility** (ESOL): R² = {prop.metrics['solubility']['r2']:.3f}\n"
+               f"- **Toxicity** (Tox21 any-hit): ROC-AUC = {prop.metrics['toxicity']['roc_auc']:.3f}\n"
+               if prop else "")
+            + "- **Composite** = 0.5·activity + 0.2·QED + 0.15·solubility + 0.15·(1 − tox risk)"
+        )
 
     tab_novel, tab_known = st.tabs(["🔬 Novel candidates (discovery)", "✅ Known actives (control)"])
     with tab_novel:

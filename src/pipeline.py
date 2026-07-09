@@ -26,11 +26,14 @@ from rdkit.Chem import QED
 from .data import chembl_client as cc
 from .data import pubchem_client as pc
 from .filters.druglikeness import apply_druglikeness
+from .models.property_models import load_property_models
 from .models.target_model import TargetModel, train_target_model
 
-ACTIVITY_WEIGHT = 0.7
-QED_WEIGHT = 0.3
+# Composite weights: activity leads, then drug-likeness, solubility, safety.
+W_ACTIVITY, W_QED, W_SOL, W_TOX = 0.5, 0.2, 0.15, 0.15
 _POOL_COLUMNS = ["id", "canonical_smiles", "measured_pchembl", "source"]
+
+_PROPERTY_MODELS = load_property_models()  # bundled ESOL + Tox21 models (loaded once)
 
 
 def _canonical(smiles: str) -> str | None:
@@ -47,6 +50,19 @@ def _activity_norm(pchembl: pd.Series | np.ndarray) -> np.ndarray:
     """Map predicted pchembl to [0, 1] on a fixed potency scale (5 = ~10 uM,
     10 = ~0.1 nM). Fixed (not min-max) so scores are comparable across targets."""
     return np.clip((np.asarray(pchembl, dtype=float) - 5.0) / 5.0, 0.0, 1.0)
+
+
+def _sol_norm(logS: pd.Series | np.ndarray) -> np.ndarray:
+    """Map predicted logS to [0, 1]: logS <= -6 (poorly soluble) -> 0,
+    logS >= -1 (freely soluble) -> 1."""
+    return np.clip((np.asarray(logS, dtype=float) + 6.0) / 5.0, 0.0, 1.0)
+
+
+def _property_predict(smiles: list[str]) -> pd.DataFrame:
+    """Predicted logS + toxicity probability; neutral NaNs if models unavailable."""
+    if _PROPERTY_MODELS is None:
+        return pd.DataFrame({"logS_pred": np.nan, "tox_prob": np.nan}, index=range(len(smiles)))
+    return _PROPERTY_MODELS.predict(smiles)
 
 
 def _known_pool(target_query: str, organism: str | None,
@@ -107,7 +123,18 @@ def screen(target_query: str, organism: str | None = "Homo sapiens",
     pool["activity_pchembl"] = pool["measured_pchembl"].fillna(pool["pred_pchembl"])
     pool["qed"] = pool["canonical_smiles"].map(_qed)
     pool["activity_norm"] = _activity_norm(pool["activity_pchembl"])
-    pool["composite"] = ACTIVITY_WEIGHT * pool["activity_norm"] + QED_WEIGHT * pool["qed"]
+
+    # Generic drug-property predictions (target-independent): solubility + toxicity.
+    props = _property_predict(pool["canonical_smiles"].tolist())
+    pool["logS_pred"] = props["logS_pred"].to_numpy()
+    pool["tox_prob"] = props["tox_prob"].to_numpy()
+    pool["sol_norm"] = _sol_norm(pool["logS_pred"])
+    pool["tox_safe"] = 1.0 - pool["tox_prob"].fillna(0.5)
+
+    pool["composite"] = (W_ACTIVITY * pool["activity_norm"]
+                         + W_QED * pool["qed"]
+                         + W_SOL * pd.Series(pool["sol_norm"]).fillna(0.5).to_numpy()
+                         + W_TOX * pool["tox_safe"])
 
     scored = pool.sort_values("composite", ascending=False).reset_index(drop=True)
     return target, model, scored
@@ -128,7 +155,7 @@ def _main() -> None:
     m = model.metrics
     known = scored[scored["source"] == "chembl_known"]
     novel = scored[scored["source"] == "pubchem_novel"]
-    cols = ["id", "pred_pchembl", "measured_pchembl", "qed", "composite"]
+    cols = ["id", "pred_pchembl", "measured_pchembl", "qed", "logS_pred", "tox_prob", "composite"]
 
     print(f"Target : {target.chembl_id}  {target.pref_name}")
     print(f"Model  : scaffold R2={m.r2:.3f} RMSE={m.rmse:.3f} (n={m.n_molecules})")

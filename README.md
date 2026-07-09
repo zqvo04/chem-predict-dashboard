@@ -16,6 +16,7 @@ notes below for the honest trade-offs.
 | **1** | Target → candidate SMILES (ChEMBL retrieval) | ✅ done |
 | **2** | Drug-likeness filtering (Lipinski Ro5, PAINS) | ✅ done |
 | **3** | Per-target activity model (QSAR pchembl regression) | ✅ done |
+| **3b** | Generic property models (solubility + toxicity, MoleculeNet) | ✅ done |
 | **4** | Pipeline integration + composite scoring + PubChem expansion | ✅ done |
 | **5** | Streamlit dashboard + deploy | ✅ done |
 
@@ -105,6 +106,26 @@ scores = model.predict(["COc1cc2ncnc(Nc3cccc(Br)c3)c2cc1OC"])  # predicted pchem
 we will pre-bake models for a few showcase targets and/or cap training size to
 avoid request timeouts (Phase 5).
 
+## Phase 3b — generic drug-property models (MoleculeNet)
+
+Two static, target-independent models trained once on public MoleculeNet data
+and shipped in `assets/models/property_models.pkl` (~3 MB):
+
+- **Solubility** (ESOL, regression) → predicted logS. Uses Morgan fingerprints
+  **plus RDKit descriptors** (LogP, TPSA, MW, …), which lifts scaffold-split
+  R² from ~0.41 to **0.86** — solubility is driven by physicochemistry, not just
+  substructure.
+- **Toxicity** (Tox21, classification) → probability of a hit in any of the 12
+  assays, a broad "toxicophore alert". Scaffold-split **ROC-AUC ≈ 0.75**.
+
+```bash
+python -m src.models.property_models   # re-train and refresh the bundle
+```
+
+**Honest note:** Tox21 assays are specific mechanisms (nuclear-receptor / stress
+response), so the aggregate is a screening *alert*, not a safety verdict. ESOL is
+only ~1100 molecules — a useful prior, not a lab measurement.
+
 ## Phase 4 — end-to-end pipeline + composite scoring
 
 `src/pipeline.py` chains everything together and adds **PubChem similarity
@@ -128,9 +149,11 @@ Key design decisions (and why):
   measured 0.1 nM binders bury every prediction — correct, but useless as
   "discovery". Scoring knowns on truth also removes the memorization inflation
   that otherwise lets training molecules dominate.
-- **Composite = 0.7 · activity + 0.3 · QED**, where `activity` is pchembl mapped
-  to [0,1] on a fixed potency scale (comparable across targets) and QED is
-  RDKit's standard drug-likeness estimate.
+- **Composite = 0.5·activity + 0.2·QED + 0.15·solubility + 0.15·(1 − tox risk)**,
+  where `activity` is pchembl mapped to [0,1] on a fixed potency scale
+  (comparable across targets), QED is RDKit's drug-likeness estimate, and
+  solubility / tox come from the Phase 3b property models. Weights live in
+  `src/pipeline.py` and are easy to retune.
 
 On EGFR this yields ~1900 drug-like known actives (control) plus ~37 novel
 drug-like candidates with predicted pchembl ≈ 7.5–9.0.
