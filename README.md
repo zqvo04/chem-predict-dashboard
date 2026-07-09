@@ -14,10 +14,11 @@ notes below for the honest trade-offs.
 | Phase | Scope | State |
 |------|-------|-------|
 | **1** | Target → candidate SMILES (ChEMBL retrieval) | ✅ done |
-| 2 | Drug-likeness filtering (Lipinski Ro5, PAINS) | planned |
-| 3 | Lightweight property models (RF/XGBoost on MoleculeNet) | planned |
-| 4 | Pipeline integration + composite scoring | planned |
-| 5 | Streamlit dashboard + deploy | planned |
+| **2** | Drug-likeness filtering (Lipinski Ro5, PAINS) | ✅ done |
+| **3** | Per-target activity model (QSAR pchembl regression) | ✅ done |
+| **3b** | Generic property models (solubility + toxicity, MoleculeNet) | ✅ done |
+| **4** | Pipeline integration + composite scoring + PubChem expansion | ✅ done |
+| **5** | Streamlit dashboard + deploy | ✅ done |
 
 ## Phase 1 — target → candidate SMILES
 
@@ -56,7 +57,138 @@ target, candidates = get_candidates("EGFR", max_records=500)
 python -m pytest tests/         # unit tests offline; live smoke test self-skips
 ```
 
-## Known limitations (Phase 1)
+## Phase 2 — drug-likeness filtering
+
+Adds RDKit descriptors and two standard gates to any candidate table:
+
+- **Lipinski Rule of 5** — `mw ≤ 500, logp ≤ 5, hbd ≤ 5, hba ≤ 10`; at most one
+  violation allowed (configurable).
+- **PAINS** — pan-assay interference substructures; any match fails.
+
+```python
+from src.data.chembl_client import get_candidates
+from src.filters.druglikeness import apply_druglikeness
+
+target, candidates = get_candidates("EGFR", max_records=500)
+filtered = apply_druglikeness(candidates)   # adds mw, logp, hbd, hba, tpsa,
+                                            # ro5_violations, ro5_pass, pains_pass, druglike
+keep = filtered[filtered["druglike"]]
+```
+
+On EGFR this keeps ~88% of retrieved actives; the rejects are mostly large,
+lipophilic molecules failing two Ro5 criteria at once.
+
+## Phase 3 — per-target activity model (QSAR)
+
+Trains a RandomForest regressor that predicts **pchembl_value** (potency) from
+2048-bit Morgan (ECFP4) fingerprints, on-the-fly for a target from ChEMBL data.
+
+- one **median pchembl per molecule** over the full measured range (not just actives)
+- **scaffold split** for evaluation, so the reported score reflects generalization
+  to new chemotypes (a random split would inflate it)
+- **data-sufficiency gate**: refuses to train below 50 usable molecules
+- trained model cached to `data/models/<target>.pkl`
+
+```bash
+python -m src.models.target_model EGFR
+# Train : 2592 molecules, pchembl range 4.00-11.00
+# Eval  : scaffold-split test n=518  R2=0.557  RMSE=0.932
+```
+
+```python
+from src.models.target_model import train_target_model
+model = train_target_model("EGFR")
+scores = model.predict(["COc1cc2ncnc(Nc3cccc(Br)c3)c2cc1OC"])  # predicted pchembl
+```
+
+**Trade-off:** first-time training on a data-rich target (~2600 molecules) takes
+~50 s on one CPU core. The result is cached, but for the free-hosted dashboard
+we will pre-bake models for a few showcase targets and/or cap training size to
+avoid request timeouts (Phase 5).
+
+## Phase 3b — generic drug-property models (MoleculeNet)
+
+Two static, target-independent models trained once on public MoleculeNet data
+and shipped in `assets/models/property_models.pkl` (~3 MB):
+
+- **Solubility** (ESOL, regression) → predicted logS. Uses Morgan fingerprints
+  **plus RDKit descriptors** (LogP, TPSA, MW, …), which lifts scaffold-split
+  R² from ~0.41 to **0.86** — solubility is driven by physicochemistry, not just
+  substructure.
+- **Toxicity** (Tox21, classification) → probability of a hit in any of the 12
+  assays, a broad "toxicophore alert". Scaffold-split **ROC-AUC ≈ 0.75**.
+
+```bash
+python -m src.models.property_models   # re-train and refresh the bundle
+```
+
+**Honest note:** Tox21 assays are specific mechanisms (nuclear-receptor / stress
+response), so the aggregate is a screening *alert*, not a safety verdict. ESOL is
+only ~1100 molecules — a useful prior, not a lab measurement.
+
+## Phase 4 — end-to-end pipeline + composite scoring
+
+`src/pipeline.py` chains everything together and adds **PubChem similarity
+expansion** so the activity model scores molecules it has never seen:
+
+```
+target -> known actives (P1) -> + novel PubChem analogues
+       -> drug-likeness filter (P2) -> activity prediction (P3)
+       -> composite score -> two ranked tracks
+```
+
+```bash
+python -m src.pipeline EGFR --top 10
+```
+
+Key design decisions (and why):
+
+- **Two tracks, not one list.** `chembl_known` rows are a *positive control*
+  scored on their **measured** potency; `pubchem_novel` rows are the actual
+  screening output scored on the **model prediction**. Mixing them would let
+  measured 0.1 nM binders bury every prediction — correct, but useless as
+  "discovery". Scoring knowns on truth also removes the memorization inflation
+  that otherwise lets training molecules dominate.
+- **Composite = 0.5·activity + 0.2·QED + 0.15·solubility + 0.15·(1 − tox risk)**,
+  where `activity` is pchembl mapped to [0,1] on a fixed potency scale
+  (comparable across targets), QED is RDKit's drug-likeness estimate, and
+  solubility / tox come from the Phase 3b property models. Weights live in
+  `src/pipeline.py` and are easy to retune.
+
+On EGFR this yields ~1900 drug-like known actives (control) plus ~37 novel
+drug-like candidates with predicted pchembl ≈ 7.5–9.0.
+
+## Phase 5 — Streamlit dashboard
+
+```bash
+streamlit run app.py
+```
+
+Enter a target, and the app runs the full pipeline and shows two tabs — novel
+candidates (the discovery) and known actives (the control) — each with molecule
+structures, predicted/measured potency, QED, and the composite score, plus the
+model's scaffold-split metrics.
+
+The activity model is **HistGradientBoosting**, not RandomForest: it scored
+slightly better (R² 0.573 vs 0.557) at ~1/35th the pickle size (1.5 MB vs 54 MB),
+which is what makes shipping a model and running on a 1 GB free host practical.
+EGFR ships pre-baked in `assets/models/` for an instant demo; other targets train
+on first run (~30–40 s) and are cached.
+
+### Deploy to Streamlit Community Cloud (free)
+
+1. Push this repo to GitHub.
+2. On [share.streamlit.io](https://share.streamlit.io), create an app pointing at
+   `app.py` on this branch.
+3. `requirements.txt` and `packages.txt` (system libs for RDKit drawing) are
+   picked up automatically.
+
+Honest deployment caveats: the free tier is 1 vCPU / ~1 GB RAM. Pre-baked targets
+are instant; a cold target does a one-off ~30–40 s fetch-and-train (Streamlit's
+spinner covers it, but a very data-rich target can approach request limits).
+PubChem/ChEMBL calls need outbound network, which the hosted runtime allows.
+
+## Known limitations
 
 - **No novelty.** Retrieval returns molecules already known to ChEMBL for the
   target. Generating truly novel structures needs generative models (GPU) and is
@@ -65,3 +197,11 @@ python -m pytest tests/         # unit tests offline; live smoke test self-skips
   actives; niche targets may return few or none.
 - **Runtime API dependency.** First fetch needs network to `ebi.ac.uk`; results
   are cached afterward.
+- **Model applicability domain.** The QSAR regressor is only reliable for
+  chemotypes near its training set. Since Phase 1 currently returns known
+  molecules, the model's real value appears once Phase 4 brings in novel
+  candidates via similarity expansion. Quantified-pchembl labels also skew away
+  from true hard-negatives.
+- **"Novel" is modest.** PubChem 2D-similarity expansion returns mostly close
+  analogues of known actives that happen not to have a measured value in ChEMBL
+  for this target — reasonable follow-up candidates, not de-novo scaffolds.
