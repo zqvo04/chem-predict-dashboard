@@ -15,7 +15,7 @@ notes below for the honest trade-offs.
 |------|-------|-------|
 | **1** | Target → candidate SMILES (ChEMBL retrieval) | ✅ done |
 | **2** | Drug-likeness filtering (Lipinski Ro5, PAINS) | ✅ done |
-| 3 | Per-target activity model (QSAR) + generic property models | planned |
+| **3** | Per-target activity model (QSAR pchembl regression) | ✅ done |
 | 4 | Pipeline integration + composite scoring | planned |
 | 5 | Streamlit dashboard + deploy | planned |
 
@@ -77,6 +77,34 @@ keep = filtered[filtered["druglike"]]
 On EGFR this keeps ~88% of retrieved actives; the rejects are mostly large,
 lipophilic molecules failing two Ro5 criteria at once.
 
+## Phase 3 — per-target activity model (QSAR)
+
+Trains a RandomForest regressor that predicts **pchembl_value** (potency) from
+2048-bit Morgan (ECFP4) fingerprints, on-the-fly for a target from ChEMBL data.
+
+- one **median pchembl per molecule** over the full measured range (not just actives)
+- **scaffold split** for evaluation, so the reported score reflects generalization
+  to new chemotypes (a random split would inflate it)
+- **data-sufficiency gate**: refuses to train below 50 usable molecules
+- trained model cached to `data/models/<target>.pkl`
+
+```bash
+python -m src.models.target_model EGFR
+# Train : 2592 molecules, pchembl range 4.00-11.00
+# Eval  : scaffold-split test n=518  R2=0.557  RMSE=0.932
+```
+
+```python
+from src.models.target_model import train_target_model
+model = train_target_model("EGFR")
+scores = model.predict(["COc1cc2ncnc(Nc3cccc(Br)c3)c2cc1OC"])  # predicted pchembl
+```
+
+**Trade-off:** first-time training on a data-rich target (~2600 molecules) takes
+~50 s on one CPU core. The result is cached, but for the free-hosted dashboard
+we will pre-bake models for a few showcase targets and/or cap training size to
+avoid request timeouts (Phase 5).
+
 ## Known limitations
 
 - **No novelty.** Retrieval returns molecules already known to ChEMBL for the
@@ -86,3 +114,8 @@ lipophilic molecules failing two Ro5 criteria at once.
   actives; niche targets may return few or none.
 - **Runtime API dependency.** First fetch needs network to `ebi.ac.uk`; results
   are cached afterward.
+- **Model applicability domain.** The QSAR regressor is only reliable for
+  chemotypes near its training set. Since Phase 1 currently returns known
+  molecules, the model's real value appears once Phase 4 brings in novel
+  candidates via similarity expansion. Quantified-pchembl labels also skew away
+  from true hard-negatives.

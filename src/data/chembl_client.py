@@ -120,7 +120,7 @@ def resolve_target(query: str, organism: str | None = "Homo sapiens") -> Target:
 # --------------------------------------------------------------------------- #
 def fetch_activities(target_id: str,
                      activity_types: tuple[str, ...] = DEFAULT_ACTIVITY_TYPES,
-                     pchembl_gte: float = 6.0,
+                     pchembl_gte: float | None = 6.0,
                      max_records: int = 2000,
                      page_size: int = 1000,
                      use_cache: bool = True) -> pd.DataFrame:
@@ -128,13 +128,18 @@ def fetch_activities(target_id: str,
 
     Filtering is done server-side (pchembl threshold + activity type) to keep
     payloads small. pchembl_value >= 6 (~1 uM) is the usual "active" cutoff.
+    Pass pchembl_gte=None to fetch the full measured range (any quantified
+    pchembl) — used to build regression training sets in Phase 3.
     """
     params = {
         "target_chembl_id": target_id,
-        "pchembl_value__gte": pchembl_gte,
         "standard_type__in": ",".join(activity_types),
         "only": _ONLY_FIELDS,
     }
+    if pchembl_gte is not None:
+        params["pchembl_value__gte"] = pchembl_gte
+    else:
+        params["pchembl_value__isnull"] = "false"
     cache_params = {**params, "max_records": max_records}
     if use_cache:
         hit = cache.load("activities", cache_params)
