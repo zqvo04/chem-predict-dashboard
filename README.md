@@ -16,7 +16,7 @@ notes below for the honest trade-offs.
 | **1** | Target → candidate SMILES (ChEMBL retrieval) | ✅ done |
 | **2** | Drug-likeness filtering (Lipinski Ro5, PAINS) | ✅ done |
 | **3** | Per-target activity model (QSAR pchembl regression) | ✅ done |
-| 4 | Pipeline integration + composite scoring | planned |
+| **4** | Pipeline integration + composite scoring + PubChem expansion | ✅ done |
 | 5 | Streamlit dashboard + deploy | planned |
 
 ## Phase 1 — target → candidate SMILES
@@ -105,6 +105,36 @@ scores = model.predict(["COc1cc2ncnc(Nc3cccc(Br)c3)c2cc1OC"])  # predicted pchem
 we will pre-bake models for a few showcase targets and/or cap training size to
 avoid request timeouts (Phase 5).
 
+## Phase 4 — end-to-end pipeline + composite scoring
+
+`src/pipeline.py` chains everything together and adds **PubChem similarity
+expansion** so the activity model scores molecules it has never seen:
+
+```
+target -> known actives (P1) -> + novel PubChem analogues
+       -> drug-likeness filter (P2) -> activity prediction (P3)
+       -> composite score -> two ranked tracks
+```
+
+```bash
+python -m src.pipeline EGFR --top 10
+```
+
+Key design decisions (and why):
+
+- **Two tracks, not one list.** `chembl_known` rows are a *positive control*
+  scored on their **measured** potency; `pubchem_novel` rows are the actual
+  screening output scored on the **model prediction**. Mixing them would let
+  measured 0.1 nM binders bury every prediction — correct, but useless as
+  "discovery". Scoring knowns on truth also removes the memorization inflation
+  that otherwise lets training molecules dominate.
+- **Composite = 0.7 · activity + 0.3 · QED**, where `activity` is pchembl mapped
+  to [0,1] on a fixed potency scale (comparable across targets) and QED is
+  RDKit's standard drug-likeness estimate.
+
+On EGFR this yields ~1900 drug-like known actives (control) plus ~37 novel
+drug-like candidates with predicted pchembl ≈ 7.5–9.0.
+
 ## Known limitations
 
 - **No novelty.** Retrieval returns molecules already known to ChEMBL for the
@@ -119,3 +149,6 @@ avoid request timeouts (Phase 5).
   molecules, the model's real value appears once Phase 4 brings in novel
   candidates via similarity expansion. Quantified-pchembl labels also skew away
   from true hard-negatives.
+- **"Novel" is modest.** PubChem 2D-similarity expansion returns mostly close
+  analogues of known actives that happen not to have a measured value in ChEMBL
+  for this target — reasonable follow-up candidates, not de-novo scaffolds.
