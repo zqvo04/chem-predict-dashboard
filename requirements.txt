@@ -1,0 +1,8 @@
+# Core runtime (CPU-only, zero-cost). Tested with the versions in comments.
+requests>=2.31      # ChEMBL REST client (honors HTTPS_PROXY)
+pandas>=2.0         # candidate tables            (tested 3.0.3)
+pyarrow>=14         # parquet cache backend
+rdkit>=2023.9       # SMILES validation           (tested 2026.03.3)
+
+# Dev / test
+pytest>=7.4

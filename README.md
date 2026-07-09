@@ -1,0 +1,67 @@
+# chem-predict-dashboard
+
+An end-to-end, **CPU-only / zero-cost** drug-discovery screening pipeline:
+
+> target protein → candidate molecules → drug-likeness filter → property prediction → ranked dashboard
+
+This is a portfolio project. It runs on a laptop and free web hosting — no GPU,
+no paid APIs. Because of that constraint, step 1 is **retrieval-based virtual
+screening** (find known/nearby actives), not de-novo generation. See the design
+notes below for the honest trade-offs.
+
+## Status
+
+| Phase | Scope | State |
+|------|-------|-------|
+| **1** | Target → candidate SMILES (ChEMBL retrieval) | ✅ done |
+| 2 | Drug-likeness filtering (Lipinski Ro5, PAINS) | planned |
+| 3 | Lightweight property models (RF/XGBoost on MoleculeNet) | planned |
+| 4 | Pipeline integration + composite scoring | planned |
+| 5 | Streamlit dashboard + deploy | planned |
+
+## Phase 1 — target → candidate SMILES
+
+Given a target name (e.g. `EGFR`), the client:
+
+1. resolves it to a ChEMBL target id, preferring the **SINGLE PROTEIN** entry in
+   the requested organism (ChEMBL's own relevance score otherwise ranks protein
+   complexes / PPIs first);
+2. fetches bioactivities with `pchembl_value >= 6` (~1 µM, the usual "active"
+   cutoff) for IC50 / Ki / Kd / EC50, paginating the REST API;
+3. collapses them to one row per molecule (best potency), and drops any SMILES
+   RDKit cannot parse;
+4. caches raw activity pages to `data/cache/*.parquet` so repeat runs are offline.
+
+### Usage
+
+```bash
+pip install -r requirements.txt
+
+# CLI
+python -m src.data.chembl_client EGFR --top 10
+python -m src.data.chembl_client CHEMBL203 --pchembl-gte 7 --max-records 1000
+```
+
+```python
+# Library
+from src.data.chembl_client import get_candidates
+target, candidates = get_candidates("EGFR", max_records=500)
+# candidates: DataFrame[molecule_chembl_id, canonical_smiles, pchembl_value,
+#                       standard_type, n_activities]
+```
+
+### Tests
+
+```bash
+python -m pytest tests/         # unit tests offline; live smoke test self-skips
+```
+
+## Known limitations (Phase 1)
+
+- **No novelty.** Retrieval returns molecules already known to ChEMBL for the
+  target. Generating truly novel structures needs generative models (GPU) and is
+  out of scope for a zero-cost build.
+- **Coverage varies.** Well-studied targets (EGFR, kinases) return hundreds of
+  actives; niche targets may return few or none.
+- **Runtime API dependency.** First fetch needs network to `ebi.ac.uk`; results
+  are cached afterward.
