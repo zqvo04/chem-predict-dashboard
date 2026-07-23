@@ -20,6 +20,11 @@ notes below for the honest trade-offs.
 | **4** | Pipeline integration + composite scoring + PubChem expansion | ✅ done |
 | **5** | Streamlit dashboard + deploy | ✅ done |
 
+Phases 1–5 are the shipped **v1**: a single-target retrieval screen. The next
+arc turns it into a closed **selectivity-aware funnel** — see
+[Roadmap](#roadmap--jak-selectivity-screening-funnel) below. Roadmap items are
+**planned, not built**; nothing there ships a metric yet.
+
 ## Phase 1 — target → candidate SMILES
 
 Given a target name (e.g. `EGFR`), the client:
@@ -187,6 +192,108 @@ Honest deployment caveats: the free tier is 1 vCPU / ~1 GB RAM. Pre-baked target
 are instant; a cold target does a one-off ~30–40 s fetch-and-train (Streamlit's
 spinner covers it, but a very data-rich target can approach request limits).
 PubChem/ChEMBL calls need outbound network, which the hosted runtime allows.
+
+## Roadmap — JAK-selectivity screening funnel
+
+> **Status: planned.** This section describes the next arc, not shipped code.
+> Every figure and metric it mentions is a target to be produced with a seed +
+> script, never a placeholder to be filled in. Where a value is not yet
+> measured, the build will say *pending*.
+
+**One-sentence claim (the finish line).** Extend the v1 single-target screen into
+a closed, selectivity-aware funnel: cheaply screen candidates across the JAK
+kinase family and rank them by **isoform selectivity** with **calibrated
+uncertainty** and **applicability-domain** verdicts (stage B, CPU, deployed); let
+a human **pick** a few special cases; run an offline GPU **deep-dive** that
+generates more-selective analogues (stage A, Colab); then **re-score** those
+analogues through the *same* stage-B models — closing the loop.
+
+Why JAK: JAK1/JAK2/JAK3 are highly similar kinases where **isoform selectivity**
+is a genuine, clinically important, unsolved problem (off-target JAK inhibition
+drives immunosuppression/toxicity), and ChEMBL has thousands of per-isoform
+records — enough for per-target QSAR + uncertainty + AD **without a GPU**.
+
+### The loop
+
+```
+        +-------------------------------------------------------------+
+        |                                                             |
+        v                                                             |
+[B: WIDE SCREEN — CPU, deployed]                                      |
+  JAK1/2/3 per-isoform QSAR                                           |
+    -> selectivity index                                             |
+    -> conformal interval + applicability-domain flag                |
+    -> ranked selective candidates                                   |
+        |                                                             |
+        |  [SELECT] user picks a few "special cases"  (judgment)      |
+        v                                                             |
+[A: DEEP DIVE — offline Colab, GPU]                                   |
+  chosen scaffold -> conditional generation toward higher selectivity |
+    -> generated analogues                                           |
+        |                                                             |
+        |  re-score analogues through the SAME src B models           |
+        +-------------------------------------------------------------+
+                (loop closes: before vs after selectivity + AD)
+```
+
+The headline deliverable is that this loop runs **end-to-end on one real case**:
+a candidate flows B → SELECT → A → re-score, with a single report showing its
+selectivity / applicability-domain **before vs after**.
+
+### Design constraints carried over from v1
+
+- **CPU-only / zero-cost** for the deployed stage B (~1 vCPU / ~1 GB). GPU lives
+  **only** in the offline Colab notebook (stage A), never in the app.
+- The scoring logic — selectivity index, conformal intervals, applicability
+  domain — lives in **shared `src` modules imported by both the app and the
+  notebook**, never duplicated. That shared code is what makes "re-score through
+  the same models" real rather than a reimplementation that silently diverges.
+- Reuse the existing featurizer (ECFP4), scaffold split, and Trainer — the
+  funnel is an **additive** extension, not a rewrite.
+
+### Planned design decisions (defaults, open to change)
+
+- **Selectivity index:** `S_target = pchembl_pred(target) − max(pchembl_pred(off-isoforms))`,
+  in log-potency units (+1.0 ≈ 10× selective). `max` (worst-case off-target) over
+  `mean`, because selectivity is limited by the *closest* off-target. Ranked only
+  among candidates clearing a target-potency floor (default pchembl ≥ 6, ~1 µM),
+  so "selective but inactive everywhere" can't win.
+- **Uncertainty:** split-conformal intervals at **90 %** nominal coverage, per
+  isoform, with empirically verified coverage.
+- **Applicability domain:** ≥2 definitions (Tanimoto-to-training distance +
+  descriptor-space leverage); a selectivity call is flagged **uncertain** if any
+  contributing isoform model is out-of-domain.
+- **Loop data contract:** one versioned **JSON** object flowing B → SELECT → A →
+  re-score, pinning the exact model ids + conformal α + code version so stage A
+  scores with identical models. JAK1/2/3 for the flagship; TYK2 optional.
+
+### Staged build plan
+
+Each step ends with a validation output and a done-when check; no step advances on
+a placeholder metric.
+
+| Step | Goal | Adds / touches | Hero output |
+|------|------|----------------|-------------|
+| **1** | Credibility pass | `scripts/reproduce.sh`, CI, pinned deps | 5-seed numbers reproduce |
+| **2** | JAK data layer | `chembl_client` (reuse) → 3 cached isoform datasets | per-isoform count + pchembl table |
+| **3** | Per-isoform QSAR | Trainer (reuse), scaffold split + seeds | metrics table (mean ± std) |
+| **4** | Selectivity index | **new** `src/selectivity.py`, `src/loop_contract.py` | `selectivity_ranking_flip.png` |
+| **5** | Conformal uncertainty | **new** `src/conformal.py` | `conformal_coverage.png` |
+| **6** | Applicability domain | **new** `src/applicability.py` | `applicability_error.png` (the money plot) |
+| **7** | Dashboard = stage B + SELECT | extend `app.py` | screen → select → export a case |
+| **8** | Colab deep-dive = stage A + loop closure | **new** `notebooks/deep_dive.ipynb` | `loop_before_after.png`, one worked case |
+| **9** | Loop hardening + docs | integration test, VALIDATION.md, DESIGN_DECISIONS.md | full checklist green |
+
+### Definition of "done"
+
+- [ ] No placeholder metrics anywhere; every number reproducible from a script + seed.
+- [ ] Per-isoform JAK QSAR trained & evaluated (scaffold split, ≥5 seeds, mean ± std).
+- [ ] Selectivity index + ranking-flip hero figure.
+- [ ] Conformal intervals with verified coverage; AD flags with the out-of-domain money plot.
+- [ ] Dashboard shows selectivity rank + interval + in/out-of-domain badge, and exports a chosen case.
+- [ ] Colab deep-dive generates more-selective analogues and re-scores them through the same `src` models.
+- [ ] **The loop:** one documented end-to-end case flows B → SELECT → A → re-score, before vs after in one report.
+- [ ] README leads with the loop + hero figures; VALIDATION.md and DESIGN_DECISIONS.md exist; tests + CI + reproduce.sh pass.
 
 ## Known limitations
 
