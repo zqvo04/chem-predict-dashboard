@@ -35,6 +35,12 @@ python -m src.conformal
 python scripts/make_coverage_figure.py
 
 echo
+echo "== Applicability domain (STEP 6) =="
+echo "In- vs out-of-domain error margin + money plot."
+python -m src.applicability
+python scripts/make_ad_figure.py
+
+echo
 echo "== Gate 0 data audit (VALIDATION.md) =="
 echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py

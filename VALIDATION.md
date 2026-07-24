@@ -180,6 +180,35 @@ Interval widths of ~±1.1 pchembl (2.1–2.4 full width) are honest about the mo
 limits: a 90% interval spans about a 10-fold potency range. The gap `S` interval is
 the conservative sum of the two contributing isoform half-widths.
 
+---
+
+## STEP 6 — applicability domain, the money plot (2026-07-24)
+
+Two orthogonal AD signals (`src/applicability.py`): nearest-neighbour ECFP4
+**Tanimoto similarity** to the training set, and RDKit-descriptor **leverage**
+(hat value vs the 3·p/n threshold). A molecule is in-domain only if both agree.
+Money plot over the scaffold-split test sets of all three isoforms, 5 seeds
+(`scripts/make_ad_figure.py`, `figures/applicability_error.png`):
+
+- **Continuous (the decisive evidence):** mean |error| rises monotonically as
+  nearest-neighbour Tanimoto similarity to training drops — from **0.44 pchembl**
+  at similarity ≈ 0.85 to **0.85–0.91 pchembl** at similarity ≈ 0.35, roughly a
+  2× increase. Error tracks distance-from-domain exactly as an AD should.
+- **Binary flag:** in-domain |error| **0.491** vs out-of-domain **0.638** — a
+  **1.30×** margin.
+
+**Gate 6 passed** on the continuous trend: prediction error is systematically
+higher out of domain. The binary margin is deliberately conservative — on
+chemically homogeneous JAK ChEMBL only **1.8%** of scaffold-split test molecules
+fall outside the (conventional, untuned) Tanimoto-0.3 boundary, so the two-bar
+view understates what the similarity-binned curve shows plainly. AD earns its keep
+on the **diverse wide library** (STEP 7), where most molecules *are* out of domain
+— there it is the mechanism that restricts trust to the in-domain subset.
+
+AD propagates to the selectivity gap: `S` is flagged **uncertain** if any
+contributing isoform model is out-of-domain (worst-case), carrying the non-binder
+burden regression alone cannot.
+
 ### Where this could still fail
 
 - **≥100× selectivity is thin** (30 / 53 / 39 at S ≥ 2). A strong-selectivity story
