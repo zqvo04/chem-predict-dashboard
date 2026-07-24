@@ -1,41 +1,88 @@
 # chem-predict-dashboard
 
-An end-to-end, **CPU-only / zero-cost** drug-discovery screening pipeline:
+**A closed, selectivity-aware drug-screening funnel — *cheap wide screen → expensive
+deep dive* — that runs CPU-only and zero-cost.**
 
-> target protein → candidate molecules → drug-likeness filter → property prediction → ranked dashboard
+Screen a diverse molecule library across the **JAK1/2/3** kinase family, rank by
+isoform **selectivity** with calibrated **uncertainty** and **applicability-domain**
+verdicts (Stage B, CPU, deployed); a human picks a few cases; an offline Colab deep
+dive generates more-selective analogues and **re-scores them through the same
+models** (Stage A) — closing the loop. Built on a v1 single-target screen
+(documented further below).
 
-This is a portfolio project. It runs on a laptop and free web hosting — no GPU,
-no paid APIs. Because of that constraint, step 1 is **retrieval-based virtual
-screening** (find known/nearby actives), not de-novo generation. See the design
-notes below for the honest trade-offs.
+```
+  WIDE LIBRARY (~10^4 diverse drug-like, target-agnostic)
+        |
+  Tier 0  Ro5 + PAINS            Tier 1  regressors -> gap S            [B, CPU]
+  Tier 2  conformal interval + applicability domain (survivors only)
+        |
+  [SELECT] human picks a few  --export loop_contract.json-->
+        |
+  Tier 3  DEEP DIVE: generate analogues + re-score via the SAME models  [A, Colab]
+        |
+        +----- before/after gap + AD --- loop closes (analogues re-enter Tier 0)
+```
 
-The shipped v1 is a single-target screen; the active work turns it into a closed
-**JAK-selectivity funnel** (see [Roadmap](#roadmap--jak-selectivity-screening-funnel)).
+## Headline results — all measured, reproducible via `./scripts/reproduce.sh`
+
+Every number has a seed + script; nothing is a placeholder. Full detail and
+"where this fails" in [VALIDATION.md](VALIDATION.md).
+
+| Stage | Claim | Result (5-seed scaffold split) |
+|------|-------|--------|
+| Per-isoform QSAR | pchembl regression, JAK1/2/3 | R² 0.71–0.77, Spearman 0.82–0.88 |
+| **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** |
+| Uncertainty | conformal 90% intervals | empirical coverage **0.89–0.91** |
+| Applicability domain | error out- vs in-domain | error rises **~2×** as molecules leave the domain |
+| **The loop** | one worked case B→SELECT→A→re-score | best in-domain analogue **+1.74** gap (parent +1.39) |
+
+| Selectivity ranking flip (hero) | The loop closed |
+|---|---|
+| ![selectivity](figures/selectivity_ranking_flip.png) | ![loop](figures/loop_before_after.png) |
+| Conformal coverage | Applicability domain (money plot) |
+| ![coverage](figures/conformal_coverage.png) | ![AD](figures/applicability_error.png) |
+
+## Quickstart
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py                 # dashboard: "JAK selectivity funnel" mode
+python -m src.funnel                 # CLI: screen the wide library to a shortlist
+python scripts/run_loop.py           # run one full B->SELECT->A->re-score case
+./scripts/reproduce.sh               # regenerate every headline number + figure
+```
+
+The Stage-A deep dive runs in [`notebooks/deep_dive.ipynb`](notebooks/deep_dive.ipynb)
+(Colab). One worked case is committed under [`examples/`](examples/).
 
 ### Documentation
 
 | Doc | What it covers |
 |-----|----------------|
-| **README** (this file) | overview, v1 usage, roadmap summary |
+| **README** (this file) | overview, headline results, v1 usage |
 | [WORKFLOW.md](WORKFLOW.md) | the full funnel pipeline, stage by stage — data flow, schemas, module map |
 | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | why each choice (regression + gap, conformal, AD, gates) + rejected alternatives |
-| [VALIDATION.md](VALIDATION.md) | measured results, starting with the Gate 0 data audit |
+| [VALIDATION.md](VALIDATION.md) | every measured result, gate by gate, with "where this fails" |
 
-## Status
+## Honest limitations (funnel)
 
-| Phase | Scope | State |
-|------|-------|-------|
-| **1** | Target → candidate SMILES (ChEMBL retrieval) | ✅ done |
-| **2** | Drug-likeness filtering (Lipinski Ro5, PAINS) | ✅ done |
-| **3** | Per-target activity model (QSAR pchembl regression) | ✅ done |
-| **3b** | Generic property models (solubility + toxicity, MoleculeNet) | ✅ done |
-| **4** | Pipeline integration + composite scoring + PubChem expansion | ✅ done |
-| **5** | Streamlit dashboard + deploy | ✅ done |
+- **Not a drug finder.** Generated analogues are *in-silico hypotheses requiring
+  wet-lab validation*, never hits; the deliverable is a selectivity *distribution
+  shift*, not a candidate.
+- **Demo-scale library.** The wide screen uses ~10⁴ diverse molecules (scalable in
+  principle); most fall out of domain, and AD — by design — narrows the trustworthy
+  output to a small in-domain subset.
+- **Wide gap intervals.** A 90% gap interval spans ~±2 pchembl and often crosses
+  zero; the ranking is trustworthy, the per-molecule interval tempers confidence.
+- **Docking is a documented seam**, not executed (see the notebook).
 
-Phases 1–5 are the shipped **v1**: a single-target retrieval screen. The next
-arc turns it into a closed **selectivity-aware funnel** — see
-[Roadmap](#roadmap--jak-selectivity-screening-funnel) below. Roadmap items are
-**planned, not built**; nothing there ships a metric yet.
+---
+
+# v1 — the single-target screen (foundation)
+
+The funnel is built on a shipped v1: a CPU-only retrieval screen
+(`target protein → candidates → drug-likeness → per-target QSAR → ranked dashboard`).
+Its phases and usage follow.
 
 ## Phase 1 — target → candidate SMILES
 
@@ -205,13 +252,12 @@ are instant; a cold target does a one-off ~30–40 s fetch-and-train (Streamlit'
 spinner covers it, but a very data-rich target can approach request limits).
 PubChem/ChEMBL calls need outbound network, which the hosted runtime allows.
 
-## Roadmap — JAK-selectivity screening funnel
+## How the funnel was built (step by step)
 
-> **Status: planned.** This section describes the next arc, not shipped code.
-> Every figure and metric it mentions is a target to be produced with a seed +
-> script, never a placeholder to be filled in. Where a value is not yet
-> measured, the build will say *pending*. The reasoning behind each choice below
-> lives in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
+> **Status: built and validated** (STEP 0–9). Every figure and metric below is
+> produced by a seed + script and recorded in [VALIDATION.md](VALIDATION.md); the
+> reasoning behind each choice lives in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
+> This section is the staged record of how it was assembled, credibility-first.
 
 ### Why v1 is not enough (the honest starting point)
 
@@ -351,14 +397,14 @@ step advances on a placeholder metric.
 
 ### Definition of "done"
 
-- [ ] No placeholder metrics anywhere; every number reproducible from a script + seed.
-- [ ] Per-isoform JAK **regressors** trained & evaluated (scaffold split, ≥5 seeds, MAE/RMSE/R²/Spearman, mean ± std).
-- [ ] **Hybrid** selectivity gap `S` implemented and **validated against the measured gap**; ranking-flip hero figure.
-- [ ] Conformal prediction intervals with verified coverage; AD flags with the out-of-domain money plot.
-- [ ] Wide library screened through the cost tiers to a **selective + in-domain** shortlist; dashboard shows rank + interval + AD badge and exports a chosen case.
-- [ ] Colab deep dive runs **confirmatory docking + hypothesis-only generation** and re-scores through the same `src` models.
-- [ ] **The loop:** one documented end-to-end case flows B → SELECT → A → re-score, before vs after in one report.
-- [ ] README leads with the funnel + hero figures; VALIDATION.md and DESIGN_DECISIONS.md exist; tests + CI + reproduce.sh pass.
+- [x] No placeholder metrics anywhere; every number reproducible from a script + seed.
+- [x] Per-isoform JAK **regressors** trained & evaluated (scaffold split, 5 seeds, MAE/RMSE/R²/Spearman, mean ± std).
+- [x] **Hybrid** selectivity gap `S` implemented and **validated against the measured gap** (Spearman 0.80, 4.5× enrichment); ranking-flip hero figure.
+- [x] Conformal prediction intervals with verified coverage (0.89–0.91 @ 90%); AD flags with the out-of-domain money plot.
+- [x] Wide library screened through the cost tiers to a **selective + in-domain** shortlist; dashboard shows rank + interval + AD badge and exports a chosen case.
+- [x] Colab deep dive runs **hypothesis-only generation** (docking a documented seam) and re-scores through the same `src` models.
+- [x] **The loop:** one documented end-to-end case flows B → SELECT → A → re-score, before vs after in one report + an integration test.
+- [x] README leads with the funnel + hero figures; VALIDATION.md and DESIGN_DECISIONS.md exist; tests + CI + reproduce.sh pass.
 
 ## Known limitations
 

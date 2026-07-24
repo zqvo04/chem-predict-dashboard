@@ -2,7 +2,7 @@
 
 Measured results only. Every number here is reproducible from a script + the data
 source named beside it. Planned-but-unmeasured items live in the
-[roadmap](README.md#roadmap--jak-selectivity-screening-funnel), not here.
+[roadmap](README.md#how-the-funnel-was-built-step-by-step), not here.
 
 ---
 

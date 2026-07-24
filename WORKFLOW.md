@@ -3,13 +3,12 @@
 The full end-to-end system, stage by stage: what data enters, what transforms
 it, what comes out, and which module owns each step. This is the "what/how"
 companion to [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) (the "why") and the
-[README roadmap](README.md#roadmap--jak-selectivity-screening-funnel) (the
+[README roadmap](README.md#how-the-funnel-was-built-step-by-step) (the
 summary).
 
 **Legend.** `[reuse]` = exists in v1, used as-is or with a small change.
-`[new]` = to be built. `[gate]` = a numeric done-when check (see
-DESIGN_DECISIONS.md). Nothing here is trained or measured yet — this is the
-execution blueprint.
+`[new]` = added for the funnel. `[gate]` = a numeric done-when check. **Built and
+validated** (STEP 0–9); measured results are in [VALIDATION.md](VALIDATION.md).
 
 The system is an **explicit cost funnel**: each tier is cheaper per molecule than
 the next and rejects most of what it sees, so the expensive tiers only ever run on
