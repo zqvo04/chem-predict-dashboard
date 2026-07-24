@@ -237,13 +237,14 @@ unsolved problem (not table-stakes potency), its predictions are **checkable
 against measured selectivity**, and they are useless without uncertainty + AD —
 so the build is *forced* to add both.
 
-**One-sentence claim (the finish line).** Extend the v1 single-target screen into
-a closed, selectivity-aware funnel: cheaply screen candidates across the JAK
-kinase family and rank them by **isoform selectivity** with **calibrated
-probabilities** and **applicability-domain** verdicts (stage B, CPU, deployed);
-let a human **pick** a few special cases; run an offline GPU **deep-dive** that
-proposes more-selective analogues as labelled hypotheses (stage A, Colab); then
-**re-score** those analogues through the *same* stage-B models — closing the loop.
+**One-sentence claim (the finish line).** Turn the v1 single-target screen into a
+closed **cost funnel**: run a large, diverse molecule library through cheap tiers
+(rule filters → ligand-based selectivity classifiers → conformal + applicability
+domain) to a shortlist that is **selective *and* in-domain** (stage B, CPU,
+deployed); let a human **pick** a few; run an offline GPU **deep dive**
+(confirmatory structure-based docking + analogue generation) on just those (stage
+A, Colab); then **re-score** everything through the *same* stage-B models — closing
+the loop. *Cheap wide screen → expensive deep dive*, made mechanical.
 
 Why JAK: JAK1/JAK2/JAK3 are highly similar kinases where **isoform selectivity**
 is a genuine, clinically important, unsolved problem (off-target JAK inhibition
@@ -255,43 +256,45 @@ records — enough for per-target classification + uncertainty + AD **without a 
 The single most important change. Each isoform model becomes a **binary
 classifier** (active pchembl ≥ 6 vs inactive ≤ 5, *including right-censored `>`
 values*), so the model finally sees true inactives and learns *active vs inactive*
-— fixing the censored-label gap. Selectivity becomes a **checkable probability**,
-not an arbitrary score:
+— fixing the censored-label gap. Selectivity becomes a **checkable probability**.
+A **hybrid** estimator matches the funnel: a cheap **product** form screens the
+whole library, a **direct** classifier (trained on cross-measured molecules)
+re-ranks and validates the survivors.
 
 ```
-P(selective for JAK1) = P(active | JAK1) · P(inactive | JAK2) · P(inactive | JAK3)
+product (wide):  P(selective|JAK1) = P(active|JAK1) · P(inactive|JAK2) · P(inactive|JAK3)
+direct  (narrow): one classifier, "selective vs not", on the cross-measured set
 ```
 
 Metrics move from R²/RMSE (never validatable here) to **PR-AUC** + **calibration**.
 Full rationale in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md); the end-to-end data
 flow in [WORKFLOW.md](WORKFLOW.md).
 
-### The loop
+### The funnel (cost tiers)
 
 ```
-        +-------------------------------------------------------------+
-        |                                                             |
-        v                                                             |
-[B: WIDE SCREEN — CPU, deployed]                                      |
-  JAK1/2/3 per-isoform classifiers                                    |
-    -> P(selective) = P(active|tgt)·Π P(inactive|off)                 |
-    -> conformal prediction set + applicability-domain flag           |
-    -> ranked selective candidates                                   |
-        |                                                             |
-        |  [SELECT] user picks a few "special cases"  (judgment)      |
-        v                                                             |
-[A: DEEP DIVE — offline Colab, GPU]                                   |
-  chosen scaffold -> generate analogues toward higher P(selective)    |
-    -> generated analogues  (in-silico hypotheses, not hits)          |
-        |                                                             |
-        |  re-score analogues through the SAME src B models           |
-        +-------------------------------------------------------------+
-        (loop closes: before vs after P(selective) + AD distribution)
+  WIDE LIBRARY (~10^5 diverse drug-like, target-agnostic)      [cheap, many]
+        |
+  Tier 0  Ro5 + PAINS rules                near-free      10^5 -> 10^5-
+  Tier 1  classifiers -> P(selective)      ms/molecule    10^5 -> 10^3
+  Tier 2  conformal set + AD (survivors)   pricier/mol    10^3 -> 10^2   [B, CPU]
+        |
+  [SELECT] human picks a few                              10^2 -> few
+        |   export loop_contract.json
+        v
+  Tier 3  DEEP DIVE  (docking + generation) expensive/mol few          [A, Colab GPU]
+        |
+        +-- re-score all through the SAME src B modules --> before/after report
+            (loop closes: re-scored analogues re-enter Tier 0)
 ```
+
+Ordering rule: the **expensive per-molecule operations (AD, conformal, docking)
+run only after the cheap classifier prunes the library** — that is what makes the
+funnel economics real rather than "score everything expensively".
 
 The headline deliverable is that this loop runs **end-to-end on one real case**:
-a candidate flows B → SELECT → A → re-score, with a single report showing the
-shift in **P(selective)** and **applicability-domain** status **before vs after** —
+a molecule flows B → SELECT → A → re-score, with one report showing the shift in
+**P(selective)** and **applicability-domain** status **before vs after** —
 reported as an *in-silico hypothesis requiring wet-lab validation*, never a hit.
 
 ### Design constraints carried over from v1
@@ -310,19 +313,22 @@ reported as an *in-silico hypothesis requiring wet-lab validation*, never a hit.
 Locked choices; rationale + rejected alternatives in
 [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md), mechanics in [WORKFLOW.md](WORKFLOW.md).
 
+- **Funnel = explicit cost tiers:** expensive per-molecule ops (AD, conformal, docking) run *only after* the cheap classifier prunes — the funnel economics, made mechanical.
+- **Wide library:** a ~10^5 diverse, target-agnostic set (ZINC/PubChem), separate from the target's own actives — the honest "wide" top v1 lacked.
 - **Task:** per-isoform **binary classification** (not regression) — fixes the censored-label gap.
-- **Selectivity:** the probability `P(active|target) · Π P(inactive|off)`, validated against measured selectivity.
+- **Selectivity:** **hybrid** — product form screens wide, direct classifier re-ranks/validates the survivors.
 - **Uncertainty:** conformal classification → prediction sets, 90 % coverage, empirically verified.
-- **Applicability domain:** Tanimoto + leverage; propagates to selectivity (worst-case).
-- **Generation:** kept but hypothesis-only (labelled, AD-filtered) — never a claimed hit.
+- **Applicability domain:** Tanimoto + leverage; propagates to selectivity (worst-case). AD-vs-wide is the mechanism, not a bug: apply broadly, trust only in-domain.
+- **Deep dive:** confirmatory **docking** (orthogonal evidence, not an oracle) *then* **generation** (hypothesis-only, AD-filtered) — never a claimed hit.
 - **Loop contract:** versioned JSON pinning model ids + α + code version.
 - **Fallback:** Gate 0 measures cross-measured count; below threshold → pairwise selectivity.
 
 ### Staged build plan (credibility-first)
 
-Reordered so the trust machinery is built and validated *before* selectivity is
-stacked on it. Each step ends with a numeric gate; no step advances on a
-placeholder metric.
+Reordered so the trust machinery (classifiers → conformal → AD) is built and
+validated *before* selectivity is stacked on it, and the wide-library + deep-dive
+tiers come after the scoring core is proven. Each step ends with a numeric gate; no
+step advances on a placeholder metric.
 
 | Step | Goal | Adds / touches | Gate (done-when) |
 |------|------|----------------|------------------|
@@ -330,23 +336,23 @@ placeholder metric.
 | **1** | Credibility pass | `scripts/reproduce.sh`, CI, pinned deps | 5-seed numbers reproduce; CI green |
 | **2** | JAK data layer | 3 cached isoform datasets + labels | per-isoform active/inactive + coverage table |
 | **3** | Per-isoform classifiers | Trainer (reuse), scaffold split + ≥5 seeds | **PR-AUC + calibration** mean ± std |
-| **4** | Selectivity probability | **new** `src/selectivity.py`, `src/loop_contract.py` | hero figure; predicted vs measured selectivity validated |
+| **4** | Selectivity (hybrid) | **new** `src/selectivity.py`, `src/loop_contract.py` | hero figure; product + direct validated vs measured selectivity |
 | **5** | Conformal uncertainty | **new** `src/conformal.py` | empirical coverage 88–92 % @ 90 % nominal |
 | **6** | Applicability domain | **new** `src/applicability.py` | OOD error > in-domain, margin significant (money plot) |
-| **7** | Dashboard = stage B + SELECT | extend `app.py` | screen → select → export a valid contract file |
-| **8** | Colab deep-dive = stage A + loop closure | **new** `notebooks/deep_dive.ipynb` | one worked case; before/after P(selective) + AD |
+| **7** | Wide library + tiered dashboard + SELECT | **new** `src/data/library.py`, extend `app.py` | screen 10^5 → shortlist; export a valid contract file |
+| **8** | Colab deep dive + loop closure | **new** `notebooks/deep_dive.ipynb`, `src/docking.py` | one worked case; docking + gen; before/after P(selective) + AD |
 | **9** | Loop hardening + docs | integration test, VALIDATION.md | full checklist green; loop test passes |
 
 ### Definition of "done"
 
 - [ ] No placeholder metrics anywhere; every number reproducible from a script + seed.
 - [ ] Per-isoform JAK **classifiers** trained & evaluated (scaffold split, ≥5 seeds, PR-AUC + calibration, mean ± std).
-- [ ] `P(selective)` implemented and **validated against measured selectivity**; ranking-flip hero figure.
+- [ ] **Hybrid** `P(selective)` implemented and **validated against measured selectivity**; ranking-flip hero figure.
 - [ ] Conformal prediction sets with verified coverage; AD flags with the out-of-domain money plot.
-- [ ] Dashboard shows selectivity rank + prediction set + in/out-of-domain badge, and exports a chosen case.
-- [ ] Colab deep-dive proposes selective analogues (labelled hypotheses) and re-scores them through the same `src` models.
+- [ ] Wide library screened through the cost tiers to a **selective + in-domain** shortlist; dashboard shows rank + prediction set + AD badge and exports a chosen case.
+- [ ] Colab deep dive runs **confirmatory docking + hypothesis-only generation** and re-scores through the same `src` models.
 - [ ] **The loop:** one documented end-to-end case flows B → SELECT → A → re-score, before vs after in one report.
-- [ ] README leads with the loop + hero figures; VALIDATION.md and DESIGN_DECISIONS.md exist; tests + CI + reproduce.sh pass.
+- [ ] README leads with the funnel + hero figures; VALIDATION.md and DESIGN_DECISIONS.md exist; tests + CI + reproduce.sh pass.
 
 ## Known limitations
 
