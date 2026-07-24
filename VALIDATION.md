@@ -209,6 +209,41 @@ AD propagates to the selectivity gap: `S` is flagged **uncertain** if any
 contributing isoform model is out-of-domain (worst-case), carrying the non-binder
 burden regression alone cannot.
 
+---
+
+## STEP 7 — wide library + tiered screen + SELECT export (2026-07-24)
+
+**Wide library** (`src/data/library.py`): 7 823 unique, canonical, drug-like,
+**target-agnostic** molecules (Tox21 collection — diverse, not JAK actives).
+Demo-scale and offline-cached; the pipeline scales to larger libraries.
+
+**Tiered screen** (`src/funnel.py`, `python -m src.funnel`), JAK1 over JAK2/JAK3:
+
+- Tier 0 Ro5 + PAINS → Tier 1 per-isoform gap `S` + potency floor (top 300 by gap)
+  → Tier 2 conformal interval + applicability domain on survivors → **shortlist of 60**.
+- Of the 60 selective, drug-like candidates, only **3 are in-domain**; the rest are
+  flagged **uncertain**.
+
+That 3/60 is the funnel working as designed, not a failure: a diverse
+target-agnostic library is mostly *outside* the JAK training domain, so AD (STEP 6)
+restricts trust to the small in-domain subset. The wide screen applies the model
+broadly and cheaply; AD is what keeps the output honest. Expensive per-molecule
+work (AD nearest-neighbour, intervals) runs only on the ≤300 Tier-1 survivors, not
+the whole library — the funnel economics.
+
+**Honest limitation:** the gap's conservative 90% interval (sum of two isoform
+half-widths, ≈ ±2.2 pchembl) is wide and often crosses zero even when the point
+gap is clearly selective — the ranking is trustworthy, the per-molecule interval
+tempers confidence rather than confirming selectivity.
+
+**SELECT export** (`src/loop_contract.py`): a picked shortlist becomes a versioned
+JSON contract pinning `model_ids` (content-addressed, e.g.
+`CHEMBL2835@fd9840028c`), `conformal_alpha`, and `code_version`; it round-trips and
+`assert_models_match` rejects a mismatch — so the Stage-A deep dive can only
+re-score through the identical models. The dashboard (`app.py`) gains a
+"JAK selectivity funnel" mode: shortlist table with gap + interval + in/out-of-domain
+badge, a SELECT multiselect, and a contract download button.
+
 ### Where this could still fail
 
 - **≥100× selectivity is thin** (30 / 53 / 39 at S ≥ 2). A strong-selectivity story

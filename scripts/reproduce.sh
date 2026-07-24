@@ -41,6 +41,12 @@ python -m src.applicability
 python scripts/make_ad_figure.py
 
 echo
+echo "== Tiered wide screen (STEP 7) =="
+echo "Screen the diverse library down the funnel to a selective + in-domain shortlist."
+python -m src.data.library
+python -m src.funnel
+
+echo
 echo "== Gate 0 data audit (VALIDATION.md) =="
 echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py

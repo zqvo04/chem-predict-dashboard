@@ -302,7 +302,8 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/models/scaffold_split.py` | reuse + seed arg | scaffold split |
 | `src/models/property_models.py` | reuse | solubility / tox priors |
 | `src/filters/druglikeness.py` | reuse | Tier 0 Ro5 + PAINS |
-| `src/pipeline.py` | extend | add tiered `screen_selectivity()` |
+| `src/funnel.py` | **new** | tiered wide screen (Tier 0-2) + SELECT-to-contract |
+| `src/pipeline.py` | reuse | v1 single-target screen (unchanged) |
 | `src/models/isoform_regressor.py` | **new** | per-isoform pchembl regressor |
 | `src/selectivity.py` | **new** | hybrid gap `S`; shared |
 | `src/conformal.py` | **new** | conformal prediction intervals; shared |

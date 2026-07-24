@@ -71,6 +71,13 @@ def _seed_errors(isoform: str, seed: int, use_cache: bool = True
     return test_err, cal_res
 
 
+def halfwidth(isoform: str, alpha: float = DEFAULT_ALPHA, seed: int = 0,
+              use_cache: bool = True) -> float:
+    """A calibrated interval half-width q for the deployed screen (one split)."""
+    _, cal_res = _seed_errors(isoform, seed, use_cache=use_cache)
+    return conformal_quantile(cal_res, alpha)
+
+
 @dataclass
 class CoverageMetrics:
     isoform: str
