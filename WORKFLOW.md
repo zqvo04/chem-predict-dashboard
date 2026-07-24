@@ -3,13 +3,12 @@
 The full end-to-end system, stage by stage: what data enters, what transforms
 it, what comes out, and which module owns each step. This is the "what/how"
 companion to [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) (the "why") and the
-[README roadmap](README.md#roadmap--jak-selectivity-screening-funnel) (the
+[README roadmap](README.md#how-the-funnel-was-built-step-by-step) (the
 summary).
 
 **Legend.** `[reuse]` = exists in v1, used as-is or with a small change.
-`[new]` = to be built. `[gate]` = a numeric done-when check (see
-DESIGN_DECISIONS.md). Nothing here is trained or measured yet — this is the
-execution blueprint.
+`[new]` = added for the funnel. `[gate]` = a numeric done-when check. **Built and
+validated** (STEP 0–9); measured results are in [VALIDATION.md](VALIDATION.md).
 
 The system is an **explicit cost funnel**: each tier is cheaper per molecule than
 the next and rejects most of what it sees, so the expensive tiers only ever run on
@@ -302,12 +301,15 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/models/scaffold_split.py` | reuse + seed arg | scaffold split |
 | `src/models/property_models.py` | reuse | solubility / tox priors |
 | `src/filters/druglikeness.py` | reuse | Tier 0 Ro5 + PAINS |
-| `src/pipeline.py` | extend | add tiered `screen_selectivity()` |
+| `src/funnel.py` | **new** | tiered wide screen (Tier 0-2) + SELECT-to-contract |
+| `src/pipeline.py` | reuse | v1 single-target screen (unchanged) |
 | `src/models/isoform_regressor.py` | **new** | per-isoform pchembl regressor |
 | `src/selectivity.py` | **new** | hybrid gap `S`; shared |
 | `src/conformal.py` | **new** | conformal prediction intervals; shared |
 | `src/applicability.py` | **new** | Tanimoto + leverage AD; shared |
-| `src/docking.py` | **new** | Tier-3 docking wrapper (Colab) |
+| `src/generate.py` | **new** | CPU analogue generation (scaffold decoration) |
+| `src/deep_dive.py` | **new** | Stage-A loop closure: generate + re-score + report |
+| `src/docking.py` | future | optional Tier-3 docking seam (documented in the notebook) |
 | `src/loop_contract.py` | **new** | JSON contract IO + model-pin assert |
 | `app.py` | extend | tiered screen, AD badge, SELECT/export |
 | `notebooks/deep_dive.ipynb` | **new** | Tier 3: docking + generation + re-score |

@@ -1,13 +1,13 @@
 # Design decisions — JAK-selectivity screening funnel
 
 Why the funnel is built the way it is. This document is the rationale companion to
-the [Roadmap](README.md#roadmap--jak-selectivity-screening-funnel). It records
+the [Roadmap](README.md#how-the-funnel-was-built-step-by-step). It records
 decisions and the reasoning (including rejected alternatives), so future changes
 argue with the reasoning rather than silently reverse it.
 
-**Status:** planning artifact. No results are recorded here yet; measured numbers
-live in `VALIDATION.md` once produced. Where a threshold is stated, it is a
-*gate*, not a claim.
+**Status:** built (STEP 0–9). This records the *why*; the measured numbers live in
+[VALIDATION.md](VALIDATION.md). Where a threshold is stated, it is a *gate* the
+build passed.
 
 ---
 

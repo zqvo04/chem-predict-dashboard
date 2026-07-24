@@ -29,6 +29,29 @@ python -m src.selectivity
 python scripts/make_hero_figure.py
 
 echo
+echo "== Conformal coverage (STEP 5) =="
+echo "5-seed empirical coverage at 90% nominal + coverage-vs-nominal figure."
+python -m src.conformal
+python scripts/make_coverage_figure.py
+
+echo
+echo "== Applicability domain (STEP 6) =="
+echo "In- vs out-of-domain error margin + money plot."
+python -m src.applicability
+python scripts/make_ad_figure.py
+
+echo
+echo "== Tiered wide screen (STEP 7) =="
+echo "Screen the diverse library down the funnel to a selective + in-domain shortlist."
+python -m src.data.library
+python -m src.funnel
+
+echo
+echo "== Funnel loop, one worked case (STEP 8) =="
+echo "B -> SELECT -> A (generate + re-score) -> before/after report + figure."
+python scripts/run_loop.py
+
+echo
 echo "== Gate 0 data audit (VALIDATION.md) =="
 echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py
