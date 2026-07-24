@@ -72,26 +72,47 @@ not) is categorical.
 
 ---
 
-## 2. Selectivity as a probability
+## 2. Selectivity as a probability — hybrid estimator
 
-**Decision.**
-```
-P(selective for target) = P(active | target) · Π_off P(inactive | off-isoform)
-```
-computed from the per-isoform classifier probabilities.
+**Decision.** Two estimators of selectivity, used at different funnel tiers:
 
-**Why.** It is a single, interpretable quantity built only from calibrated
-per-isoform probabilities, and — unlike the v1 composite — it is **validatable**:
-on molecules measured across isoforms we can compare predicted `P(selective)` to
-the *measured* selectivity label (gap #3). The product form encodes the clinical
-reality that selectivity requires being active at the target **and** clean at
-**every** off-target — one bad off-target kills selectivity, matching the
-worst-case `max` intuition from the earlier regression framing.
+- **Product form (wide, Tier 1)** — from the per-isoform classifiers:
+  ```
+  P(selective | target) = P(active | target) · Π_off (1 − P(active | off))
+  ```
+- **Direct classifier (narrow, Tier 2)** — a single classifier trained on the
+  cross-measured set with a "selective vs not" label.
 
-**Potency floor is intrinsic.** Because the target term is `P(active | target)`, a
-molecule inactive everywhere gets a low `P(selective)` automatically — no separate
-floor needed (this was an explicit patch in the regression framing; classification
-absorbs it).
+**Why a hybrid, not one or the other.** The two trade off along the exact axis the
+funnel cares about:
+
+- The **product form uses all per-isoform data** (every molecule measured on *any*
+  isoform trains its factor) and can score *any* molecule, so it is the only
+  estimator that works on the unlabelled wide library. Its weakness: it multiplies
+  three probabilities, so **miscalibration compounds** — a small per-isoform bias
+  becomes a larger error in the product.
+- The **direct classifier avoids compounding** (it learns the selective/not
+  boundary in one shot) but can only train on the **cross-measured** set, which is
+  thin (Gate 0 risk). Using it to screen the whole library would extrapolate far
+  past its training support.
+
+So: product form does the cheap wide screen (Tier 1); the direct classifier
+**re-ranks the survivors** and serves as an **independent validator** of the
+product estimator at Tier 2. Neither is trusted alone. If the two disagree
+sharply on a molecule, that is surfaced, not averaged away.
+
+Both are **validatable** — unlike the v1 composite — against the *measured*
+selectivity label on held-out cross-measured molecules (gap #3). The product form
+encodes the clinical reality that selectivity needs activity at the target **and**
+cleanliness at **every** off-target (one bad off-target kills it).
+
+**Potency floor is intrinsic.** The `P(active | target)` factor drives
+`P(selective)` low for molecules inactive everywhere — no separate floor needed.
+
+**Rejected.** *Product only* — cheap but compounding error goes unchecked.
+*Direct only* — cleaner but cannot screen the wide library and dies if Gate 0 is
+thin. The hybrid is what lets a data-rich cheap screen coexist with a data-lean
+honest validator.
 
 ---
 
@@ -151,17 +172,42 @@ AD does not separate error, it is decorative and the step fails.
 
 ---
 
-## 6. Generation (stage A): hypothesis-only
+## 6. The deep dive (stage A, Tier 3): confirmatory scoring + generation
 
-**Decision.** Keep conditional generation in the offline Colab notebook, but every
-generated molecule is labelled an **in-silico hypothesis requiring wet-lab
-validation** and filtered through the same AD; nothing is presented as a hit.
+**Decision.** The expensive tier does two distinct things on the handful of
+selected molecules, in this order:
 
-**Why.** De-novo generation of *validated* selective molecules on a zero-cost /
-Colab budget is not achievable, and pretending otherwise would recreate gap #1 in
-fancier form. The defensible deliverable is a **distribution shift**: after
-generation, does the population's `P(selective)` move up while staying in-domain?
-That is an honest, checkable claim; "we found a drug" is not.
+1. **Confirmatory structure-based docking** (AutoDock Vina into published
+   JAK1/2/3 structures) — *orthogonal* evidence against the ligand-based ML score.
+2. **Conditional generation** of analogues toward higher `P(selective)` — labelled
+   in-silico hypotheses, AD-filtered.
+
+Both are re-scored through the same `src` B modules.
+
+**Why confirmatory scoring is the primary deep-dive, not generation.** The user's
+funnel is "narrow, then dig **deep**" — dig deep means *learn more about the few
+survivors*, which is a **scoring/analysis** axis. Generation instead *creates new
+molecules* — an **expansion** axis, orthogonal to digging deep. They are both
+useful but they are not the same thing, and conflating them (the earlier framing)
+made "deep dive" mean "make more molecules", which does not deepen knowledge of the
+selected case at all. So the deep dive leads with confirmatory analysis; generation
+is the second, optional axis.
+
+**Why docking, and its honest limits.** Docking is *structure-based* and therefore
+**orthogonal** to the *ligand-based* ML — it can corroborate or contradict the ML's
+selectivity call using different information (the actual binding pocket). But
+docking scores correlate weakly with measured affinity, so docking is used for
+**consensus and pose inspection, never as a second oracle**. A molecule the ML
+calls selective *and* that docks preferentially into the target pocket over the
+off-isoforms is a stronger hypothesis; disagreement is flagged, not buried. Vina is
+CPU-capable but slow, which is why it lives in the expensive Tier-3 stage on a
+handful of molecules, not in the wide screen.
+
+**Why generation stays hypothesis-only.** De-novo generation of *validated*
+selective molecules on a zero-cost / Colab budget is not achievable; pretending
+otherwise recreates gap #1 in fancier form. The defensible deliverable is a
+**distribution shift** — does the generated population's `P(selective)` move up
+while staying in-domain? That is checkable; "we found a drug" is not.
 
 ---
 
@@ -196,12 +242,69 @@ elaborate story on absent ground truth.
 
 ## 9. CPU-only / zero-cost split
 
-**Decision.** Stage B (screening: classifiers, conformal, AD, dashboard) runs on
+**Decision.** Stage B (Tiers 0–2: classifiers, conformal, AD, dashboard) runs on
 CPU within the free-host budget (~1 vCPU / ~1 GB). GPU is confined to the offline
-Colab notebook (stage A generation) and never touches the deployed app.
+Colab notebook (Tier 3: docking + generation) and never touches the deployed app.
 
 **Why.** The constraint is the project's premise. Classification, conformal, and AD
-are all cheap CPU operations on ECFP4 features; only generation benefits from a
-GPU, and it is inherently offline (a human selects a case first). Keeping the
+are all cheap CPU operations on ECFP4 features; only docking and generation want a
+GPU, and they are inherently offline (a human selects a case first). Keeping the
 shared scoring `src` modules CPU-only is also what lets the *same* code run in both
 the app and the notebook.
+
+---
+
+## 10. The funnel as explicit cost tiers
+
+**Decision.** Order the pipeline as tiers of increasing per-molecule cost, each
+rejecting most of its input, so expensive operations only ever touch a handful of
+survivors:
+
+| Tier | Cost / molecule | Operation | Rough cut |
+|------|-----------------|-----------|-----------|
+| 0 | near-free | Ro5 + PAINS rules | 10^5 → 10^5- |
+| 1 | ms | classifiers → product `P(selective)` | 10^5 → 10^3 |
+| 2 | pricier | conformal + AD (+ direct re-rank) | 10^3 → 10^2 |
+| SELECT | human | judgment | 10^2 → few |
+| 3 | expensive | docking + generation | few |
+
+**Why.** This *is* the "cheap wide screen → expensive deep dive" goal, made
+mechanical. The decisive rule: **the expensive per-molecule operations run only
+after the cheap classifier has pruned the library.** Applicability domain in
+particular is O(N_train) per query (Tanimoto to the training set) — cheap on 10^2
+survivors, prohibitive on a 10^5 library. Deferring AD and conformal to Tier 2 (and
+docking to Tier 3) is what keeps the funnel economically real rather than a flat
+"score everything expensively" pipeline wearing a funnel diagram.
+
+**Scalability note.** If Tier-1 survivor sets get large, AD nearest-neighbour uses
+approximate search (LSH / FAISS on packed fingerprints) or a fixed diverse training
+reference, keeping Tier 2 bounded.
+
+---
+
+## 11. The wide screening library (and the AD tension)
+
+**Decision.** The screen's input is a large, diverse, **target-agnostic** library
+(default ~10^5 drug-like molecules from ZINC20 lead-like or a PubChem random
+sample, source pluggable), **separate** from the target's own ChEMBL actives.
+
+**Why.** v1's "novel candidates" came from PubChem *similarity* expansion of known
+actives — near-duplicates inside the training neighborhood (gap #1). That is not a
+wide screen; it is retrieval. A genuine funnel needs a broad haystack the cheap
+tiers search, unrelated to what the model already knows.
+
+**The tension, stated openly.** A diverse library means **most of it is
+out-of-domain** for models trained on ChEMBL JAK chemistry. Naively, that looks
+fatal — the screen would return mostly "uncertain". It is not fatal; it is the
+*reason the AD tier exists*. The honest reading:
+
+- The wide screen **applies** the model broadly (cheap, Tier 1) to find candidate
+  selective molecules.
+- The AD tier (Tier 2) then **restricts trust** to the in-domain subset.
+- The funnel's output is therefore "**selective *and* in-domain**" molecules — a
+  defensible middle ground between "only re-rank known actives" (too narrow, v1)
+  and "trust predictions on wild extrapolations" (dishonest).
+
+So AD-vs-wide is not a bug to hide but the exact mechanism that makes a broad cheap
+screen honest. The size is demo-scale on the zero-cost budget; the design scales to
+larger libraries bounded only by Tier-1 throughput.
