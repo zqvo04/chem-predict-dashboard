@@ -198,20 +198,65 @@ PubChem/ChEMBL calls need outbound network, which the hosted runtime allows.
 > **Status: planned.** This section describes the next arc, not shipped code.
 > Every figure and metric it mentions is a target to be produced with a seed +
 > script, never a placeholder to be filled in. Where a value is not yet
-> measured, the build will say *pending*.
+> measured, the build will say *pending*. The reasoning behind each choice below
+> lives in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
+
+### Why v1 is not enough (the honest starting point)
+
+v1 is a sound *engineering* skeleton with a hollow *scientific* value proposition.
+Four gaps make its output untrustworthy as discovery, and the funnel exists to
+close them — not to pile features on top:
+
+- **"Novel" candidates aren't novel.** PubChem 2D-similarity expansion returns
+  near-analogues of known actives — inside the training scaffold neighborhood — so
+  the headline scaffold-split R² does not apply to them. Interpolation on
+  near-duplicates dressed up as prediction.
+- **No trust signal.** Every prediction is emitted with equal confidence; an
+  in-domain estimate and a wild extrapolation look identical. No uncertainty, no
+  applicability domain.
+- **Unvalidated ranking.** The composite score's weights
+  (`0.5·activity + …`) are validated against no endpoint. A confident-looking
+  ranking with no evidence it enriches for anything.
+- **Censored, biased label.** Regression trains only on *quantified* pchembl, so
+  the model never sees a true inactive and cannot recognize a non-binder — fatal
+  for a tool whose job is to reject bad molecules.
+
+The funnel fixes the trust gaps by construction: selectivity is a genuine
+unsolved problem (not table-stakes potency), its predictions are **checkable
+against measured selectivity**, and they are useless without uncertainty + AD —
+so the build is *forced* to add both.
 
 **One-sentence claim (the finish line).** Extend the v1 single-target screen into
 a closed, selectivity-aware funnel: cheaply screen candidates across the JAK
 kinase family and rank them by **isoform selectivity** with **calibrated
-uncertainty** and **applicability-domain** verdicts (stage B, CPU, deployed); let
-a human **pick** a few special cases; run an offline GPU **deep-dive** that
-generates more-selective analogues (stage A, Colab); then **re-score** those
-analogues through the *same* stage-B models — closing the loop.
+probabilities** and **applicability-domain** verdicts (stage B, CPU, deployed);
+let a human **pick** a few special cases; run an offline GPU **deep-dive** that
+proposes more-selective analogues as labelled hypotheses (stage A, Colab); then
+**re-score** those analogues through the *same* stage-B models — closing the loop.
 
 Why JAK: JAK1/JAK2/JAK3 are highly similar kinases where **isoform selectivity**
 is a genuine, clinically important, unsolved problem (off-target JAK inhibition
 drives immunosuppression/toxicity), and ChEMBL has thousands of per-isoform
-records — enough for per-target QSAR + uncertainty + AD **without a GPU**.
+records — enough for per-target classification + uncertainty + AD **without a GPU**.
+
+### The core reframe: potency regression → selectivity classification
+
+The single most important change. Each isoform model becomes a **binary
+classifier** — active (pchembl ≥ 6) vs inactive (pchembl ≤ 5, *including
+right-censored `>` values*), with the 5–6 gray zone dropped from training labels
+to reduce boundary noise. This directly fixes the censored-label gap: the model
+finally sees true inactives and learns *active vs inactive*, not *potency among
+actives*. Selectivity then becomes a probability, not an arbitrary score:
+
+```
+P(selective for JAK1) = P(active | JAK1) · P(inactive | JAK2) · P(inactive | JAK3)
+```
+
+which is **checkable against measured selectivity** on held-out molecules —
+unlike the v1 composite. Metrics move from R²/RMSE (which were never validatable
+here) to **PR-AUC** (class imbalance makes this the honest metric) and
+**calibration** (Brier / reliability curve — the proof that a probability is a
+real probability).
 
 ### The loop
 
@@ -220,78 +265,91 @@ records — enough for per-target QSAR + uncertainty + AD **without a GPU**.
         |                                                             |
         v                                                             |
 [B: WIDE SCREEN — CPU, deployed]                                      |
-  JAK1/2/3 per-isoform QSAR                                           |
-    -> selectivity index                                             |
-    -> conformal interval + applicability-domain flag                |
+  JAK1/2/3 per-isoform classifiers                                    |
+    -> P(selective) = P(active|tgt)·Π P(inactive|off)                 |
+    -> conformal prediction set + applicability-domain flag           |
     -> ranked selective candidates                                   |
         |                                                             |
         |  [SELECT] user picks a few "special cases"  (judgment)      |
         v                                                             |
 [A: DEEP DIVE — offline Colab, GPU]                                   |
-  chosen scaffold -> conditional generation toward higher selectivity |
-    -> generated analogues                                           |
+  chosen scaffold -> generate analogues toward higher P(selective)    |
+    -> generated analogues  (in-silico hypotheses, not hits)          |
         |                                                             |
         |  re-score analogues through the SAME src B models           |
         +-------------------------------------------------------------+
-                (loop closes: before vs after selectivity + AD)
+        (loop closes: before vs after P(selective) + AD distribution)
 ```
 
 The headline deliverable is that this loop runs **end-to-end on one real case**:
-a candidate flows B → SELECT → A → re-score, with a single report showing its
-selectivity / applicability-domain **before vs after**.
+a candidate flows B → SELECT → A → re-score, with a single report showing the
+shift in **P(selective)** and **applicability-domain** status **before vs after** —
+reported as an *in-silico hypothesis requiring wet-lab validation*, never a hit.
 
 ### Design constraints carried over from v1
 
 - **CPU-only / zero-cost** for the deployed stage B (~1 vCPU / ~1 GB). GPU lives
   **only** in the offline Colab notebook (stage A), never in the app.
-- The scoring logic — selectivity index, conformal intervals, applicability
-  domain — lives in **shared `src` modules imported by both the app and the
-  notebook**, never duplicated. That shared code is what makes "re-score through
-  the same models" real rather than a reimplementation that silently diverges.
+- The scoring logic — selectivity probability, conformal prediction sets,
+  applicability domain — lives in **shared `src` modules imported by both the app
+  and the notebook**, never duplicated. That shared code is what makes "re-score
+  through the same models" real rather than a reimplementation that silently diverges.
 - Reuse the existing featurizer (ECFP4), scaffold split, and Trainer — the
   funnel is an **additive** extension, not a rewrite.
 
-### Planned design decisions (defaults, open to change)
+### Confirmed design decisions
 
-- **Selectivity index:** `S_target = pchembl_pred(target) − max(pchembl_pred(off-isoforms))`,
-  in log-potency units (+1.0 ≈ 10× selective). `max` (worst-case off-target) over
-  `mean`, because selectivity is limited by the *closest* off-target. Ranked only
-  among candidates clearing a target-potency floor (default pchembl ≥ 6, ~1 µM),
-  so "selective but inactive everywhere" can't win.
-- **Uncertainty:** split-conformal intervals at **90 %** nominal coverage, per
-  isoform, with empirically verified coverage.
+Rationale for each is in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md). Small knobs
+(defaults) are marked; everything else is locked.
+
+- **Task = per-isoform binary classification**, not potency regression. Active =
+  pchembl ≥ 6, inactive = pchembl ≤ 5 (including right-censored `>`), gray zone
+  5–6 dropped from training *(default thresholds)*. Fixes the censored-label gap.
+- **Selectivity = probability:** `P(selective) = P(active|target) · Π P(inactive|off)`.
+  Validated against *measured* selectivity on a held-out scaffold split (PR-AUC /
+  enrichment), never left as an unvalidated score.
+- **Uncertainty:** conformal *classification* (Mondrian / APS) → prediction sets
+  with guaranteed coverage at **90 %** nominal *(default)*, empirically verified.
 - **Applicability domain:** ≥2 definitions (Tanimoto-to-training distance +
   descriptor-space leverage); a selectivity call is flagged **uncertain** if any
   contributing isoform model is out-of-domain.
+- **Generation (stage A):** kept, but every generated molecule is labelled an
+  *in-silico hypothesis requiring wet-lab validation* and filtered by AD — no
+  molecule is presented as a hit.
 - **Loop data contract:** one versioned **JSON** object flowing B → SELECT → A →
   re-score, pinning the exact model ids + conformal α + code version so stage A
   scores with identical models. JAK1/2/3 for the flagship; TYK2 optional.
+- **Fallback (if data is thin):** Gate 0 measures the 3-way cross-measured count;
+  below threshold, the flagship narrows to **pairwise selectivity** (e.g. JAK1
+  over JAK2) on whichever pair has the most co-measured molecules.
 
-### Staged build plan
+### Staged build plan (credibility-first)
 
-Each step ends with a validation output and a done-when check; no step advances on
-a placeholder metric.
+Reordered so the trust machinery is built and validated *before* selectivity is
+stacked on it. Each step ends with a numeric gate; no step advances on a
+placeholder metric.
 
-| Step | Goal | Adds / touches | Hero output |
-|------|------|----------------|-------------|
-| **1** | Credibility pass | `scripts/reproduce.sh`, CI, pinned deps | 5-seed numbers reproduce |
-| **2** | JAK data layer | `chembl_client` (reuse) → 3 cached isoform datasets | per-isoform count + pchembl table |
-| **3** | Per-isoform QSAR | Trainer (reuse), scaffold split + seeds | metrics table (mean ± std) |
-| **4** | Selectivity index | **new** `src/selectivity.py`, `src/loop_contract.py` | `selectivity_ranking_flip.png` |
-| **5** | Conformal uncertainty | **new** `src/conformal.py` | `conformal_coverage.png` |
-| **6** | Applicability domain | **new** `src/applicability.py` | `applicability_error.png` (the money plot) |
-| **7** | Dashboard = stage B + SELECT | extend `app.py` | screen → select → export a case |
-| **8** | Colab deep-dive = stage A + loop closure | **new** `notebooks/deep_dive.ipynb` | `loop_before_after.png`, one worked case |
-| **9** | Loop hardening + docs | integration test, VALIDATION.md, DESIGN_DECISIONS.md | full checklist green |
+| Step | Goal | Adds / touches | Gate (done-when) |
+|------|------|----------------|------------------|
+| **0** | Data go/no-go | `chembl_client` (reuse) → JAK1/2/3 pull | 3-way cross-measured N ≥ threshold, else pairwise pivot |
+| **1** | Credibility pass | `scripts/reproduce.sh`, CI, pinned deps | 5-seed numbers reproduce; CI green |
+| **2** | JAK data layer | 3 cached isoform datasets + labels | per-isoform active/inactive + coverage table |
+| **3** | Per-isoform classifiers | Trainer (reuse), scaffold split + ≥5 seeds | **PR-AUC + calibration** mean ± std |
+| **4** | Selectivity probability | **new** `src/selectivity.py`, `src/loop_contract.py` | hero figure; predicted vs measured selectivity validated |
+| **5** | Conformal uncertainty | **new** `src/conformal.py` | empirical coverage 88–92 % @ 90 % nominal |
+| **6** | Applicability domain | **new** `src/applicability.py` | OOD error > in-domain, margin significant (money plot) |
+| **7** | Dashboard = stage B + SELECT | extend `app.py` | screen → select → export a valid contract file |
+| **8** | Colab deep-dive = stage A + loop closure | **new** `notebooks/deep_dive.ipynb` | one worked case; before/after P(selective) + AD |
+| **9** | Loop hardening + docs | integration test, VALIDATION.md | full checklist green; loop test passes |
 
 ### Definition of "done"
 
 - [ ] No placeholder metrics anywhere; every number reproducible from a script + seed.
-- [ ] Per-isoform JAK QSAR trained & evaluated (scaffold split, ≥5 seeds, mean ± std).
-- [ ] Selectivity index + ranking-flip hero figure.
-- [ ] Conformal intervals with verified coverage; AD flags with the out-of-domain money plot.
-- [ ] Dashboard shows selectivity rank + interval + in/out-of-domain badge, and exports a chosen case.
-- [ ] Colab deep-dive generates more-selective analogues and re-scores them through the same `src` models.
+- [ ] Per-isoform JAK **classifiers** trained & evaluated (scaffold split, ≥5 seeds, PR-AUC + calibration, mean ± std).
+- [ ] `P(selective)` implemented and **validated against measured selectivity**; ranking-flip hero figure.
+- [ ] Conformal prediction sets with verified coverage; AD flags with the out-of-domain money plot.
+- [ ] Dashboard shows selectivity rank + prediction set + in/out-of-domain badge, and exports a chosen case.
+- [ ] Colab deep-dive proposes selective analogues (labelled hypotheses) and re-scores them through the same `src` models.
 - [ ] **The loop:** one documented end-to-end case flows B → SELECT → A → re-score, before vs after in one report.
 - [ ] README leads with the loop + hero figures; VALIDATION.md and DESIGN_DECISIONS.md exist; tests + CI + reproduce.sh pass.
 
