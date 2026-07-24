@@ -125,6 +125,36 @@ on all data and cached to `data/models/jak/{isoform}_reg.pkl`.
 **Gate 3 passed:** metrics stable across seeds; scaffold split applied before any
 fit (no leakage). This is the Tier-1 engine the selectivity gap is built on next.
 
+---
+
+## STEP 4 — selectivity gap, validated against the measured gap (2026-07-24)
+
+The gap `S = pchembl_pred(JAK1) − max(pchembl_pred(JAK2), pchembl_pred(JAK3))`,
+evaluated over 5 scaffold-split seeds of the **cross-measured** set (n = 3624),
+predicted vs the *measured* gap (`src/selectivity.py`, `python -m src.selectivity`).
+Isoform regressors here are trained only on the scaffold-train molecules
+(leak-free, and conservative vs the deployed all-data models).
+
+| Estimator | Spearman (predicted vs measured gap) |
+|-----------|:------------------------------------:|
+| difference-of-regressors (wide) | 0.797 ± 0.041 |
+| direct gap regressor (narrow re-rank) | 0.816 ± 0.044 |
+
+Top-decile enrichment of ≥10×-selective molecules: **4.54 ± 0.56×** over a base
+rate of 16.4% — the top 10% ranked by predicted gap concentrate 4.5× more truly
+selective molecules than random.
+
+**Gate 4 passed.** Predicted selectivity tracks measured selectivity (Spearman
+≈ 0.80), and the ranking enriches for real selective molecules — the first
+evidence the funnel's central claim is not hollow. The direct regressor edges the
+difference form (no stacked error), exactly the hybrid rationale; both are kept
+(difference screens wide, direct re-ranks/validates).
+
+**Hero figure** (`figures/selectivity_ranking_flip.png`, `scripts/make_hero_figure.py`):
+predicted potency vs predicted gap for the cross-measured molecules, shaded by
+*measured* gap — the molecule ranked #1 by potency alone is not the one ranked #1
+by selectivity, the rank flip a potency-only screen would miss.
+
 ### Where this could still fail
 
 - **≥100× selectivity is thin** (30 / 53 / 39 at S ≥ 2). A strong-selectivity story

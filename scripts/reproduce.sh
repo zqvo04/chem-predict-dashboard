@@ -23,6 +23,12 @@ echo "5-seed scaffold-split MAE/RMSE/R2/Spearman per isoform (a few minutes)."
 python -m src.models.isoform_regressor
 
 echo
+echo "== Selectivity gap validation (STEP 4) =="
+echo "5-seed predicted-vs-measured gap Spearman + enrichment on the cross-measured set."
+python -m src.selectivity
+python scripts/make_hero_figure.py
+
+echo
 echo "== Gate 0 data audit (VALIDATION.md) =="
 echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py

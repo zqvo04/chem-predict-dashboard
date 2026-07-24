@@ -5,7 +5,9 @@ pandas==3.0.5        # candidate tables
 pyarrow==24.0.0      # parquet cache backend
 rdkit==2026.3.4      # SMILES validation + drawing
 scikit-learn==1.9.0  # HistGradientBoosting QSAR
+scipy==1.17.1        # Spearman correlation for metrics
 streamlit==1.60.0    # dashboard
+matplotlib==3.11.1   # offline hero / coverage / money figures
 
 # Dev / test
 pytest==9.1.1
