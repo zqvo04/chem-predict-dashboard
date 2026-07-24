@@ -25,10 +25,10 @@ dive* — is the whole point, and it dictates the tier order below.
         │
   Tier 0  rule filters (Ro5 + PAINS)              near-free       10^5 → ~10^5-
         │
-  Tier 1  per-isoform classifiers → P(selective)   ms/molecule    10^5 → 10^3
-        │   (ligand-based, product of calibrated probs)
+  Tier 1  per-isoform regressors → gap S           ms/molecule    10^5 → 10^3
+        │   (ligand-based; S = pchembl(tgt) − max_off pchembl(off))
         │
-  Tier 2  conformal set + applicability domain      pricier/mol    10^3 → 10^2
+  Tier 2  conformal interval + applicability domain pricier/mol    10^3 → 10^2
         │   run ONLY on Tier-1 survivors; keep in-domain + selective
         │
   [SELECT]  human picks a few cases (judgment)                     10^2 → few
@@ -40,7 +40,7 @@ dive* — is the whole point, and it dictates the tier order below.
         │
         └── re-score everything through the SAME src B modules ──┐
                                                                  │
-                          before/after: P(selective) + AD report │
+                          before/after: gap S + AD report        │
                                                                  │
         (loop closes: re-scored analogues can re-enter Tier 0) ──┘
 ```
@@ -70,7 +70,7 @@ or a PubChem random sample), source pluggable and demo-scale; the pipeline scale
 to larger libraries in principle, bounded only by Tier-1 throughput. This is the
 funnel's top — the "haystack" the cheap tiers search.
 
-**Honest scope.** The library is unlabelled: `P(selective)` on it is pure
+**Honest scope.** The library is unlabelled: the selectivity gap `S` on it is pure
 prediction, and most of a diverse library sits **outside** the model's
 applicability domain. That is not a bug — it is why Tier 2 exists. The wide screen
 *applies* the model broadly; it is trusted only where AD says in-domain (see §5).
@@ -95,24 +95,24 @@ For each of JAK1 / JAK2 / JAK3 (TYK2 optional): `resolve_target` → `fetch_acti
 One row per (molecule, isoform) via **median** pchembl over replicates. Drop
 unparseable SMILES; canonicalize.
 
-### 2.3 Label assignment  `[new: src/labels.py]`
+### 2.3 Regression target
+Each per-isoform table carries the **median pchembl** as the regression label
+(continuous, range ~4–11). No active/inactive labelling — Gate 0 showed the
+inactive class is nearly empty (75 / 333 / 245), so classification is not viable;
+selectivity lives in the pchembl *gap*, not a class split (DESIGN_DECISIONS §1).
 
-| pchembl | label | used in training? |
-|---------|-------|-------------------|
-| ≥ 6 | **active** (1) | yes |
-| ≤ 5 (incl. right-censored `>`) | **inactive** (0) | yes |
-| 5 – 6 (gray zone) | ambiguous | **dropped from training labels** |
+### 2.4 Cross-measured join  `[new]` `[gate: Gate 0 — DONE]`
+Inner-join the three tables on canonical SMILES → the subset measured on **all
+three** isoforms. Only set on which the selectivity gap can be **validated**.
 
-### 2.4 Cross-measured join  `[new]` `[gate: Gate 0]`
-Inner-join the three labelled tables on canonical SMILES → the subset measured on
-**all three** isoforms. Only set on which selectivity can be **validated**.
-
-**Gate 0 (go/no-go).** Count 3-way cross-measured molecules. Above threshold →
-3-isoform selectivity. Below → **pivot to pairwise** (target over the off-isoform
-with the most co-measured molecules). Decided *after* seeing real counts.
+**Gate 0 result (measured, see [VALIDATION.md](VALIDATION.md)):** 3-way
+cross-measured = **3624** (healthy); the gap-based selective positives are ample
+(593 JAK1-selective at ≥10×; 2073 in the JAK1–JAK2 pairwise view). 3-isoform
+selectivity proceeds; the pairwise fallback stays available for a stronger
+(≥100×) story.
 
 **Artifacts.** `data/jak/{JAK1,JAK2,JAK3}.parquet`, `data/jak/cross_measured.parquet`,
-a printed count + pchembl-distribution table.
+a count + pchembl-distribution table.
 
 ---
 
@@ -124,37 +124,37 @@ stage-A re-scoring coherent.
 
 ---
 
-## 4. Stage B, Tier 1 — cheap wide classification (CPU)
+## 4. Stage B, Tier 1 — cheap wide scoring (CPU)
 
-### B1. Per-isoform classifiers  `[new: src/models/isoform_classifier.py, reuses Trainer pattern]`
-Per isoform, a **binary classifier** (HistGradientBoostingClassifier) predicting
-**P(active)** from ECFP4.
-- Scaffold split `[reuse + new seed arg]`, ≥5 seeds, report **PR-AUC + calibration
-  (Brier / reliability)** mean ± std.
-- Calibrate (Platt/isotonic) if reliability poor — B2 multiplies these probs.
-- **[gate: Gate 3]** stable PR-AUC + good calibration.
+### B1. Per-isoform regressors  `[new: src/models/isoform_regressor.py, reuses Trainer pattern]`
+Per isoform, a **pchembl regressor** (HistGradientBoostingRegressor, the v1
+approach) from ECFP4.
+- Scaffold split `[reuse + new seed arg]`, ≥5 seeds, report **MAE / RMSE / R² /
+  Spearman** mean ± std.
+- **[gate: Gate 3]** metrics stable across seeds; no test leakage.
 
-### B2. Selectivity probability — hybrid  `[new: src/selectivity.py]`
+### B2. Selectivity gap — hybrid  `[new: src/selectivity.py]`
 Two estimators, used at different tiers (DESIGN_DECISIONS §2):
 
-- **Wide (Tier 1), product form** — uses all per-isoform data, scores any molecule:
+- **Wide (Tier 1), difference-of-regressors** — uses all per-isoform data, scores
+  any molecule:
   ```
-  P(selective|target) = P(active|target) · Π_off (1 − P(active|off))
+  S(target) = pchembl_pred(target) − max_off pchembl_pred(off-isoform)
   ```
-  Cheap, applied to the whole library. No separate potency floor needed (the
-  target factor suppresses inactive-everywhere molecules).
-- **Narrow (Tier 2 re-rank / validation), direct classifier** — a single
-  classifier trained on the cross-measured set with a "selective vs not" label.
-  Cleaner (no compounding calibration error) but data-limited, so used only to
-  **re-rank survivors** and to **validate** the product estimator, not to screen
-  the whole library.
+  Cheap, applied to the whole library. Ranked among candidates clearing a
+  **target-potency floor** (default `pchembl_pred(target) ≥ 6`), and shown as the
+  pair *(target potency, gap)* — never gap alone.
+- **Narrow (Tier 2 re-rank / validation), direct gap regressor** — a single
+  regressor trained on the cross-measured set to predict the measured gap directly.
+  Avoids the stacked error of the difference form but is data-limited, so used only
+  to **re-rank survivors** and **validate** the difference estimator.
 
 **Validation** `[gate: Gate 4]`: on the cross-measured held-out scaffold split,
-compare predicted `P(selective)` (both estimators) to the *measured* selective
-label (PR-AUC / enrichment). Basis for the hero figure.
+compare predicted `S` (both estimators) to the *measured* gap — **Spearman** +
+**enrichment of ≥10×-selective molecules**. Basis for the hero figure.
 
-Tier-1 output: the library ranked by product `P(selective)`; keep the top band
-(e.g. 10^5 → 10^3). Cheap ops only so far.
+Tier-1 output: the library ranked by `S` (above the potency floor); keep the top
+band (e.g. 10^5 → 10^3). Cheap ops only so far.
 
 ---
 
@@ -162,15 +162,17 @@ Tier-1 output: the library ranked by product `P(selective)`; keep the top band
 
 Runs **only on Tier-1 survivors**, so its higher per-molecule cost is bounded.
 
-### B3. Conformal prediction sets  `[new: src/conformal.py]`
-Split/inductive conformal classification (Mondrian / APS) → a prediction set per
-molecule per isoform at **90 %** nominal coverage.
+### B3. Conformal prediction intervals  `[new: src/conformal.py]`
+Split/inductive conformal regression → a prediction interval per molecule per
+isoform at **90 %** nominal coverage; the gap `S` interval is propagated from the
+two isoform intervals.
 **[gate: Gate 5]** empirical coverage 88–92 % on the scaffold-split test set.
 
 ### B4. Applicability domain  `[new: src/applicability.py]`
 Two orthogonal flags: **Tanimoto distance** to nearest training molecule +
-**descriptor-space leverage**. Propagate to selectivity: `P(selective)` is
-**uncertain** if any contributing isoform model is out-of-domain (worst-case).
+**descriptor-space leverage**. Propagate to selectivity: `S` is **uncertain** if
+any contributing isoform model is out-of-domain (worst-case). AD also carries the
+non-binder burden that regression alone cannot (DESIGN_DECISIONS §1).
 **[gate: Gate 6 — money plot]** out-of-domain error systematically higher than
 in-domain, clear margin.
 
@@ -180,14 +182,14 @@ Tier-1 survivor sets, use approximate nearest-neighbour (LSH / FAISS on packed
 fingerprints) or a fixed diverse training reference subset.
 
 Tier-2 output: survivors that are **selective *and* in-domain**, with prediction
-sets and AD verdicts attached (e.g. 10^3 → 10^2). This is the ranked shortlist the
-dashboard shows.
+intervals and AD verdicts attached (e.g. 10^3 → 10^2). This is the ranked shortlist
+the dashboard shows.
 
 ### B5. Drug-likeness + property context  `[reuse: druglikeness.py, property_models.py]`
 Ro5/PAINS run as **Tier 0** (near-free, before Tier 1) to drop gross liabilities
 early; QED / solubility / tox priors are attached to the shortlist for display.
 
-**Hero figure** `[new]`: 2-D scatter of `P(active|target)` vs `P(selective)` —
+**Hero figure** `[new]`: 2-D scatter of `pchembl_pred(target)` vs gap `S` —
 potent-but-non-selective molecules bottom-right, genuinely selective ones
 top-right; highlight a rank flip between potency-only and selectivity-aware order.
 
@@ -218,15 +220,16 @@ app to the GPU notebook.
       "origin": "screen",                      // screen | generated
       "parent_smiles": null,                   // set for generated analogues
       "per_isoform": {
-        "JAK1": { "p_active": 0.91, "pred_set": ["active"], "in_domain": true,
+        "JAK1": { "pred_pchembl": 8.4, "interval": [7.6, 9.2], "in_domain": true,
                   "tanimoto_nn": 0.62, "leverage_ok": true },
-        "JAK2": { "p_active": 0.12, "pred_set": ["inactive"], "in_domain": true, "...": "" },
-        "JAK3": { "p_active": 0.08, "pred_set": ["inactive"], "in_domain": true, "...": "" }
+        "JAK2": { "pred_pchembl": 6.7, "interval": [5.9, 7.5], "in_domain": true, "...": "" },
+        "JAK3": { "pred_pchembl": 6.1, "interval": [5.3, 6.9], "in_domain": true, "...": "" }
       },
       "selectivity": {
-        "p_selective": 0.73,
-        "verdict": "in_domain",                // in_domain | uncertain
-        "pred_set_selective": ["selective"]
+        "gap": 1.7,                              // S = pred(JAK1) − max(pred(JAK2), pred(JAK3))
+        "gap_interval": [0.5, 2.9],              // propagated from isoform intervals
+        "meets_potency_floor": true,
+        "verdict": "in_domain"                   // in_domain | uncertain
       },
       "deep_dive": null                          // filled by Tier 3 (docking, etc.)
     }
@@ -258,21 +261,20 @@ the same-model re-score that closes the loop.
    stated in the report.
 
 3. **(b) Conditional generation** `[new]` — generate analogues over the chosen
-   scaffold toward higher `P(selective)` (reuse a Molecule-Generator if present,
-   else a compact conditional generator; GPU here only). Validity-filter with
-   RDKit. Every generated molecule is an **in-silico hypothesis**, AD-filtered,
-   never presented as a hit.
+   scaffold toward higher gap `S` (reuse a Molecule-Generator if present, else a
+   compact conditional generator; GPU here only). Validity-filter with RDKit. Every
+   generated molecule is an **in-silico hypothesis**, AD-filtered, never a hit.
 
 4. **Re-score** every selected + generated molecule through the identical B1–B4
-   pipeline → `P(active)`, `P(selective)`, conformal set, AD flags. Attach docking
-   consensus to `deep_dive`.
+   pipeline → per-isoform `pred_pchembl` + interval, gap `S`, AD flags. Attach
+   docking consensus to `deep_dive`.
 
 5. **Emit** a `loop_contract.json` (`stage: "A_rescore"`, `origin: "generated"`,
    `parent_smiles` linking analogues to their case).
 
-6. **Report** `[new]`: before-vs-after `P(selective)` distribution + AD status +
-   docking consensus, `loop_before_after.png`, and a per-case markdown ending
-   *"in-silico hypothesis — requires wet-lab validation."*
+6. **Report** `[new]`: before-vs-after gap `S` distribution + AD status + docking
+   consensus, `loop_before_after.png`, and a per-case markdown ending *"in-silico
+   hypothesis — requires wet-lab validation."*
 
 **[gate: Gate 8]** one real exported case flows B → SELECT → A → re-score with a
 single before/after report; re-scoring uses identical `src`. **Loop closed.**
@@ -283,8 +285,7 @@ single before/after report; re-scoring uses identical `src`. **Loop closed.**
 
 Re-scored analogues are ordinary contract molecules, so they re-enter Tier 0 and
 run back down the funnel — a cycle, not a one-way street. Honest deliverable: a
-**distribution shift** (population `P(selective)` up while in-domain), never a
-claimed hit.
+**distribution shift** (population gap `S` up while in-domain), never a claimed hit.
 
 ---
 
@@ -301,10 +302,9 @@ claimed hit.
 | `src/models/property_models.py` | reuse | solubility / tox priors |
 | `src/filters/druglikeness.py` | reuse | Tier 0 Ro5 + PAINS |
 | `src/pipeline.py` | extend | add tiered `screen_selectivity()` |
-| `src/labels.py` | **new** | pchembl → active / inactive / gray-zone |
-| `src/models/isoform_classifier.py` | **new** | per-isoform P(active) |
-| `src/selectivity.py` | **new** | hybrid P(selective); shared |
-| `src/conformal.py` | **new** | conformal prediction sets; shared |
+| `src/models/isoform_regressor.py` | **new** | per-isoform pchembl regressor |
+| `src/selectivity.py` | **new** | hybrid gap `S`; shared |
+| `src/conformal.py` | **new** | conformal prediction intervals; shared |
 | `src/applicability.py` | **new** | Tanimoto + leverage AD; shared |
 | `src/docking.py` | **new** | Tier-3 docking wrapper (Colab) |
 | `src/loop_contract.py` | **new** | JSON contract IO + model-pin assert |
@@ -318,7 +318,7 @@ claimed hit.
 ## 10. Artifacts
 
 - **Datasets:** `data/jak/{isoform}.parquet`, `cross_measured.parquet`, `data/library/*.parquet`
-- **Models:** `data/models/jak/{isoform}_clf.pkl`, direct selectivity classifier, conformal calibrators
+- **Models:** `data/models/jak/{isoform}_reg.pkl`, direct gap regressor, conformal calibrators
 - **Figures:** `selectivity_ranking_flip.png` (hero), `conformal_coverage.png`,
   `applicability_error.png` (money plot), `loop_before_after.png`
 - **Contract:** `loop_contract.json` (B_export / A_rescore)
@@ -328,14 +328,14 @@ claimed hit.
 
 ## 11. Build order (credibility-first)
 
-Trust machinery (classifiers → conformal → AD) is built and gated *before*
+Trust machinery (regressors → conformal → AD) is built and gated *before*
 selectivity is stacked on it; the wide-library and deep-dive tiers come after the
 scoring core is validated. Full step table with gates:
 [README roadmap](README.md#staged-build-plan-credibility-first).
 
 ```
-Gate 0  data go/no-go
-  ─▶ Phase I  STEP1 credibility ─▶ STEP3 classifiers ─▶ STEP5 conformal ─▶ STEP6 AD
+Gate 0  data go/no-go  [DONE — 3624 cross-measured, gap signal ample]
+  ─▶ Phase I  STEP1 credibility ─▶ STEP3 regressors ─▶ STEP5 conformal ─▶ STEP6 AD
   ─▶ Phase II STEP4 selectivity (hybrid) + hero + validation
   ─▶ Phase III STEP7 wide library + tiered dashboard + SELECT
               ─▶ STEP8 Colab deep dive (docking + generation) + loop closure

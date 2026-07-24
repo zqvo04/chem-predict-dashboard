@@ -1,0 +1,92 @@
+# Validation
+
+Measured results only. Every number here is reproducible from a script + the data
+source named beside it. Planned-but-unmeasured items live in the
+[roadmap](README.md#roadmap--jak-selectivity-screening-funnel), not here.
+
+---
+
+## Gate 0 — JAK data audit (2026-07-24)
+
+**Purpose.** Before building the selectivity funnel, measure the real JAK data to
+(a) confirm enough cross-measured molecules exist to *validate* a selectivity gap,
+and (b) test the assumption behind the active/inactive classification plan.
+
+**Source.** ChEMBL REST (`ebi.ac.uk`), targets JAK1 `CHEMBL2835`, JAK2 `CHEMBL2971`,
+JAK3 `CHEMBL2148`. All quantified-pchembl records (IC50/Ki/Kd/EC50), one **median
+pchembl per (molecule, isoform)**, RDKit-canonical SMILES. `max_records=40000` per
+isoform (full coverage; pagination did not truncate).
+
+### Per-isoform counts
+
+| Isoform | activity rows | unique molecules | pchembl ≥ 6 (active) | ≤ 5 (inactive) | 5–6 (gray) | pchembl range |
+|---------|--------------:|-----------------:|---------------------:|---------------:|-----------:|:-------------:|
+| JAK1 | 14 964 | 10 468 | 9 618 | **75** | 775 | 4.0 – 11.0 |
+| JAK2 | 18 036 | 12 680 | 11 000 | **333** | 1 347 | 3.8 – 11.0 |
+| JAK3 | 10 814 | 7 457 | 6 251 | **245** | 961 | 4.0 – 11.0 |
+
+### Cross-measured (selectivity ground truth)
+
+- **3-way (measured on all of JAK1/2/3):** **3624** molecules (2808 with no gray-zone value).
+- Pairwise: JAK1–JAK2 = 8483, JAK1–JAK3 = 4110, JAK2–JAK3 = 4797.
+
+### Selectivity signal — gap-based vs class-based
+
+Strict class-based selective (active target **and** inactive at *both* off-isoforms):
+JAK1 = **2**, JAK2 = 3, JAK3 = 1 — effectively empty, because the inactive class is empty.
+
+Gap-based selective on the 3-way set (`S = pchembl(target) − max(off)`):
+
+| Target | S ≥ 1 (≥10×) | S ≥ 2 (≥100×) | median S | max S |
+|--------|------------:|-------------:|:--------:|:-----:|
+| JAK1 | 593 | 30 | +0.03 | 2.57 |
+| JAK2 | 320 | 53 | −0.48 | 2.72 |
+| JAK3 | 129 | 39 | −1.16 | 4.75 |
+
+Pairwise JAK1–JAK2 (n = 8483): |S| ≥ 1 for 2632 molecules — 2073 JAK1-selective, 559 JAK2-selective.
+
+### Findings
+
+1. **Active/inactive classification is not viable on this data.** The inactive
+   class is 75 / 333 / 245 against ~10k actives — ChEMBL records here are almost
+   all measured (expected) binders; true non-binders are right-censored (`>`, no
+   pchembl) or absent. 75 negatives cannot train or calibrate a classifier.
+2. **Selectivity lives in the pchembl gap, not a class split.** Binarizing at
+   pchembl 6 collapses a 9.0 and a 7.0 to the same "active", discarding the
+   selectivity signal. The gap-based positives are ample (hundreds per isoform at
+   ≥10×; 2073 in the JAK1–JAK2 pairwise view).
+3. **Cross-measured N is healthy (3624).** The selectivity gap *can* be validated
+   against measured data; the pairwise fallback is not forced.
+
+### Decision
+
+- **Per-isoform model:** pchembl **regression** (not classification).
+- **Selectivity:** predicted **gap** `S`, validated against the measured gap on the
+  3624-molecule cross-measured set (Spearman + ≥10× enrichment).
+- **Non-binder recognition:** carried by the applicability domain; DUD-E decoys
+  kept in reserve as an optional future addition.
+- **Scope:** 3-isoform selectivity proceeds; pairwise (JAK1–JAK2, richest at ≥100×)
+  kept in reserve for a stronger-selectivity story.
+
+Rationale in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) §1–2.
+
+### Reproduce
+
+```bash
+pip install -r requirements.txt
+python scripts/gate0_audit.py     # to be added in STEP 1; prints the tables above
+```
+
+*(Until STEP 1 lands the committed script, the audit was run from the pull in
+`src/data/chembl_client.py` with the medians and thresholds described above; raw
+activity pages are cached under `data/cache/`.)*
+
+### Where this could still fail
+
+- **≥100× selectivity is thin** (30 / 53 / 39 at S ≥ 2). A strong-selectivity story
+  should use the pairwise view or the ≥10× threshold, and say so.
+- Median-over-assays hides cross-assay disagreement; a molecule with wide
+  inter-assay spread carries a noisier gap than the point value suggests.
+- The cross-measured set is biased toward well-studied chemotypes — validation
+  there may over-state performance on novel scaffolds (which is why scaffold-split
+  evaluation and AD both matter downstream).
