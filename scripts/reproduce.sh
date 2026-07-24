@@ -18,6 +18,11 @@ echo "Builds/caches the per-isoform regression datasets + cross-measured join."
 python -m src.data.jak
 
 echo
+echo "== Per-isoform regressors (STEP 3) =="
+echo "5-seed scaffold-split MAE/RMSE/R2/Spearman per isoform (a few minutes)."
+python -m src.models.isoform_regressor
+
+echo
 echo "== Gate 0 data audit (VALIDATION.md) =="
 echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py

@@ -7,6 +7,7 @@ chemotypes — the number that actually matters for screening.
 """
 from __future__ import annotations
 
+import random
 from collections import defaultdict
 
 import numpy as np
@@ -21,18 +22,28 @@ def _scaffold(smiles: str) -> str:
     return MurckoScaffold.MurckoScaffoldSmiles(mol=mol)
 
 
-def scaffold_split(smiles: list[str], test_frac: float = 0.2) -> tuple[np.ndarray, np.ndarray]:
+def scaffold_split(smiles: list[str], test_frac: float = 0.2,
+                   seed: int | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Split indices so scaffolds never cross train/test.
 
-    Largest scaffold groups are assigned to train first (the standard
-    deterministic variant); smaller groups fill the test set up to test_frac.
+    With ``seed=None`` (default) this is the deterministic variant: largest
+    scaffold groups are placed first, so the split is stable across runs.
+
+    Passing an integer ``seed`` instead shuffles the scaffold groups with that
+    seed before filling the test set, giving a different-but-still-leak-free split
+    per seed — used to report mean ± std over several scaffold splits. Scaffolds
+    still never cross train/test; only *which* scaffolds land in test changes.
     Returns (train_idx, test_idx) as sorted int arrays.
     """
     groups: dict[str, list[int]] = defaultdict(list)
     for i, smi in enumerate(smiles):
         groups[_scaffold(smi)].append(i)
 
-    ordered = sorted(groups.values(), key=lambda g: (len(g), g[0]), reverse=True)
+    if seed is None:
+        ordered = sorted(groups.values(), key=lambda g: (len(g), g[0]), reverse=True)
+    else:
+        ordered = sorted(groups.values(), key=lambda g: g[0])  # stable base order
+        random.Random(seed).shuffle(ordered)
     n_test_target = int(round(len(smiles) * test_frac))
 
     train_idx: list[int] = []

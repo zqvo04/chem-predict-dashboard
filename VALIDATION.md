@@ -101,6 +101,30 @@ molecule) and the cross-measured join, via `src/data/jak.py`
 the cross-measured intersection offline; a live summary test self-skips without
 network.
 
+---
+
+## STEP 3 — per-isoform pchembl regressors (2026-07-24)
+
+HistGradientBoosting regressor per isoform (ECFP4 → pchembl), evaluated over **5
+scaffold-split seeds** (`src/models/isoform_regressor.py`,
+`python -m src.models.isoform_regressor`). Mean ± std:
+
+| Isoform | n | MAE | RMSE | R² | Spearman |
+|---------|--:|:---:|:----:|:--:|:--------:|
+| JAK1 | 10 468 | 0.448 ± 0.013 | 0.622 ± 0.015 | 0.768 ± 0.013 | 0.879 ± 0.010 |
+| JAK2 | 12 680 | 0.512 ± 0.012 | 0.688 ± 0.014 | 0.713 ± 0.009 | 0.835 ± 0.007 |
+| JAK3 | 7 457 | 0.529 ± 0.038 | 0.715 ± 0.048 | 0.712 ± 0.040 | 0.823 ± 0.031 |
+
+Scaffold-split R² 0.71–0.77 with low seed variance — the regression the data
+supports (and stronger than v1's single-target EGFR R² ≈ 0.55, consistent with the
+larger per-isoform sets). RMSE ≈ 0.62–0.72 pchembl means a typical potency error
+under ~1 log unit. Spearman 0.82–0.88 is the number that matters for a *ranking*
+screen. The seeded splits are for honest metrics only; the deployed model is refit
+on all data and cached to `data/models/jak/{isoform}_reg.pkl`.
+
+**Gate 3 passed:** metrics stable across seeds; scaffold split applied before any
+fit (no leakage). This is the Tier-1 engine the selectivity gap is built on next.
+
 ### Where this could still fail
 
 - **≥100× selectivity is thin** (30 / 53 / 39 at S ≥ 2). A strong-selectivity story
