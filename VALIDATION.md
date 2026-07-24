@@ -81,6 +81,26 @@ python scripts/gate0_audit.py     # to be added in STEP 1; prints the tables abo
 `src/data/chembl_client.py` with the medians and thresholds described above; raw
 activity pages are cached under `data/cache/`.)*
 
+---
+
+## STEP 2 — JAK data layer (2026-07-24)
+
+Persisted the three per-isoform **regression** datasets (median pchembl per
+molecule) and the cross-measured join, via `src/data/jak.py`
+(`python -m src.data.jak`). Cached to `data/jak/` (gitignored, regenerable).
+
+| Isoform | molecules | pchembl min | median | max |
+|---------|----------:|:-----------:|:------:|:---:|
+| JAK1 | 10 468 | 4.01 | 8.00 | 11.00 |
+| JAK2 | 12 680 | 3.84 | 7.36 | 10.97 |
+| JAK3 | 7 457 | 4.00 | 7.24 | 10.98 |
+
+3-way cross-measured: **3624** (matches Gate 0). Each row carries `n_meas`
+(measurements the median was taken over) as provenance. Tests
+(`tests/test_jak_data.py`) pin median dedup, SMILES canonicalisation/hygiene, and
+the cross-measured intersection offline; a live summary test self-skips without
+network.
+
 ### Where this could still fail
 
 - **≥100× selectivity is thin** (30 / 53 / 39 at S ≥ 2). A strong-selectivity story

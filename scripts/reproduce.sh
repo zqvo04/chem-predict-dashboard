@@ -13,6 +13,11 @@ echo "== Test suite =="
 python -m pytest tests/ -q
 
 echo
+echo "== JAK data layer (STEP 2) =="
+echo "Builds/caches the per-isoform regression datasets + cross-measured join."
+python -m src.data.jak
+
+echo
 echo "== Gate 0 data audit (VALIDATION.md) =="
 echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py

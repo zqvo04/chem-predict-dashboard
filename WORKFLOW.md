@@ -296,6 +296,7 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/data/chembl_client.py` | reuse | resolve target, fetch activities |
 | `src/data/cache.py` | reuse | parquet cache |
 | `src/data/pubchem_client.py` | reuse | similarity expansion (optional, near-analogues) |
+| `src/data/jak.py` | **new** | per-isoform regression datasets + cross-measured join (STEP 2) |
 | `src/data/library.py` | **new** | load/cache the wide screening library |
 | `src/models/features.py` | reuse | ECFP4 featurization (shared) |
 | `src/models/scaffold_split.py` | reuse + seed arg | scaffold split |

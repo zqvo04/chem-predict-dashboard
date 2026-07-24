@@ -19,20 +19,13 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from rdkit import Chem, RDLogger
+from rdkit import RDLogger
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.data.chembl_client import fetch_activities  # noqa: E402
+from src.data.jak import MAX_RECORDS, TARGETS, _canonical  # noqa: E402
 
 RDLogger.DisableLog("rdApp.*")
-
-TARGETS = {"JAK1": "CHEMBL2835", "JAK2": "CHEMBL2971", "JAK3": "CHEMBL2148"}
-MAX_RECORDS = 40000
-
-
-def _canonical(smiles: str) -> str | None:
-    mol = Chem.MolFromSmiles(smiles) if isinstance(smiles, str) else None
-    return Chem.MolToSmiles(mol) if mol else None
 
 
 def _median_pchembl(target_id: str) -> pd.DataFrame:
