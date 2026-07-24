@@ -1,10 +1,13 @@
-# Core runtime (CPU-only, zero-cost). Tested with the versions in comments.
-requests>=2.31      # ChEMBL REST client (honors HTTPS_PROXY)
-pandas>=2.0         # candidate tables            (tested 3.0.3)
-pyarrow>=14         # parquet cache backend
-rdkit>=2023.9       # SMILES validation + drawing  (tested 2026.03.3)
-scikit-learn>=1.3   # HistGradientBoosting QSAR     (tested 1.9.0)
-streamlit>=1.59     # dashboard                     (tested 1.59.1)
+# Core runtime (CPU-only, zero-cost). Pinned to the versions CI + reproduce.sh
+# run against, so numbers reproduce. Bump deliberately, not incidentally.
+requests==2.33.1     # ChEMBL REST client (honors HTTPS_PROXY)
+pandas==3.0.5        # candidate tables
+pyarrow==24.0.0      # parquet cache backend
+rdkit==2026.3.4      # SMILES validation + drawing
+scikit-learn==1.9.0  # HistGradientBoosting QSAR
+scipy==1.17.1        # Spearman correlation for metrics
+streamlit==1.60.0    # dashboard
+matplotlib==3.11.1   # offline hero / coverage / money figures
 
 # Dev / test
-pytest>=7.4
+pytest==9.1.1
