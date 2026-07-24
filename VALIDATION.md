@@ -244,6 +244,42 @@ re-score through the identical models. The dashboard (`app.py`) gains a
 "JAK selectivity funnel" mode: shortlist table with gap + interval + in/out-of-domain
 badge, a SELECT multiselect, and a contract download button.
 
+---
+
+## STEP 8 — deep dive + loop closure (2026-07-24)
+
+One real case flowed **B → SELECT → A → re-score** (`scripts/run_loop.py`,
+artifacts in `examples/`):
+
+1. **B:** screened the wide library → shortlist; the top **3 in-domain** cases
+   exported as `examples/loop_case_B_export.json`.
+2. **A:** `src/deep_dive.run_deep_dive` asserted the contract's `model_ids` match
+   the current models, generated **90 analogues** (`src/generate.py`, CPU aromatic
+   decoration), and **re-scored them through the same `src` funnel scoring**.
+
+| set | n | median gap | max gap | % ≥10× selective | % in-domain |
+|-----|--:|:----------:|:-------:|:----------------:|:-----------:|
+| before (selected) | 3 | +1.29 | +1.39 | 100% | 100% |
+| after (generated) | 90 | +1.21 | +1.79 | 71% | 19% |
+
+The honest before/after story: generation reached a **higher max gap (+1.79 vs
++1.39)** and produced an in-domain analogue that **improves on its parent** —
+`COc1cc(NC(=O)c2cc(Cl)ccc2O)c(Cl)cc1[N+](=O)[O-]`, gap **+1.74** (parent +1.39).
+But only **19%** of generated analogues stay in-domain: decorating a scaffold
+often pushes molecules out of the training domain, and AD flags them — the loop is
+honest, not triumphant. `figures/loop_before_after.png` shows the shift; the
+re-scored analogues are written back as `examples/loop_case_A_rescore.json`
+(`stage: A_rescore`), so they re-enter Stage B — the funnel is a cycle.
+
+**Gate 8 passed:** the loop runs end-to-end on one worked case, re-scoring uses the
+identical `src` (enforced by `assert_models_match`), and the report ends with
+*"in-silico hypothesis — requires wet-lab validation."*
+
+**Scope note:** the confirmatory **docking** arm of the deep dive is documented as
+an optional GPU seam in `notebooks/deep_dive.ipynb` (AutoDock Vina, orthogonal
+corroboration only), not executed here — the loop-closing requirement is the
+same-model re-scoring of generated analogues, which is done on CPU.
+
 ### Where this could still fail
 
 - **≥100× selectivity is thin** (30 / 53 / 39 at S ≥ 2). A strong-selectivity story

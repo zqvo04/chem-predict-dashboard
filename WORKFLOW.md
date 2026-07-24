@@ -308,7 +308,9 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/selectivity.py` | **new** | hybrid gap `S`; shared |
 | `src/conformal.py` | **new** | conformal prediction intervals; shared |
 | `src/applicability.py` | **new** | Tanimoto + leverage AD; shared |
-| `src/docking.py` | **new** | Tier-3 docking wrapper (Colab) |
+| `src/generate.py` | **new** | CPU analogue generation (scaffold decoration) |
+| `src/deep_dive.py` | **new** | Stage-A loop closure: generate + re-score + report |
+| `src/docking.py` | future | optional Tier-3 docking seam (documented in the notebook) |
 | `src/loop_contract.py` | **new** | JSON contract IO + model-pin assert |
 | `app.py` | extend | tiered screen, AD badge, SELECT/export |
 | `notebooks/deep_dive.ipynb` | **new** | Tier 3: docking + generation + re-score |

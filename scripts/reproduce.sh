@@ -47,6 +47,11 @@ python -m src.data.library
 python -m src.funnel
 
 echo
+echo "== Funnel loop, one worked case (STEP 8) =="
+echo "B -> SELECT -> A (generate + re-score) -> before/after report + figure."
+python scripts/run_loop.py
+
+echo
 echo "== Gate 0 data audit (VALIDATION.md) =="
 echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py
