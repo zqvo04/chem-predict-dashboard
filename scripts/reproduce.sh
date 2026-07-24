@@ -29,6 +29,12 @@ python -m src.selectivity
 python scripts/make_hero_figure.py
 
 echo
+echo "== Conformal coverage (STEP 5) =="
+echo "5-seed empirical coverage at 90% nominal + coverage-vs-nominal figure."
+python -m src.conformal
+python scripts/make_coverage_figure.py
+
+echo
 echo "== Gate 0 data audit (VALIDATION.md) =="
 echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py

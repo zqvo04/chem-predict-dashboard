@@ -155,6 +155,31 @@ predicted potency vs predicted gap for the cross-measured molecules, shaded by
 *measured* gap — the molecule ranked #1 by potency alone is not the one ranked #1
 by selectivity, the rank flip a potency-only screen would miss.
 
+---
+
+## STEP 5 — conformal prediction intervals (2026-07-24)
+
+Split-conformal regression (`src/conformal.py`, `python -m src.conformal`): fit on
+a proper-train split, calibrate the interval half-width on a disjoint calibration
+split, measure coverage on a scaffold-disjoint test split, over 5 seeds at 90%
+nominal.
+
+| Isoform | empirical coverage @ 90% nominal | interval width (pchembl) |
+|---------|:--------------------------------:|:------------------------:|
+| JAK1 | 0.904 ± 0.010 | 2.12 ± 0.03 |
+| JAK2 | 0.905 ± 0.007 | 2.36 ± 0.12 |
+| JAK3 | 0.888 ± 0.023 | 2.40 ± 0.07 |
+
+**Gate 5 passed:** empirical coverage 0.888–0.905 sits inside the 88–92% tolerance
+band for a 90% target — and holds on *scaffold-disjoint* test molecules, the honest
+stress case for the exchangeability assumption. The coverage-vs-nominal figure
+(`figures/conformal_coverage.png`, `scripts/make_coverage_figure.py`) shows all
+three isoforms tracking the ideal diagonal across nominal levels 0.5–0.95.
+
+Interval widths of ~±1.1 pchembl (2.1–2.4 full width) are honest about the model's
+limits: a 90% interval spans about a 10-fold potency range. The gap `S` interval is
+the conservative sum of the two contributing isoform half-widths.
+
 ### Where this could still fail
 
 - **≥100× selectivity is thin** (30 / 53 / 39 at S ≥ 2). A strong-selectivity story
