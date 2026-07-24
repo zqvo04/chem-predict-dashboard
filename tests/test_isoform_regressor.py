@@ -65,3 +65,14 @@ def test_train_and_cache_predicts_and_aligns(tmp_path, monkeypatch):
     assert (tmp_path / "JAK1_reg.pkl").exists()
     preds = bundle.predict(["c1ccccc1", "not_a_smiles"])
     assert np.isfinite(preds[0]) and np.isnan(preds[1])   # aligned, NaN on bad SMILES
+
+
+def test_cache_roundtrips_via_plain_dict(tmp_path, monkeypatch):
+    # The cache must load regardless of __main__/import context (plain-dict pickle).
+    monkeypatch.setattr(ir, "MODEL_DIR", tmp_path)
+    monkeypatch.setattr(ir.jak, "build_isoform_dataset", _synthetic)
+    written = ir.train_and_cache("JAK1", use_cache=False)
+    loaded = ir._load(tmp_path / "JAK1_reg.pkl")
+    assert loaded.isoform == "JAK1"
+    assert loaded.metrics.r2_mean == written.metrics.r2_mean
+    assert np.isfinite(loaded.predict(["c1ccccc1"])[0])

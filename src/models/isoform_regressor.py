@@ -12,7 +12,7 @@ CLI (evaluate + cache all three, print the metrics table):
 from __future__ import annotations
 
 import pickle
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -97,23 +97,34 @@ def evaluate(name: str, seeds: tuple[int, ...] = SEEDS, use_cache: bool = True) 
     )
 
 
+def _load(path: Path) -> IsoformModel:
+    # Pickled as a plain dict (not the dataclass) so the cache loads regardless of
+    # whether it was written from `python -m ...` (__main__) or an import.
+    with open(path, "rb") as fh:
+        d = pickle.load(fh)
+    return IsoformModel(isoform=d["isoform"], model=d["model"],
+                        metrics=IsoformMetrics(**d["metrics"]))
+
+
+def _save(bundle: IsoformModel, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as fh:
+        pickle.dump({"isoform": bundle.isoform, "model": bundle.model,
+                     "metrics": asdict(bundle.metrics)}, fh)
+
+
 def train_and_cache(name: str, use_cache: bool = True) -> IsoformModel:
     """Evaluate (seeded splits), refit on all data, cache the deployed model."""
-    if use_cache:
-        path = MODEL_DIR / f"{name}_reg.pkl"
-        if path.exists():
-            with open(path, "rb") as fh:
-                return pickle.load(fh)
+    path = MODEL_DIR / f"{name}_reg.pkl"
+    if use_cache and path.exists():
+        return _load(path)
 
     metrics = evaluate(name, use_cache=use_cache)
     data = jak.build_isoform_dataset(name, use_cache=use_cache)
     X, mask = morgan_matrix(data["smi"].tolist())
     y = data["pchembl"].to_numpy()[mask]
     bundle = IsoformModel(isoform=name, model=_fit(X, y), metrics=metrics)
-
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    with open(MODEL_DIR / f"{name}_reg.pkl", "wb") as fh:
-        pickle.dump(bundle, fh)
+    _save(bundle, path)
     return bundle
 
 
