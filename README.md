@@ -9,6 +9,17 @@ no paid APIs. Because of that constraint, step 1 is **retrieval-based virtual
 screening** (find known/nearby actives), not de-novo generation. See the design
 notes below for the honest trade-offs.
 
+The shipped v1 is a single-target screen; the active work turns it into a closed
+**JAK-selectivity funnel** (see [Roadmap](#roadmap--jak-selectivity-screening-funnel)).
+
+### Documentation
+
+| Doc | What it covers |
+|-----|----------------|
+| **README** (this file) | overview, v1 usage, roadmap summary |
+| [WORKFLOW.md](WORKFLOW.md) | the full funnel pipeline, stage by stage — data flow, schemas, module map |
+| [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | why each choice (classification, conformal, AD, gates) + rejected alternatives |
+
 ## Status
 
 | Phase | Scope | State |
@@ -242,21 +253,18 @@ records — enough for per-target classification + uncertainty + AD **without a 
 ### The core reframe: potency regression → selectivity classification
 
 The single most important change. Each isoform model becomes a **binary
-classifier** — active (pchembl ≥ 6) vs inactive (pchembl ≤ 5, *including
-right-censored `>` values*), with the 5–6 gray zone dropped from training labels
-to reduce boundary noise. This directly fixes the censored-label gap: the model
-finally sees true inactives and learns *active vs inactive*, not *potency among
-actives*. Selectivity then becomes a probability, not an arbitrary score:
+classifier** (active pchembl ≥ 6 vs inactive ≤ 5, *including right-censored `>`
+values*), so the model finally sees true inactives and learns *active vs inactive*
+— fixing the censored-label gap. Selectivity becomes a **checkable probability**,
+not an arbitrary score:
 
 ```
 P(selective for JAK1) = P(active | JAK1) · P(inactive | JAK2) · P(inactive | JAK3)
 ```
 
-which is **checkable against measured selectivity** on held-out molecules —
-unlike the v1 composite. Metrics move from R²/RMSE (which were never validatable
-here) to **PR-AUC** (class imbalance makes this the honest metric) and
-**calibration** (Brier / reliability curve — the proof that a probability is a
-real probability).
+Metrics move from R²/RMSE (never validatable here) to **PR-AUC** + **calibration**.
+Full rationale in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md); the end-to-end data
+flow in [WORKFLOW.md](WORKFLOW.md).
 
 ### The loop
 
@@ -297,31 +305,18 @@ reported as an *in-silico hypothesis requiring wet-lab validation*, never a hit.
 - Reuse the existing featurizer (ECFP4), scaffold split, and Trainer — the
   funnel is an **additive** extension, not a rewrite.
 
-### Confirmed design decisions
+### Confirmed design decisions (summary)
 
-Rationale for each is in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md). Small knobs
-(defaults) are marked; everything else is locked.
+Locked choices; rationale + rejected alternatives in
+[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md), mechanics in [WORKFLOW.md](WORKFLOW.md).
 
-- **Task = per-isoform binary classification**, not potency regression. Active =
-  pchembl ≥ 6, inactive = pchembl ≤ 5 (including right-censored `>`), gray zone
-  5–6 dropped from training *(default thresholds)*. Fixes the censored-label gap.
-- **Selectivity = probability:** `P(selective) = P(active|target) · Π P(inactive|off)`.
-  Validated against *measured* selectivity on a held-out scaffold split (PR-AUC /
-  enrichment), never left as an unvalidated score.
-- **Uncertainty:** conformal *classification* (Mondrian / APS) → prediction sets
-  with guaranteed coverage at **90 %** nominal *(default)*, empirically verified.
-- **Applicability domain:** ≥2 definitions (Tanimoto-to-training distance +
-  descriptor-space leverage); a selectivity call is flagged **uncertain** if any
-  contributing isoform model is out-of-domain.
-- **Generation (stage A):** kept, but every generated molecule is labelled an
-  *in-silico hypothesis requiring wet-lab validation* and filtered by AD — no
-  molecule is presented as a hit.
-- **Loop data contract:** one versioned **JSON** object flowing B → SELECT → A →
-  re-score, pinning the exact model ids + conformal α + code version so stage A
-  scores with identical models. JAK1/2/3 for the flagship; TYK2 optional.
-- **Fallback (if data is thin):** Gate 0 measures the 3-way cross-measured count;
-  below threshold, the flagship narrows to **pairwise selectivity** (e.g. JAK1
-  over JAK2) on whichever pair has the most co-measured molecules.
+- **Task:** per-isoform **binary classification** (not regression) — fixes the censored-label gap.
+- **Selectivity:** the probability `P(active|target) · Π P(inactive|off)`, validated against measured selectivity.
+- **Uncertainty:** conformal classification → prediction sets, 90 % coverage, empirically verified.
+- **Applicability domain:** Tanimoto + leverage; propagates to selectivity (worst-case).
+- **Generation:** kept but hypothesis-only (labelled, AD-filtered) — never a claimed hit.
+- **Loop contract:** versioned JSON pinning model ids + α + code version.
+- **Fallback:** Gate 0 measures cross-measured count; below threshold → pairwise selectivity.
 
 ### Staged build plan (credibility-first)
 
