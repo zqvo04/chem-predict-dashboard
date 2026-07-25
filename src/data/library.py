@@ -18,6 +18,7 @@ from pathlib import Path
 import pandas as pd
 from rdkit import Chem, RDLogger
 
+from ..filters.druglikeness import apply_druglikeness
 from ..models.property_models import _download
 
 RDLogger.DisableLog("rdApp.*")
@@ -33,7 +34,12 @@ def _canonical(smiles: str) -> str | None:
 
 
 def load_library(use_cache: bool = True) -> pd.DataFrame:
-    """Diverse, target-agnostic drug-like library as a frame of canonical SMILES."""
+    """Diverse, target-agnostic drug-like library as a frame of canonical SMILES.
+
+    Carries the funnel's Tier-0 verdict (Ro5 + PAINS) as columns: it is a property
+    of the library and the filter rules alone — no model enters it — so computing
+    it once here saves the screen ~16 s of PAINS matching on every cold start.
+    """
     if use_cache:
         for path in (CACHE, BUNDLED):     # runtime rebuild wins over the shipped copy
             if path.exists():
@@ -42,7 +48,8 @@ def load_library(use_cache: bool = True) -> pd.DataFrame:
     import gzip
     raw = gzip.decompress(_download("tox21.csv.gz"))
     smiles = pd.read_csv(io.BytesIO(raw))["smiles"].dropna().map(_canonical).dropna()
-    lib = pd.DataFrame({"smi": pd.Series(smiles.unique())})
+    lib = apply_druglikeness(pd.DataFrame({"smi": pd.Series(smiles.unique())}),
+                             smiles_col="smi")
 
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     lib.to_parquet(CACHE, index=False)
@@ -52,7 +59,8 @@ def load_library(use_cache: bool = True) -> pd.DataFrame:
 def _main() -> None:
     lib = load_library()
     print(f"Wide library: {len(lib)} unique canonical drug-like molecules "
-          f"(target-agnostic)\ncached -> {CACHE}")
+          f"(target-agnostic), {int(lib['druglike'].sum())} clearing Tier 0"
+          f"\ncached -> {CACHE}")
 
 
 if __name__ == "__main__":

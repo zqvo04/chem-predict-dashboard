@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .applicability import in_domain
+from .applicability import in_domain, load_reference
 from .conformal import DEFAULT_ALPHA, halfwidth
 from .data import jak
 from .data.library import load_library
@@ -42,9 +42,8 @@ def _context(target: str, offs: tuple[str, ...], use_cache: bool, step=_quiet):
     for iso in isoforms:
         step(f"Calibrating the {iso} conformal interval")
         q[iso] = halfwidth(iso, use_cache=use_cache)
-    train = {iso: jak.build_isoform_dataset(iso, use_cache=use_cache)["smi"].tolist()
-             for iso in isoforms}
-    return isoforms, models, q, train
+    refs = {iso: load_reference(iso, use_cache=use_cache) for iso in isoforms}
+    return isoforms, models, q, refs
 
 
 def _predict(df: pd.DataFrame, models, isoforms, target, offs) -> pd.DataFrame:
@@ -58,7 +57,7 @@ def _predict(df: pd.DataFrame, models, isoforms, target, offs) -> pd.DataFrame:
     return df
 
 
-def _trust(df: pd.DataFrame, q, train, isoforms, target, offs) -> pd.DataFrame:
+def _trust(df: pd.DataFrame, q, refs, isoforms, target, offs) -> pd.DataFrame:
     """Tier 2 (pricier, survivors only): conformal intervals + applicability domain."""
     if df.empty:
         return df
@@ -66,7 +65,7 @@ def _trust(df: pd.DataFrame, q, train, isoforms, target, offs) -> pd.DataFrame:
     for iso in isoforms:
         df[f"lo_{iso}"] = df[f"pred_{iso}"] - q[iso]
         df[f"hi_{iso}"] = df[f"pred_{iso}"] + q[iso]
-        df[f"in_domain_{iso}"] = in_domain(df["smi"].tolist(), train[iso])["in_domain"]
+        df[f"in_domain_{iso}"] = in_domain(df["smi"].tolist(), reference=refs[iso])["in_domain"]
     half = q[target] + np.array([q[o] for o in worst_off])
     df["gap_lo"] = df["gap"] - half
     df["gap_hi"] = df["gap"] + half
@@ -78,9 +77,9 @@ def _trust(df: pd.DataFrame, q, train, isoforms, target, offs) -> pd.DataFrame:
 def score_molecules(smiles: list[str], target: str = TARGET, offs: tuple[str, ...] = OFFS,
                     use_cache: bool = True) -> pd.DataFrame:
     """Full Tier-1+Tier-2 scoring of a given (small) set — used for Stage-A re-scoring."""
-    isoforms, models, q, train = _context(target, offs, use_cache)
+    isoforms, models, q, refs = _context(target, offs, use_cache)
     df = _predict(pd.DataFrame({"smi": list(smiles)}), models, isoforms, target, offs)
-    return _trust(df, q, train, isoforms, target, offs)
+    return _trust(df, q, refs, isoforms, target, offs)
 
 
 def screen_library(target: str = TARGET, offs: tuple[str, ...] = OFFS,
@@ -92,12 +91,16 @@ def screen_library(target: str = TARGET, offs: tuple[str, ...] = OFFS,
     dashboard) can report honest progress on a run that takes minutes.
     """
     step = on_step or _quiet
-    isoforms, models, q, train = _context(target, offs, use_cache, step)
+    isoforms, models, q, refs = _context(target, offs, use_cache, step)
     step("Loading the wide library")
     lib = load_library(use_cache=use_cache) if library is None else library
 
-    step(f"Tier 0 — Ro5 + PAINS over {len(lib)} molecules")
-    df = apply_druglikeness(lib, smiles_col="smi")            # Tier 0
+    # Tier 0 depends on the library alone, never on the models, so the cached
+    # library already carries its verdict; only an ad-hoc library needs the run.
+    precomputed = "druglike" in lib.columns
+    step(f"Tier 0 — Ro5 + PAINS over {len(lib)} molecules"
+         + (" (carried by the library cache)" if precomputed else ""))
+    df = lib if precomputed else apply_druglikeness(lib, smiles_col="smi")
     df = df[df["druglike"]].reset_index(drop=True)
 
     step(f"Tier 1 — per-isoform prediction + gap S over {len(df)} drug-like molecules")
@@ -105,7 +108,7 @@ def screen_library(target: str = TARGET, offs: tuple[str, ...] = OFFS,
     df = df[df["meets_floor"]].sort_values("gap", ascending=False).head(tier1_keep).reset_index(drop=True)
 
     step(f"Tier 2 — conformal interval + applicability domain over {len(df)} survivors")
-    df = _trust(df, q, train, isoforms, target, offs)          # Tier 2 (survivors only)
+    df = _trust(df, q, refs, isoforms, target, offs)           # Tier 2 (survivors only)
     if df.empty:
         return df
     return df.sort_values("gap", ascending=False).head(shortlist).reset_index(drop=True)

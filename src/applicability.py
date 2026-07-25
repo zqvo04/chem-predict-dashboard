@@ -21,6 +21,8 @@ CLI (in- vs out-of-domain error margin per isoform):
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 from rdkit import Chem, DataStructs
@@ -37,6 +39,10 @@ SEEDS = (0, 1, 2, 3, 4)
 TANIMOTO_IN_DOMAIN = 0.30       # nearest-neighbour similarity below this = out-of-domain
 _GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
 
+_ROOT = Path(__file__).resolve().parents[1]
+AD_CACHE_DIR = _ROOT / "data" / "ad_reference"          # runtime cache, gitignored
+BUNDLED_AD_DIR = _ROOT / "assets" / "ad_reference"      # committed for deploys
+
 
 def _bitvects(smiles: list[str]) -> list:
     out = []
@@ -46,13 +52,16 @@ def _bitvects(smiles: list[str]) -> list:
     return out
 
 
-def tanimoto_nn_similarity(query: list[str], train: list[str]) -> np.ndarray:
-    """Max ECFP4 Tanimoto similarity of each query to the training set."""
-    train_fps = [fp for fp in _bitvects(train) if fp is not None]
+def _nn_similarity(query: list[str], train_fps: list) -> np.ndarray:
     sims = np.zeros(len(query))
     for i, fp in enumerate(_bitvects(query)):
         sims[i] = max(DataStructs.BulkTanimotoSimilarity(fp, train_fps)) if fp is not None else 0.0
     return sims
+
+
+def tanimoto_nn_similarity(query: list[str], train: list[str]) -> np.ndarray:
+    """Max ECFP4 Tanimoto similarity of each query to the training set."""
+    return _nn_similarity(query, [fp for fp in _bitvects(train) if fp is not None])
 
 
 def _descriptors(smiles: list[str]) -> np.ndarray:
@@ -66,24 +75,99 @@ def _descriptors(smiles: list[str]) -> np.ndarray:
     return np.array(rows, dtype=float)
 
 
-def leverage(query_desc: np.ndarray, train_desc: np.ndarray) -> tuple[np.ndarray, float]:
-    """Hat values h = xᵀ(XᵀX)⁻¹x in standardised descriptor space, and the 3·p/n threshold."""
+def _standardisation(train_desc: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    """The training-side leverage constants: mean, sd, (XᵀX)⁻¹ and the 3·p/n threshold."""
     mu, sd = train_desc.mean(0), train_desc.std(0)
+    sd = sd.copy()
     sd[sd == 0] = 1.0
     Xtr = (train_desc - mu) / sd
+    return mu, sd, np.linalg.pinv(Xtr.T @ Xtr), 3.0 * Xtr.shape[1] / Xtr.shape[0]
+
+
+def _hat(query_desc: np.ndarray, mu: np.ndarray, sd: np.ndarray,
+         cov_inv: np.ndarray) -> np.ndarray:
     Xq = (query_desc - mu) / sd
-    cov_inv = np.linalg.pinv(Xtr.T @ Xtr)
-    h = np.einsum("ij,jk,ik->i", Xq, cov_inv, Xq)
-    threshold = 3.0 * Xtr.shape[1] / Xtr.shape[0]
-    return h, float(threshold)
+    return np.einsum("ij,jk,ik->i", Xq, cov_inv, Xq)
 
 
-def in_domain(query: list[str], train: list[str]) -> dict:
-    """Per-molecule AD flags for a query set against a training set."""
-    nn_sim = tanimoto_nn_similarity(query, train)
-    h, h_thr = leverage(_descriptors(query), _descriptors(train))
+def leverage(query_desc: np.ndarray, train_desc: np.ndarray) -> tuple[np.ndarray, float]:
+    """Hat values h = xᵀ(XᵀX)⁻¹x in standardised descriptor space, and the 3·p/n threshold."""
+    mu, sd, cov_inv, threshold = _standardisation(train_desc)
+    return _hat(query_desc, mu, sd, cov_inv), float(threshold)
+
+
+@dataclass(frozen=True)
+class ADReference:
+    """The training-side half of the AD check, precomputed.
+
+    Both signals depend on the training set only through fixed quantities — the
+    training fingerprints for the Tanimoto nearest neighbour, and the
+    standardisation plus (XᵀX)⁻¹ for the leverage. Rebuilding those from SMILES
+    costs ~10 s per isoform and dominated Tier 2, so they are built once, cached,
+    and shipped.
+    """
+    fps: tuple
+    mu: np.ndarray
+    sd: np.ndarray
+    cov_inv: np.ndarray
+    threshold: float
+
+
+def build_reference(train: list[str]) -> ADReference:
+    """Precompute the training side of both AD signals."""
+    mu, sd, cov_inv, threshold = _standardisation(_descriptors(train))
+    return ADReference(fps=tuple(fp for fp in _bitvects(train) if fp is not None),
+                       mu=mu, sd=sd, cov_inv=cov_inv, threshold=threshold)
+
+
+def _save_reference(ref: ADReference, path: Path) -> None:
+    # Fingerprints go out as their raw 256-byte RDKit bit blocks: exact, compact,
+    # and ~35x faster to reload than re-deriving them from SMILES.
+    packed = np.frombuffer(
+        b"".join(DataStructs.BitVectToBinaryText(fp) for fp in ref.fps), dtype=np.uint8)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, fps=packed.reshape(len(ref.fps), -1), mu=ref.mu,
+                        sd=ref.sd, cov_inv=ref.cov_inv, threshold=ref.threshold)
+
+
+def _load_reference(path: Path) -> ADReference:
+    with np.load(path) as z:
+        return ADReference(
+            fps=tuple(DataStructs.CreateFromBinaryText(row.tobytes()) for row in z["fps"]),
+            mu=z["mu"], sd=z["sd"], cov_inv=z["cov_inv"], threshold=float(z["threshold"]))
+
+
+@lru_cache(maxsize=None)
+def load_reference(isoform: str, use_cache: bool = True) -> ADReference:
+    """The cached AD reference for one isoform's full training set.
+
+    Runtime cache first, then the committed copy, then build-and-cache — the same
+    order every other artifact in the repo uses.
+    """
+    if use_cache:
+        for directory in (AD_CACHE_DIR, BUNDLED_AD_DIR):
+            path = directory / f"{isoform}.npz"
+            if path.exists():
+                return _load_reference(path)
+
+    train = jak.build_isoform_dataset(isoform, use_cache=use_cache)["smi"].tolist()
+    ref = build_reference(train)
+    _save_reference(ref, AD_CACHE_DIR / f"{isoform}.npz")
+    return ref
+
+
+def in_domain(query: list[str], train: list[str] | None = None, *,
+              reference: ADReference | None = None) -> dict:
+    """Per-molecule AD flags for a query set against a training set.
+
+    Pass `reference` (from `load_reference`) to reuse a precomputed training side;
+    `train` builds it on the spot, which is what the seeded evaluation below needs.
+    """
+    ref = reference if reference is not None else build_reference(train)
+    nn_sim = _nn_similarity(query, list(ref.fps))
+    h = _hat(_descriptors(query), ref.mu, ref.sd, ref.cov_inv)
     tan_ok = nn_sim >= TANIMOTO_IN_DOMAIN
-    lev_ok = h <= h_thr
+    lev_ok = h <= ref.threshold
     return {"nn_sim": nn_sim, "tanimoto_ok": tan_ok,
             "leverage": h, "leverage_ok": lev_ok,
             "in_domain": tan_ok & lev_ok}

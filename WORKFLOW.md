@@ -180,6 +180,13 @@ that is prohibitive, which is exactly why AD is deferred to Tier 2. For very lar
 Tier-1 survivor sets, use approximate nearest-neighbour (LSH / FAISS on packed
 fingerprints) or a fixed diverse training reference subset.
 
+The *training* side of both signals is fixed, so it is precomputed once into
+`assets/ad_reference/{isoform}.npz` (packed training fingerprints + the leverage
+standardisation and (XᵀX)⁻¹) and loaded instead of rebuilt. Without it, every AD
+call re-derived ~10 k fingerprints and descriptors per isoform, which made scoring
+one molecule cost the same as scoring three hundred — the constant that broke the
+funnel's per-molecule economics.
+
 Tier-2 output: survivors that are **selective *and* in-domain**, with prediction
 intervals and AD verdicts attached (e.g. 10^3 → 10^2). This is the ranked shortlist
 the dashboard shows.
@@ -322,6 +329,7 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 
 - **Datasets:** `data/jak/{isoform}.parquet`, `cross_measured.parquet`, `data/library/*.parquet`
 - **Models:** `data/models/jak/{isoform}_reg.pkl`, direct gap regressor, conformal calibrators
+- **AD reference:** `data/ad_reference/{isoform}.npz` (bundled under `assets/`)
 - **Figures:** `selectivity_ranking_flip.png` (hero), `conformal_coverage.png`,
   `applicability_error.png` (money plot), `loop_before_after.png`
 - **Contract:** `loop_contract.json` (B_export / A_rescore)
