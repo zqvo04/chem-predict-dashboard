@@ -43,6 +43,7 @@ def test_build_isoform_rejects_unknown():
 
 def test_build_and_cache_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(jak, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(jak, "BUNDLED_DIR", tmp_path / "no-bundle")  # force the fetch path
     monkeypatch.setattr(jak.cc, "fetch_activities",
                         lambda tid, **kw: _acts([("CCO", 7.0), ("c1ccccc1", 8.0)]))
     first = jak.build_isoform_dataset("JAK1", use_cache=True)

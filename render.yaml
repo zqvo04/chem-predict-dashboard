@@ -1,0 +1,16 @@
+# Render blueprint. Point Render at this repo and it picks this up automatically.
+#
+# Docker (not the native Python runtime) because RDKit's drawing needs libxrender1
+# / libxext6, which the Dockerfile installs.
+#
+# plan: "starter" — the free plan sleeps after inactivity and gives less RAM than a
+# screening run wants. Set it to "free" if you accept a cold wake on first visit.
+services:
+  - type: web
+    name: chem-predict-dashboard
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: oregon
+    healthCheckPath: /_stcore/health
+    autoDeploy: true

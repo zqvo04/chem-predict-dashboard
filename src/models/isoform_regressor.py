@@ -26,7 +26,8 @@ from .scaffold_split import scaffold_split
 
 SEEDS = (0, 1, 2, 3, 4)
 _ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = _ROOT / "data" / "models" / "jak"
+MODEL_DIR = _ROOT / "data" / "models" / "jak"                    # runtime cache, gitignored
+BUNDLED_MODEL_DIR = _ROOT / "assets" / "models" / "jak"          # committed for deploys
 
 
 @dataclass
@@ -114,17 +115,23 @@ def _save(bundle: IsoformModel, path: Path) -> None:
 
 
 def train_and_cache(name: str, use_cache: bool = True) -> IsoformModel:
-    """Evaluate (seeded splits), refit on all data, cache the deployed model."""
-    path = MODEL_DIR / f"{name}_reg.pkl"
-    if use_cache and path.exists():
-        return _load(path)
+    """Evaluate (seeded splits), refit on all data, cache the deployed model.
+
+    A committed model in assets/ is used when no runtime cache exists, so a fresh
+    deploy loads in milliseconds instead of retraining on ~10k molecules.
+    """
+    if use_cache:
+        for directory in (MODEL_DIR, BUNDLED_MODEL_DIR):
+            path = directory / f"{name}_reg.pkl"
+            if path.exists():
+                return _load(path)
 
     metrics = evaluate(name, use_cache=use_cache)
     data = jak.build_isoform_dataset(name, use_cache=use_cache)
     X, mask = morgan_matrix(data["smi"].tolist())
     y = data["pchembl"].to_numpy()[mask]
     bundle = IsoformModel(isoform=name, model=_fit(X, y), metrics=metrics)
-    _save(bundle, path)
+    _save(bundle, MODEL_DIR / f"{name}_reg.pkl")     # retrains land in the runtime cache
     return bundle
 
 

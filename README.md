@@ -55,6 +55,55 @@ python scripts/run_loop.py           # run one full B->SELECT->A->re-score case
 The Stage-A deep dive runs in [`notebooks/deep_dive.ipynb`](notebooks/deep_dive.ipynb)
 (Colab). One worked case is committed under [`examples/`](examples/).
 
+## Deploying
+
+The funnel's cost is in *training*, not screening. So the trained artifacts ship
+with the repo under `assets/` — three isoform regressors, the per-isoform ChEMBL
+datasets, the wide library, and the conformal half-widths (~5 MB total):
+
+| Path | What |
+|------|------|
+| `assets/models/jak/*_reg.pkl` | the three deployed isoform regressors |
+| `assets/jak/*.parquet` | per-isoform datasets + the cross-measured join |
+| `assets/library/library.parquet` | the wide screening library |
+| `assets/conformal_quantiles.json` | calibrated 90 % half-widths per isoform |
+
+Every loader checks the runtime cache in `data/` first and falls back to `assets/`,
+so a local rebuild still wins while a fresh deploy retrains nothing. Measured on a
+clean checkout with no `data/` directory at all:
+
+| | cold run | peak RSS |
+|---|---|---|
+| training from scratch | 15–30 min | ~870 MB |
+| **from bundled assets** | **~64 s** | **~425 MB** |
+
+Same output either way (60-molecule shortlist, 3 in-domain, best gap +2.00).
+
+**Streamlit Community Cloud** — push and point it at `app.py`; `packages.txt`
+supplies the RDKit drawing libraries. The bundled assets are what keep the free
+tier from throttling the app for CPU overuse.
+
+**Render / any Docker host** — [`render.yaml`](render.yaml) is a Render blueprint
+using [`Dockerfile`](Dockerfile). Locally:
+
+```bash
+docker build -t chem-predict . && docker run -p 8501:8501 chem-predict
+```
+
+Regenerating the bundle after a data or model change:
+
+```bash
+python -m src.data.jak                 # refresh datasets  -> data/jak/
+python -m src.data.library             # refresh library   -> data/library/
+python -m src.models.isoform_regressor # retrain isoforms  -> data/models/jak/
+cp data/jak/*.parquet assets/jak/ && cp data/library/*.parquet assets/library/
+cp data/models/jak/*.pkl assets/models/jak/
+```
+
+Then refresh `assets/conformal_quantiles.json` — calibration is deterministic given
+the pinned dataset and seed, so `src.conformal.halfwidth(iso)` reproduces each value
+exactly once the stale entry is removed.
+
 ### Documentation
 
 | Doc | What it covers |
