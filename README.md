@@ -46,7 +46,7 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py                 # dashboard: "JAK selectivity funnel" mode
+streamlit run app.py                 # dashboard: "Selectivity funnel" mode
 python -m src.funnel                 # CLI: screen the wide library to a shortlist
 python scripts/run_loop.py           # run one full B->SELECT->A->re-score case
 ./scripts/reproduce.sh               # regenerate every headline number + figure

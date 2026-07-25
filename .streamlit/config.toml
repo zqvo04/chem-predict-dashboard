@@ -1,6 +1,75 @@
+# Hallmark · theme "Assay" — the Streamlit-native half of the design system.
+# Values mirror assets/tokens.css; keep the two in step when either changes.
+# Configured through Streamlit's supported theme API (not CSS overrides) so it
+# survives version upgrades.
+
 [theme]
-base = "light"
-primaryColor = "#2E7D6F"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap, sans-serif"
+headingFont = "Space Grotesk:https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap, sans-serif"
+codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap, monospace"
+
+baseFontSize = 15
+baseRadius = "0.5rem"
+buttonRadius = "0.375rem"
+showWidgetBorder = true
+showSidebarBorder = true
+linkUnderline = false
+
+# h1–h6. The app leads with its own masthead, so h1 stays modest.
+headingFontSizes = ["1.75rem", "1.5rem", "1.125rem", "1rem", "0.875rem", "0.8125rem"]
+headingFontWeights = [600, 600, 600, 600, 500, 500]
+metricValueFontSize = "1.75rem"
+metricValueFontWeight = 600
+
+[theme.light]
+backgroundColor = "#FBFDFD"
+secondaryBackgroundColor = "#F3F7F6"
+textColor = "#182124"
+primaryColor = "#1A6C5E"
+borderColor = "#DCE1E1"
+linkColor = "#025146"
+codeBackgroundColor = "#E4F8F4"
+codeTextColor = "#025146"
+dataframeBorderColor = "#DCE1E1"
+dataframeHeaderBackgroundColor = "#F3F7F6"
+greenColor = "#1A6C5E"
+greenBackgroundColor = "#E4F8F4"
+greenTextColor = "#025146"
+orangeColor = "#8E5311"
+orangeBackgroundColor = "#FFF0DB"
+orangeTextColor = "#8E5311"
+
+[theme.light.sidebar]
+backgroundColor = "#F3F7F6"
+secondaryBackgroundColor = "#E9EEEE"
+borderColor = "#DCE1E1"
+primaryColor = "#1A6C5E"
+textColor = "#182124"
+
+[theme.dark]
+backgroundColor = "#0C1013"
+secondaryBackgroundColor = "#151A1E"
+textColor = "#ECEFF0"
+primaryColor = "#69CCB7"
+borderColor = "#2A3235"
+linkColor = "#99E6D4"
+codeBackgroundColor = "#112925"
+codeTextColor = "#99E6D4"
+dataframeBorderColor = "#2A3235"
+dataframeHeaderBackgroundColor = "#1F2529"
+greenColor = "#69CCB7"
+greenBackgroundColor = "#112925"
+greenTextColor = "#99E6D4"
+orangeColor = "#EFBE77"
+orangeBackgroundColor = "#342615"
+orangeTextColor = "#EFBE77"
+
+[theme.dark.sidebar]
+backgroundColor = "#070A0C"
+secondaryBackgroundColor = "#1F2529"
+borderColor = "#2A3235"
+primaryColor = "#69CCB7"
+textColor = "#ECEFF0"
 
 [server]
 maxUploadSize = 5

@@ -28,10 +28,20 @@ from .models.isoform_regressor import train_and_cache
 from .selectivity import OFFS, POTENCY_FLOOR, TARGET
 
 
-def _context(target: str, offs: tuple[str, ...], use_cache: bool):
+def _quiet(_message: str) -> None:
+    """Default progress sink — the CLI and tests don't report steps."""
+
+
+def _context(target: str, offs: tuple[str, ...], use_cache: bool, step=_quiet):
     isoforms = [target, *offs]
-    models = {iso: train_and_cache(iso, use_cache=use_cache).model for iso in isoforms}
-    q = {iso: halfwidth(iso, use_cache=use_cache) for iso in isoforms}
+    models = {}
+    for iso in isoforms:
+        step(f"Loading the {iso} regressor")
+        models[iso] = train_and_cache(iso, use_cache=use_cache).model
+    q = {}
+    for iso in isoforms:
+        step(f"Calibrating the {iso} conformal interval")
+        q[iso] = halfwidth(iso, use_cache=use_cache)
     train = {iso: jak.build_isoform_dataset(iso, use_cache=use_cache)["smi"].tolist()
              for iso in isoforms}
     return isoforms, models, q, train
@@ -75,17 +85,26 @@ def score_molecules(smiles: list[str], target: str = TARGET, offs: tuple[str, ..
 
 def screen_library(target: str = TARGET, offs: tuple[str, ...] = OFFS,
                    library: pd.DataFrame | None = None, tier1_keep: int = 300,
-                   shortlist: int = 60, use_cache: bool = True) -> pd.DataFrame:
-    """Run the wide library down the funnel; return the ranked selective+in-domain shortlist."""
-    isoforms, models, q, train = _context(target, offs, use_cache)
+                   shortlist: int = 60, use_cache: bool = True, on_step=None) -> pd.DataFrame:
+    """Run the wide library down the funnel; return the ranked selective+in-domain shortlist.
+
+    `on_step(message)`, when given, is called before each stage so a caller (the
+    dashboard) can report honest progress on a run that takes minutes.
+    """
+    step = on_step or _quiet
+    isoforms, models, q, train = _context(target, offs, use_cache, step)
+    step("Loading the wide library")
     lib = load_library(use_cache=use_cache) if library is None else library
 
+    step(f"Tier 0 — Ro5 + PAINS over {len(lib)} molecules")
     df = apply_druglikeness(lib, smiles_col="smi")            # Tier 0
     df = df[df["druglike"]].reset_index(drop=True)
 
+    step(f"Tier 1 — per-isoform prediction + gap S over {len(df)} drug-like molecules")
     df = _predict(df, models, isoforms, target, offs)          # Tier 1
     df = df[df["meets_floor"]].sort_values("gap", ascending=False).head(tier1_keep).reset_index(drop=True)
 
+    step(f"Tier 2 — conformal interval + applicability domain over {len(df)} survivors")
     df = _trust(df, q, train, isoforms, target, offs)          # Tier 2 (survivors only)
     if df.empty:
         return df
