@@ -7,10 +7,13 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # RDKit's molecule drawing needs X libraries. packages.txt is the single source of
-# truth for them — Streamlit Community Cloud reads that same file.
+# truth for them — Streamlit Community Cloud reads that same file. Comments (#) and
+# blank lines are stripped since Community Cloud's parser accepts them but a plain
+# `tr` here would otherwise pass "#" and comment words to apt-get as package names.
 COPY packages.txt .
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends $(tr '\n' ' ' < packages.txt) \
+    && apt-get install -y --no-install-recommends \
+       $(grep -v '^#' packages.txt | grep -v '^\s*$') \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
