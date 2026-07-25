@@ -1,6 +1,9 @@
 /* Hallmark · tokens · project: chem-predict-dashboard
- * theme: custom "Assay" — anchored on the repo's existing brand teal (#2E7D6F)
- * axes: paper-band=light (dark variant supplied) · display=grotesk-sans · accent=chromatic-teal
+ * theme: custom "Molecular Clinical Precision" — redesigned from a supplied
+ *        design.md (Corporate Modern / Clinical Technical). Replaces the prior
+ *        "Assay" teal anchor with the brief's clinical blue + gold/green accents.
+ * axes: paper-band=light (dark variant authored to extend the same family) ·
+ *        display=grotesk-sans · accent=chromatic-blue
  *
  * The portable half of the design system. Every colour, font, size, duration and
  * easing the app uses is named here; app.css references these by name only and
@@ -9,7 +12,7 @@
 
 :root {
   /* ---- type ------------------------------------------------------------- */
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
@@ -23,7 +26,7 @@
   --text-2xl: 1.75rem;
   --text-3xl: 2.125rem;
 
-  --tracking-micro: 0.08em;
+  --tracking-micro: 0.05em;
   --tracking-tight: -0.02em;
   --leading-tight: 1.15;
   --leading-body: 1.55;
@@ -40,7 +43,7 @@
 
   /* ---- form -------------------------------------------------------------- */
   --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
+  --radius-md: 0.375rem;
   --radius-lg: 0.75rem;
   --radius-full: 999px;
   --rule-hair: 1px;
@@ -56,56 +59,67 @@
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ---- colour · light ---------------------------------------------------- */
-  --color-paper: oklch(99.2% 0.002 190);
-  --color-paper-raised: oklch(100% 0 0);
-  --color-paper-sunken: oklch(97.2% 0.004 190);
-  --color-paper-inset: oklch(94.6% 0.006 195);
+  /* Surface tiers — brief's surface / surface-container-lowest..container. */
+  --color-paper: oklch(98.1% 0.003 248);            /* #f7f9fb */
+  --color-paper-raised: oklch(100% 0 0);            /* #ffffff */
+  --color-paper-sunken: oklch(96.6% 0.003 248);     /* #f2f4f6 */
+  --color-paper-inset: oklch(94.8% 0.003 248);      /* #eceef0 */
 
-  --color-ink: oklch(24% 0.014 225);
-  --color-ink-2: oklch(46% 0.012 225);
-  --color-ink-3: oklch(53% 0.011 225);
+  --color-ink: oklch(22.4% 0.006 237);              /* #191c1e on-surface */
+  --color-ink-2: oklch(39.8% 0.010 8);              /* #4c4546 on-surface-variant */
+  --color-ink-3: oklch(50% 0.011 9);                /* tertiary text — darker than
+                                                        outline so small mono labels
+                                                        still clear 4.5:1 on paper */
 
-  --color-rule: oklch(90.5% 0.005 200);
-  --color-rule-strong: oklch(83% 0.008 200);
+  --color-rule: oklch(82.9% 0.010 286);             /* #c6c6cd outline-variant */
+  --color-rule-strong: oklch(57.1% 0.011 10);       /* #7e7576 outline */
 
-  --color-accent: oklch(48% 0.079 179);
-  --color-accent-deep: oklch(39% 0.070 180);
-  --color-accent-wash: oklch(96.4% 0.022 180);
+  --color-accent: oklch(48.8% 0.175 258);           /* #085ac0 secondary — clinical blue */
+  --color-accent-deep: oklch(30.6% 0.112 258);      /* #002c66 on-secondary-container */
+  --color-accent-wash: oklch(95.1% 0.025 237);      /* #e0f2fe clinical-blue */
 
-  --color-warn: oklch(50% 0.108 62);
-  --color-warn-wash: oklch(96.2% 0.033 75);
+  --color-safe: oklch(59.5% 0.129 163);             /* #019668 on-tertiary-container */
+  --color-safe-deep: oklch(38% 0.10 163);           /* #005232 text-on-wash */
+  --color-safe-wash: oklch(95% 0.03 163);           /* #ddf5e9 */
 
-  --color-focus: oklch(52% 0.170 255);
-  --shadow-sm: 0 1px 2px oklch(24% 0.014 225 / 0.06);
-  --shadow-md: 0 2px 10px oklch(24% 0.014 225 / 0.07);
+  --color-warn: oklch(76.9% 0.165 70);              /* #f59e0b predictive-gold */
+  --color-warn-deep: oklch(45% 0.13 65);            /* #844100 text-on-wash */
+  --color-warn-wash: oklch(95% 0.04 70);            /* #ffebd2 */
+
+  --color-focus: oklch(48.8% 0.175 258);            /* clinical blue — brief names it
+                                                        as both the action and focus colour */
 }
 
 /* ---- colour · dark ------------------------------------------------------- */
 /* app.py reads Streamlit's active theme server-side and emits a
  * <span class="cp-theme-dark"> marker, so the injected components follow the
  * in-app theme toggle rather than only the OS setting. Browsers without :has()
- * fall back to the light palette above. */
+ * fall back to the light palette above. The brief ships no dark tokens, so this
+ * block extends the same clinical-blue / gold / green families to a dark ground. */
 :root:has(.cp-theme-dark) {
-  --color-paper: oklch(17% 0.008 240);
-  --color-paper-raised: oklch(21.5% 0.010 240);
-  --color-paper-sunken: oklch(14% 0.008 240);
-  --color-paper-inset: oklch(26% 0.012 240);
+  --color-paper: oklch(20% 0.02 258);
+  --color-paper-raised: oklch(24% 0.022 258);
+  --color-paper-sunken: oklch(15% 0.018 258);
+  --color-paper-inset: oklch(28% 0.024 258);
 
-  --color-ink: oklch(95% 0.004 220);
-  --color-ink-2: oklch(78% 0.008 220);
-  --color-ink-3: oklch(68% 0.010 220);
+  --color-ink: oklch(95% 0.004 258);
+  --color-ink-2: oklch(78% 0.010 258);
+  --color-ink-3: oklch(66% 0.012 258);
 
-  --color-rule: oklch(31% 0.012 230);
-  --color-rule-strong: oklch(40% 0.014 230);
+  --color-rule: oklch(32% 0.02 258);
+  --color-rule-strong: oklch(42% 0.022 258);
 
-  --color-accent: oklch(78% 0.099 178);
-  --color-accent-deep: oklch(87% 0.080 178);
-  --color-accent-wash: oklch(26% 0.032 180);
+  --color-accent: oklch(67.7% 0.167 262);           /* #5b94fd secondary-container */
+  --color-accent-deep: oklch(91.4% 0.041 270);      /* #d8e2ff secondary-fixed */
+  --color-accent-wash: oklch(24% 0.05 258);
 
-  --color-warn: oklch(83% 0.105 75);
-  --color-warn-wash: oklch(28% 0.035 70);
+  --color-safe: oklch(81.3% 0.131 162);             /* #67dca8 tertiary-fixed-dim */
+  --color-safe-deep: oklch(89% 0.10 162);
+  --color-safe-wash: oklch(24% 0.045 162);
 
-  --color-focus: oklch(72% 0.140 255);
-  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.35);
-  --shadow-md: 0 2px 10px oklch(0% 0 0 / 0.40);
+  --color-warn: oklch(82% 0.13 70);
+  --color-warn-deep: oklch(90% 0.09 70);
+  --color-warn-wash: oklch(27% 0.05 70);
+
+  --color-focus: oklch(67.7% 0.167 262);
 }
