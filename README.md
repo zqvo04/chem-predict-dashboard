@@ -1,18 +1,29 @@
 # chem-predict-dashboard
 
-The dashboard has **two independent modes**, selectable from the sidebar:
+The dashboard has **three independent modes**, selectable from the sidebar:
 
 | Mode | What it does |
 |------|-------------|
-| **Selectivity funnel** | Screens a diverse ~7.8k-molecule library across JAK1/2/3, ranks by isoform selectivity with calibrated uncertainty and applicability-domain verdicts, lets you pick survivors, and hands them off to an offline deep dive. |
+| **Selectivity funnel** | Screens a diverse ~7.6k-molecule library across JAK1/2/3, ranks by isoform selectivity with calibrated uncertainty, applicability-domain verdicts and property (MPO) annotations, lets you pick survivors, and hands them off to an offline deep dive. |
+| **Single molecule** | The same Tier-1+2 scoring for one compound entered as a SMILES **or by name**, reported against the library distribution (~1.7 s from a cold process). |
 | **Target screen** | Takes any protein target name, retrieves known actives from ChEMBL, optionally expands with PubChem analogues, trains a per-target QSAR model on the fly, and scores everything with a composite potency/drug-likeness score. |
 
-Both run CPU-only. The funnel is the primary deliverable (JAK-specific, validated);
-the target screen is the underlying v1 foundation (any target, lower trust signals).
+All three run CPU-only. The funnel is the primary deliverable (JAK-specific,
+validated); the target screen is the underlying v1 foundation (any target, lower
+trust signals).
+
+**Every SMILES entering any mode is reduced to its neutral parent**
+(`src/standardize.py`): counterions are stripped and charges neutralised before
+anything is featurised. Without this, PubChem's salt form of a marketed drug
+(ruxolitinib *phosphate*) carries a counterion into the fingerprint, the Ro5
+molecular weight and the applicability-domain distance — and a known JAK inhibitor
+comes back "out of domain". Tautomer canonicalisation is deliberately **off**: it
+would rewrite 9.7 % of the JAK1 training set and 18.4 % of the library (measured),
+which is a retraining decision, not input cleaning.
 
 ---
 
-## Two modes — workflow pipelines
+## Three modes — workflow pipelines
 
 ### Mode 1: Target screen
 
@@ -73,34 +84,37 @@ the library and models are pre-loaded.
                │        Stage B — CPU, deployed app       │
                └─────────────────────────────────────────┘
 
-  WIDE LIBRARY  ~7.8k diverse drug-like, target-agnostic
+  WIDE LIBRARY  ~7.6k diverse drug-like, target-agnostic (standardised parents)
   assets/library/library.parquet        src/data/library.py
           │
-  Tier 0  Ro5 + PAINS                   near-free           7.8k → ~7.1k
+  Tier 0  Ro5 + PAINS                   near-free           7,613 → 6,882
   ─ precomputed into library cache (property of library + rules only)
   ─ columns druglike/ro5_pass/pains_pass already in the parquet
           │
-  Tier 1  per-isoform regressors → gap S   ms/molecule     ~7.1k → ~300
+  Tier 1  per-isoform regressors → gap S   ms/molecule     6,882 → 300
   ─ one HistGB pchembl regressor per isoform on ECFP4
   ─ gap S = pred(JAK1) − max(pred(JAK2), pred(JAK3))
   ─ ranked by S, above a target-potency floor (pred JAK1 ≥ 6)
   src/models/isoform_regressor.py   src/selectivity.py   src/funnel.py
           │
-  Tier 2  conformal interval + applicability domain       ~300 → ~60
+  Tier 2  conformal interval + applicability domain + MPO  ~300 → ~60
   ─ split-conformal 90 % prediction interval per isoform, propagated to gap
   ─ AD: Tanimoto NN to training set  AND  descriptor leverage (hat value)
   ─   both must pass; flagged "uncertain" if either isoform is OOD
   ─ training-side AD check precomputed → assets/ad_reference/*.npz
   ─   (eliminates ~30 s rebuild of 10k training fingerprints per call)
-  src/conformal.py   src/applicability.py   src/funnel.py
+  ─ MPO: QED, predicted logS, Tox21 alert → geometric mean
+  src/conformal.py   src/applicability.py   src/mpo.py   src/funnel.py
           │
   Dashboard — shortlist table   app.py  render_funnel()
-  ─ columns: gap S, [lo, hi] interval, AD badge, JAK1/2/3 predicted pchembl
+  ─ columns: gap S, [lo, hi] interval, AD badge, MPO, JAK1 predicted pchembl
   ─ user marks rows → "Export loop contract"
           │
   [SELECT] export loop_contract.json           src/loop_contract.py
   ─ versioned JSON pinning: model_ids, conformal α, code_version
   ─ only artefact that crosses from app to notebook
+  ─ "Open in Colab" link built from that same code_version, so the notebook
+    Colab opens is the commit the contract came from
 
                ┌─────────────────────────────────────────┐
                │    Stage A — offline, Colab notebook     │
@@ -110,6 +124,8 @@ the library and models are pre-loaded.
   assert_models_match   refuse if model_ids drifted from the export
   generate_analogues    RDKit aromatic substituent decoration (CPU today;
   ─                     GPU generative model is a documented swap-in)
+  ─                     SA-score filtered — an analogue nobody can make is
+  ─                     not a testable hypothesis
   score_molecules       the SAME Tier-1+2 modules as Stage B
   ─                     src/deep_dive.py imports src/funnel.score_molecules()
   report_markdown       before/after gap S + AD per analogue
@@ -135,6 +151,28 @@ the library and models are pre-loaded.
   directly; `assert_models_match()` rejects any drift.
 - Out-of-domain molecules are flagged, not silently extrapolated — AD carries the
   non-binder burden that regression alone cannot.
+- **Selectivity is not the only thing that disqualifies a molecule.** Tier 2
+  annotates each survivor with QED, predicted solubility and a Tox21 alert,
+  combined as a **geometric mean** rather than a weighted sum, so one unacceptable
+  property drives the score to zero instead of being averaged away. It does *not*
+  reorder the shortlist — the ranking stays on gap `S`, and MPO reads as a veto.
+  This is visible in the current output: the top two molecules by gap score
+  MPO 0.01 (Tox21 alert ≈ 0.9), while the best in-domain candidate scores 0.70.
+
+### Mode 3: Single molecule
+
+Same scoring core, one compound. Entered as a SMILES (parsed locally) or a name
+(`src/data/pubchem_client.resolve_name`, PubChem lookup). Both paths go through
+`standardize()`, so `ruxolitinib phosphate` and `ruxolitinib` score as the same
+structure.
+
+The output **leads with the library percentile, not the gap value** — a deliberate
+choice. The 90 % gap interval spans ~±2 pchembl and usually crosses zero, so a
+per-molecule selectivity claim is not supported; what *was* validated is the
+ranking (Spearman 0.80 against measured gaps, 4.5× enrichment). The page says so
+explicitly whenever the interval crosses zero, and it flags a molecule whose
+Tanimoto nearest neighbour is 1.000 as **in the training set** — those numbers are
+a fit, not a forecast, and scaffold-split metrics do not describe them.
 
 Full data-flow schemas and module map: [WORKFLOW.md](WORKFLOW.md).
 Design rationale and rejected alternatives: [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
@@ -162,10 +200,22 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py                 # dashboard: "Selectivity funnel" mode
+streamlit run app.py                 # dashboard: funnel / single molecule / target screen
 python -m src.funnel                 # CLI: screen the wide library to a shortlist
 python scripts/run_loop.py           # run one full B->SELECT->A->re-score case
 ./scripts/reproduce.sh               # regenerate every headline number + figure
+```
+
+Score one molecule without the dashboard:
+
+```python
+from src.data.pubchem_client import resolve_name
+from src.funnel import gap_percentile, score_molecules
+
+smiles, cid, title = resolve_name("ruxolitinib")     # or pass a SMILES directly
+row = score_molecules([smiles]).iloc[0]
+print(row["gap"], row["gap_lo"], row["gap_hi"], row["verdict"], row["mpo"])
+print(f"{gap_percentile(row['gap']):.1f}th percentile of the library")
 ```
 
 The Stage-A deep dive runs in [`notebooks/deep_dive.ipynb`](notebooks/deep_dive.ipynb)
@@ -193,7 +243,8 @@ clean checkout with no `data/` directory at all:
 | | cold run | peak RSS |
 |---|---|---|
 | training from scratch | 15–30 min | ~870 MB |
-| **from bundled assets** | **~3.3 s** | **~425 MB** |
+| **from bundled assets** | **~4.5 s** | **~417 MB** |
+| **one molecule, cold process** | **~1.7 s** | — |
 
 Same output either way (60-molecule shortlist, 3 in-domain, best gap +2.00).
 
@@ -236,6 +287,11 @@ The applicability reference must be rebuilt whenever `assets/jak/*.parquet` chan
 since it *is* the training set in precomputed form; run the line above after any data
 refresh (~10 s per isoform from cached datasets).
 
+The same applies to `src/standardize.py`: changing the standardisation policy
+changes what a SMILES *is*, so the library cache and the applicability reference
+must both be regenerated — otherwise the training side and the query side disagree
+about the same molecule and the domain check silently returns the wrong answer.
+
 ### Documentation
 
 | Doc | What it covers |
@@ -259,31 +315,63 @@ refresh (~10 s per isoform from cached datasets).
 
 ## Known gaps (toward a GPU-backed Stage A)
 
-The scoring core (Tier 1–2) and the B→A loop contract are built and tested; what's
-*not* yet built is a **single-molecule entry point** and an **executed GPU
-workload**. In the order they'd need to be closed:
+The scoring core (Tier 1–2), the MPO axes, the B→A loop contract and the
+single-molecule entry point are built and tested. What remains is an **executed GPU
+workload** and a **loop that gains information**. In the order they'd need to be
+closed:
 
-1. **No "score one molecule" mode.** The app only runs the full library screen or
-   the v1 target screen — there's no page that takes one SMILES (or a name) and
-   returns its gap/interval/AD verdict directly. `funnel.score_molecules()` already
-   supports this (and now runs in well under a second per molecule); it just isn't
-   wired to a UI control.
-2. **No name → structure resolution.** `src/data/pubchem_client.py` only does
-   *similarity* expansion from an existing SMILES, not name/synonym lookup, so a
-   user could not type e.g. "ruxolitinib" and get a structure.
-3. **The B→A handoff is manual.** `st.download_button` → the user opens Colab
-   themselves → `google.colab.files.upload()`. There's no one-click path from a
-   dashboard selection into a running Colab session.
-4. **No GPU workload actually executes.** `src/generate.py` is a deterministic CPU
+1. **The loop carries no new information.** This is the deepest gap and it is not
+   about GPUs. Stage A generates analogues and re-scores them *through the model
+   that proposed them*, so a rising gap `S` is the model agreeing with itself — the
+   loop closes in schema (same contract, same modules, asserted identical) but not
+   in evidence. A real DMTA cycle closes because **Test** returns a measurement the
+   model did not know. The cheapest honest substitute here is a *proxy oracle*:
+   look a scored molecule up in the full ChEMBL JAK set and, when it is present but
+   was **not** in training, report measured vs predicted. That turns "the model
+   likes its own suggestions" into "the model was right N times out of M", at
+   near-zero cost. Not built.
+2. **Tier 2 is a confidence annotation, not orthogonal evidence.** Conformal
+   intervals and AD both answer "should I trust *this model*", not "is this
+   molecule good", and both are computed in the same ECFP4 space from the same
+   training set. A real screening cascade narrows with *different* information at
+   each tier. The cheapest genuinely orthogonal second opinion would be a model of
+   a different architecture (a graph network rather than fixed fingerprints), not
+   more of the same representation.
+3. **No GPU workload actually executes.** `src/generate.py` is a deterministic CPU
    RDKit decorator; re-scoring runs the same sklearn models as Stage B. Docking
    (`src/docking.py`) is referenced in the module map as `future` and does not
    exist. Today, "Stage A" and "Colab" describe *where the expensive tier is meant
    to run*, not a GPU computation that runs there now.
+   **A caveat worth stating before that work starts:** JAK1/2/3 ATP pockets are
+   highly conserved — that conservation is the reason isoform selectivity is an
+   unsolved problem and therefore the reason this project exists. Docking-score
+   error (~1–2 kcal/mol) is comparable to or larger than the signal being resolved
+   (10× selectivity ≈ 1.4 kcal/mol), so docking *scores* are unlikely to
+   discriminate between these isoforms. Docking's defensible use here is pose
+   inspection and contact with the residues that actually differ between isoforms —
+   a flag and a picture, not a second ranking.
+4. **No run history.** Every run is stateless: nothing records what was screened,
+   when, under which models, or what a previous run concluded. That registry is
+   also the prerequisite for (1) — accumulated oracle verdicts are what a retraining
+   trigger would read.
 5. **No loop closure back into the app.** `run_from_file` produces an
    `A_rescore` contract and a markdown report inside the notebook; the dashboard has
    no importer to show that report or re-enter the analogues into Tier 0 itself —
    the loop closes conceptually (same schema, same scoring) but not inside one
    running app.
+
+Two limits on what was just built are worth stating plainly:
+
+- **The training assets are not standardised.** `standardize()` runs on every
+  ingest path *going forward*, and the wide library was rebuilt through it, but
+  `assets/jak/*.parquet` predate it and are ~0.5 % un-standardised (measured).
+  Rebuilding them changes the training sets, forces a retrain, and invalidates
+  every number in VALIDATION.md — a deliberate decision, not a side effect. The
+  residual asymmetry is small enough to document rather than hide.
+- **The SA filter is a guard, not an active filter.** At its default threshold of
+  6.0 it drops *nothing* for a drug-like seed, because decorating a reasonable
+  scaffold with common substituents stays makeable. It exists to catch pathological
+  products, and the tests pin both facts.
 
 ---
 

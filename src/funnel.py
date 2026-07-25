@@ -6,6 +6,7 @@ Runs the diverse wide library down the cost funnel and returns a shortlist that 
   Tier 0  Ro5 + PAINS                         (near-free, drop gross liabilities)
   Tier 1  per-isoform regressors -> gap S     (cheap; rank, keep the top band)
   Tier 2  conformal interval + applicability  (on survivors only; keep in-domain)
+          + MPO properties (QED / solubility / tox alert)
 
 The expensive per-molecule work (AD nearest-neighbour, intervals) runs only on
 Tier-1 survivors, so the funnel economics are real. `score_molecules` exposes the
@@ -13,6 +14,8 @@ same scoring for re-scoring a small set (the Stage-A loop closure), and
 `screen_to_contract` turns a user's picks into the versioned loop-contract dict.
 """
 from __future__ import annotations
+
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -25,6 +28,7 @@ from .filters.druglikeness import apply_druglikeness
 from .loop_contract import build_contract, model_id
 from .models.features import morgan_matrix
 from .models.isoform_regressor import train_and_cache
+from .mpo import annotate as mpo_annotate
 from .selectivity import OFFS, POTENCY_FLOOR, TARGET
 
 
@@ -58,19 +62,27 @@ def _predict(df: pd.DataFrame, models, isoforms, target, offs) -> pd.DataFrame:
 
 
 def _trust(df: pd.DataFrame, q, refs, isoforms, target, offs) -> pd.DataFrame:
-    """Tier 2 (pricier, survivors only): conformal intervals + applicability domain."""
+    """Tier 2 (pricier, survivors only): conformal intervals + applicability domain + MPO."""
     if df.empty:
         return df
     worst_off = df[[f"pred_{o}" for o in offs]].idxmax(axis=1).str.replace("pred_", "")
     for iso in isoforms:
         df[f"lo_{iso}"] = df[f"pred_{iso}"] - q[iso]
         df[f"hi_{iso}"] = df[f"pred_{iso}"] + q[iso]
-        df[f"in_domain_{iso}"] = in_domain(df["smi"].tolist(), reference=refs[iso])["in_domain"]
+        ad = in_domain(df["smi"].tolist(), reference=refs[iso])
+        df[f"in_domain_{iso}"] = ad["in_domain"]
+        df[f"nn_sim_{iso}"] = ad["nn_sim"]     # kept: the single-molecule view reports it
     half = q[target] + np.array([q[o] for o in worst_off])
     df["gap_lo"] = df["gap"] - half
     df["gap_hi"] = df["gap"] + half
     df["in_domain"] = np.logical_and.reduce([df[f"in_domain_{iso}"] for iso in isoforms])
     df["verdict"] = np.where(df["in_domain"], "in_domain", "uncertain")
+    # Selectivity is not the only thing that disqualifies a molecule: annotate the
+    # survivors with the cheap property axes so an insoluble or toxicophore-bearing
+    # candidate is visible as such. The ranking below stays on the gap.
+    props = mpo_annotate(df["smi"].tolist())
+    for column in props.columns:
+        df[column] = props[column].to_numpy()
     return df
 
 
@@ -80,6 +92,31 @@ def score_molecules(smiles: list[str], target: str = TARGET, offs: tuple[str, ..
     isoforms, models, q, refs = _context(target, offs, use_cache)
     df = _predict(pd.DataFrame({"smi": list(smiles)}), models, isoforms, target, offs)
     return _trust(df, q, refs, isoforms, target, offs)
+
+
+@lru_cache(maxsize=4)
+def library_gap_distribution(target: str = TARGET, offs: tuple[str, ...] = OFFS,
+                             use_cache: bool = True) -> np.ndarray:
+    """Sorted Tier-1 gap S over the whole drug-like library.
+
+    The reference distribution a single molecule is ranked against. A lone gap
+    value means little on its own — the 90 % interval spans ~±2 pchembl and
+    usually crosses zero — but the molecule's *position among 10^3 others* is
+    exactly what the gap model was validated on (Spearman 0.80, 4.5x enrichment),
+    so the single-molecule view leads with the percentile.
+    """
+    isoforms, models, _, _ = _context(target, offs, use_cache)
+    lib = load_library(use_cache=use_cache)
+    lib = lib[lib["druglike"]].reset_index(drop=True) if "druglike" in lib.columns else lib
+    scored = _predict(lib, models, isoforms, target, offs)
+    return np.sort(scored["gap"].to_numpy())
+
+
+def gap_percentile(gap: float, target: str = TARGET, offs: tuple[str, ...] = OFFS,
+                   use_cache: bool = True) -> float:
+    """Where a gap sits in the library distribution, as a percentile (0-100)."""
+    dist = library_gap_distribution(target, offs, use_cache)
+    return float(np.searchsorted(dist, gap) / len(dist) * 100.0)
 
 
 def screen_library(target: str = TARGET, offs: tuple[str, ...] = OFFS,
@@ -130,7 +167,7 @@ def screen_to_contract(picks: pd.DataFrame, target: str = TARGET,
 
 def _main() -> None:
     sl = screen_library()
-    cols = ["smi", f"pred_{TARGET}", "gap", "gap_lo", "gap_hi", "in_domain", "verdict"]
+    cols = ["smi", f"pred_{TARGET}", "gap", "gap_lo", "gap_hi", "in_domain", "verdict", "mpo"]
     print(f"Shortlist: {len(sl)} selective + drug-like candidates "
           f"({int(sl['in_domain'].sum())} in-domain)")
     print(sl[cols].head(12).to_string(index=False))

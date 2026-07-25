@@ -19,8 +19,9 @@ from datetime import date
 from pathlib import Path
 
 import pandas as pd
-from rdkit import Chem, RDLogger
+from rdkit import RDLogger
 
+from ..standardize import standardize
 from . import chembl_client as cc
 
 RDLogger.DisableLog("rdApp.*")
@@ -44,8 +45,14 @@ def _cached(filename: str) -> Path | None:
 
 
 def _canonical(smiles: str) -> str | None:
-    mol = Chem.MolFromSmiles(smiles) if isinstance(smiles, str) else None
-    return Chem.MolToSmiles(mol) if mol else None
+    """Neutral parent form — the same standardisation every query path applies.
+
+    NOTE: the committed `assets/jak/*.parquet` were built before this and are
+    ~0.5 % un-standardised (measured); rebuilding them here therefore also
+    requires retraining the isoform regressors and re-running
+    `scripts/reproduce.sh`, since the training sets shift slightly.
+    """
+    return standardize(smiles)
 
 
 def _collapse(activities: pd.DataFrame) -> pd.DataFrame:

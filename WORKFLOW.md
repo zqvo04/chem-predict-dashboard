@@ -191,9 +191,18 @@ Tier-2 output: survivors that are **selective *and* in-domain**, with prediction
 intervals and AD verdicts attached (e.g. 10^3 → 10^2). This is the ranked shortlist
 the dashboard shows.
 
-### B5. Drug-likeness + property context  `[reuse: druglikeness.py, property_models.py]`
+### B5. Drug-likeness + MPO  `[reuse: druglikeness.py, property_models.py; new: src/mpo.py]`
 Ro5/PAINS run as **Tier 0** (near-free, before Tier 1) to drop gross liabilities
-early; QED / solubility / tox priors are attached to the shortlist for display.
+early. QED, predicted solubility and the Tox21 alert are attached to every Tier-2
+survivor by `src/mpo.py` and combined into a single **MPO desirability**.
+
+The combination is a **geometric mean, not a weighted sum**. A weighted sum lets an
+excellent QED average away an unacceptable solubility; a geometric mean sends the
+score toward zero when any one axis is disqualifying, which is the behaviour a
+screening cascade needs. MPO does **not** reorder the shortlist — ranking stays on
+gap `S` — so it reads as a veto a human applies, not a silent re-rank. This matters
+in practice: in the current screen the two highest-gap molecules carry a Tox21
+alert near 0.9 and score MPO 0.01, while the best in-domain candidate scores 0.70.
 
 **Hero figure** `[new]`: 2-D scatter of `pchembl_pred(target)` vs gap `S` —
 potent-but-non-selective molecules bottom-right, genuinely selective ones
@@ -301,12 +310,14 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 |--------|--------|------|
 | `src/data/chembl_client.py` | reuse | resolve target, fetch activities |
 | `src/data/cache.py` | reuse | parquet cache |
-| `src/data/pubchem_client.py` | reuse | similarity expansion (optional, near-analogues) |
+| `src/data/pubchem_client.py` | reuse + extend | similarity expansion, and `resolve_name` (name → structure) |
 | `src/data/jak.py` | **new** | per-isoform regression datasets + cross-measured join (STEP 2) |
 | `src/data/library.py` | **new** | load/cache the wide screening library |
 | `src/models/features.py` | reuse | ECFP4 featurization (shared) |
 | `src/models/scaffold_split.py` | reuse + seed arg | scaffold split |
 | `src/models/property_models.py` | reuse | solubility / tox priors |
+| `src/standardize.py` | **new** | neutral-parent standardisation; every ingest and query path |
+| `src/mpo.py` | **new** | QED / solubility / tox → MPO desirability (Tier 2 annotation) |
 | `src/filters/druglikeness.py` | reuse | Tier 0 Ro5 + PAINS |
 | `src/funnel.py` | **new** | tiered wide screen (Tier 0-2) + SELECT-to-contract |
 | `src/pipeline.py` | reuse | v1 single-target screen (unchanged) |
@@ -314,11 +325,11 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/selectivity.py` | **new** | hybrid gap `S`; shared |
 | `src/conformal.py` | **new** | conformal prediction intervals; shared |
 | `src/applicability.py` | **new** | Tanimoto + leverage AD; shared |
-| `src/generate.py` | **new** | CPU analogue generation (scaffold decoration) |
+| `src/generate.py` | **new** | CPU analogue generation (scaffold decoration), SA-score filtered |
 | `src/deep_dive.py` | **new** | Stage-A loop closure: generate + re-score + report |
 | `src/docking.py` | future | optional Tier-3 docking seam (documented in the notebook) |
-| `src/loop_contract.py` | **new** | JSON contract IO + model-pin assert |
-| `app.py` | extend | tiered screen, AD badge, SELECT/export |
+| `src/loop_contract.py` | **new** | JSON contract IO + model-pin assert + Colab URL at the pinned commit |
+| `app.py` | extend | tiered screen, AD badge, MPO, single-molecule mode, SELECT/export + Colab link |
 | `notebooks/deep_dive.ipynb` | **new** | Tier 3: docking + generation + re-score |
 | `scripts/reproduce.sh` | **new** | regenerate headline numbers/figures |
 | `.github/workflows/ci.yml` | **new** | run tests on push |

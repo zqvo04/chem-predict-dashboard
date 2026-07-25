@@ -80,3 +80,27 @@ def test_loop_blocks_on_model_mismatch(tiny_world):
     contract["provenance"]["model_ids"]["JAK1"] = "CHEMBL2835@TAMPERED"
     with pytest.raises(ValueError, match="Model mismatch"):
         deep_dive.run_deep_dive(contract)
+
+
+def test_tier2_carries_the_property_axes(tiny_world):
+    """A2: a shortlist ranked on selectivity alone can hand a chemist an insoluble
+    molecule with a toxicophore alert. Tier 2 must annotate what else disqualifies it."""
+    sl = funnel.screen_library(tier1_keep=20, shortlist=5, use_cache=True)
+    for col in ("qed", "logS_pred", "tox_prob", "mpo", "nn_sim_JAK1"):
+        assert col in sl.columns
+    assert ((sl["mpo"] >= 0) & (sl["mpo"] <= 1)).all()
+    # The ranking stays on the gap — MPO is a veto to read, not a re-sort.
+    assert sl["gap"].is_monotonic_decreasing
+
+
+def test_gap_percentile_places_a_molecule_in_the_library_distribution(tiny_world):
+    """A4: the per-molecule interval is too wide to support a lone claim, so the
+    single-molecule view leads with rank. That rank has to be real."""
+    funnel.library_gap_distribution.cache_clear()
+    dist = funnel.library_gap_distribution()
+    assert len(dist) > 0 and np.all(np.diff(dist) >= 0)
+    assert funnel.gap_percentile(float(dist.min()) - 1.0) == 0.0
+    assert funnel.gap_percentile(float(dist.max()) + 1.0) == 100.0
+    middle = funnel.gap_percentile(float(np.median(dist)))
+    assert 0.0 < middle < 100.0
+    funnel.library_gap_distribution.cache_clear()
