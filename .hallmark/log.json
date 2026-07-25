@@ -3,6 +3,15 @@
     "date": "2026-07-25",
     "macrostructure": "Workbench",
     "theme": "custom",
+    "theme_axes": "light / grotesk-sans / chromatic-blue",
+    "vibe": "clinical, precise, computational — corporate modern with a technical edge",
+    "enrichment": "none — typography and data only",
+    "brief": "chem-predict-dashboard · redesign from a supplied design.md (\"Molecular Clinical Precision\") — reskinned the existing Workbench system from teal to clinical blue + gold/green semantic accents, Hanken Grotesk display, tonal-layer elevation instead of shadows"
+  },
+  {
+    "date": "2026-07-25",
+    "macrostructure": "Workbench",
+    "theme": "custom",
     "theme_axes": "light / grotesk-sans / chromatic-teal",
     "vibe": "precise, instrument-grade, quietly technical",
     "enrichment": "none — typography and data only",

@@ -1,11 +1,12 @@
-# Hallmark · theme "Assay" — the Streamlit-native half of the design system.
-# Values mirror assets/tokens.css; keep the two in step when either changes.
+# Hallmark · theme "Molecular Clinical Precision" — the Streamlit-native half of
+# the design system, redesigned from a supplied design.md. Values mirror
+# assets/tokens.css; keep the two in step when either changes.
 # Configured through Streamlit's supported theme API (not CSS overrides) so it
 # survives version upgrades.
 
 [theme]
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap, sans-serif"
-headingFont = "Space Grotesk:https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap, sans-serif"
+headingFont = "Hanken Grotesk:https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700&display=swap, sans-serif"
 codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap, monospace"
 
 baseFontSize = 15
@@ -22,54 +23,54 @@ metricValueFontSize = "1.75rem"
 metricValueFontWeight = 600
 
 [theme.light]
-backgroundColor = "#FBFDFD"
-secondaryBackgroundColor = "#F3F7F6"
-textColor = "#182124"
-primaryColor = "#1A6C5E"
-borderColor = "#DCE1E1"
-linkColor = "#025146"
-codeBackgroundColor = "#E4F8F4"
-codeTextColor = "#025146"
-dataframeBorderColor = "#DCE1E1"
-dataframeHeaderBackgroundColor = "#F3F7F6"
-greenColor = "#1A6C5E"
-greenBackgroundColor = "#E4F8F4"
-greenTextColor = "#025146"
-orangeColor = "#8E5311"
-orangeBackgroundColor = "#FFF0DB"
-orangeTextColor = "#8E5311"
+backgroundColor = "#F7F9FB"
+secondaryBackgroundColor = "#F2F4F6"
+textColor = "#191C1E"
+primaryColor = "#085AC0"
+borderColor = "#C6C6CD"
+linkColor = "#002C66"
+codeBackgroundColor = "#E0F2FE"
+codeTextColor = "#002C66"
+dataframeBorderColor = "#C6C6CD"
+dataframeHeaderBackgroundColor = "#F2F4F6"
+greenColor = "#019668"
+greenBackgroundColor = "#DDF5E9"
+greenTextColor = "#005232"
+orangeColor = "#F59E0B"
+orangeBackgroundColor = "#FFEBD2"
+orangeTextColor = "#844100"
 
 [theme.light.sidebar]
-backgroundColor = "#F3F7F6"
-secondaryBackgroundColor = "#E9EEEE"
-borderColor = "#DCE1E1"
-primaryColor = "#1A6C5E"
-textColor = "#182124"
+backgroundColor = "#F2F4F6"
+secondaryBackgroundColor = "#ECEEF0"
+borderColor = "#C6C6CD"
+primaryColor = "#085AC0"
+textColor = "#191C1E"
 
 [theme.dark]
-backgroundColor = "#0C1013"
-secondaryBackgroundColor = "#151A1E"
-textColor = "#ECEFF0"
-primaryColor = "#69CCB7"
-borderColor = "#2A3235"
-linkColor = "#99E6D4"
-codeBackgroundColor = "#112925"
-codeTextColor = "#99E6D4"
-dataframeBorderColor = "#2A3235"
-dataframeHeaderBackgroundColor = "#1F2529"
-greenColor = "#69CCB7"
-greenBackgroundColor = "#112925"
-greenTextColor = "#99E6D4"
-orangeColor = "#EFBE77"
-orangeBackgroundColor = "#342615"
-orangeTextColor = "#EFBE77"
+backgroundColor = "#10161F"
+secondaryBackgroundColor = "#19202A"
+textColor = "#EDEEF1"
+primaryColor = "#5C94FD"
+borderColor = "#2D333D"
+linkColor = "#D8E2FF"
+codeBackgroundColor = "#0F1F37"
+codeTextColor = "#D8E2FF"
+dataframeBorderColor = "#2D333D"
+dataframeHeaderBackgroundColor = "#19202A"
+greenColor = "#67DCA8"
+greenBackgroundColor = "#062619"
+greenTextColor = "#9CF0C7"
+orangeColor = "#FAB45F"
+orangeBackgroundColor = "#362207"
+orangeTextColor = "#FFD49C"
 
 [theme.dark.sidebar]
-backgroundColor = "#070A0C"
-secondaryBackgroundColor = "#1F2529"
-borderColor = "#2A3235"
-primaryColor = "#69CCB7"
-textColor = "#ECEFF0"
+backgroundColor = "#070B13"
+secondaryBackgroundColor = "#19202A"
+borderColor = "#2D333D"
+primaryColor = "#5C94FD"
+textColor = "#EDEEF1"
 
 [server]
 maxUploadSize = 5

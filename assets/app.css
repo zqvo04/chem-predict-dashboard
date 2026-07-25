@@ -1,12 +1,15 @@
-/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4
- * Hallmark · macrostructure: Workbench (control rail + working surface)
- * tone: technical / utilitarian · genre: modern-minimal
- * theme: custom "Assay" · anchor hue: teal oklch(48% 0.079 179) — preserved from
- *        the repo's existing brand primaryColor #2E7D6F
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4
+ * Hallmark · macrostructure: Workbench (control rail + working surface, unchanged)
+ * tone: technical / clinical · genre: modern-minimal
+ * theme: custom "Molecular Clinical Precision" · anchor hue: clinical blue
+ *        oklch(48.8% 0.175 258) — redesigned from a supplied design.md, replacing
+ *        the prior "Assay" teal anchor
  * nav: masthead strip (page-level chrome; Streamlit owns the toolbar)
  * footer: provenance strip (real model ids + code version, no invented content)
  * enrichment: none — typography and data only
- * motion: card-raise · button-press (focus ring is instant, never animated)
+ * motion: button-press (focus ring is instant, never animated). Card hover moved
+ *         from shadow-lift to a tonal background/border shift per the brief's
+ *         "Tonal Layers and Low-Contrast Outlines, not box shadows" elevation rule.
  *
  * Every colour / font / size below references a token from tokens.css by name.
  */
@@ -138,20 +141,19 @@ body {
   min-width: 0;
   background: var(--color-paper-raised);
   border: var(--rule-hair) solid var(--color-rule);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-xs) var(--space-sm);
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--dur-base) var(--ease-out),
-              transform var(--dur-base) var(--ease-out);
+  transition: background-color var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out);
 }
 
 .cp-stat:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  background: var(--color-paper-sunken);
+  border-color: var(--color-rule-strong);
 }
 
 .cp-stat-label {
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
   font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-micro);
@@ -194,9 +196,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3xs);
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 500;
+  letter-spacing: var(--tracking-micro);
   border-radius: var(--radius-full);
   padding: var(--space-3xs) var(--space-2xs);
   border: var(--rule-hair) solid transparent;
@@ -204,13 +207,13 @@ body {
 }
 
 .cp-chip.is-in {
-  color: var(--color-accent-deep);
-  background: var(--color-accent-wash);
-  border-color: var(--color-accent);
+  color: var(--color-safe-deep);
+  background: var(--color-safe-wash);
+  border-color: var(--color-safe);
 }
 
 .cp-chip.is-out {
-  color: var(--color-warn);
+  color: var(--color-warn-deep);
   background: var(--color-warn-wash);
   border-color: var(--color-warn);
 }
@@ -267,7 +270,7 @@ body {
 
 .cp-prov-key {
   display: block;
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
   font-size: var(--text-2xs);
   letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
@@ -358,10 +361,6 @@ body {
   .stButton button,
   .stDownloadButton button {
     transition-duration: 0.01ms;
-  }
-
-  .cp-stat:hover {
-    transform: none;
   }
 
   .stButton button:active,

@@ -30,8 +30,8 @@ _ASSETS = Path(__file__).parent / "assets"
 # Cell tints for the shortlist grid. Streamlit's dataframe parses these colour
 # strings itself and cannot resolve CSS custom properties, so the two hues are
 # repeated here from assets/tokens.css — keep them in step with the tokens.
-_TINT_IN_DOMAIN = "rgba(26, 108, 94, 0.12)"    # --color-accent  #1A6C5E
-_TINT_UNCERTAIN = "rgba(142, 83, 17, 0.12)"    # --color-warn    #8E5311
+_TINT_IN_DOMAIN = "rgba(1, 150, 104, 0.12)"    # --color-safe    #019668
+_TINT_UNCERTAIN = "rgba(245, 158, 11, 0.12)"   # --color-warn    #F59E0B
 
 st.set_page_config(page_title="chem-predict — selectivity screening",
                    page_icon="🧪", layout="wide", initial_sidebar_state="auto")
