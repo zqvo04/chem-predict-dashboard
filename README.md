@@ -1,94 +1,143 @@
 # chem-predict-dashboard
 
-**A closed, selectivity-aware drug-screening funnel — *cheap wide screen → expensive
-deep dive* — that runs CPU-only and zero-cost.**
+The dashboard has **two independent modes**, selectable from the sidebar:
 
-Screen a diverse molecule library across the **JAK1/2/3** kinase family, rank by
-isoform **selectivity** with calibrated **uncertainty** and **applicability-domain**
-verdicts (Stage B, CPU, deployed); a human picks a few cases; an offline Colab deep
-dive generates more-selective analogues and **re-scores them through the same
-models** (Stage A) — closing the loop. Built on a v1 single-target screen
-(documented further below).
+| Mode | What it does |
+|------|-------------|
+| **Selectivity funnel** | Screens a diverse ~7.8k-molecule library across JAK1/2/3, ranks by isoform selectivity with calibrated uncertainty and applicability-domain verdicts, lets you pick survivors, and hands them off to an offline deep dive. |
+| **Target screen** | Takes any protein target name, retrieves known actives from ChEMBL, optionally expands with PubChem analogues, trains a per-target QSAR model on the fly, and scores everything with a composite potency/drug-likeness score. |
 
-## Pipeline
+Both run CPU-only. The funnel is the primary deliverable (JAK-specific, validated);
+the target screen is the underlying v1 foundation (any target, lower trust signals).
 
-Two execution surfaces share **one scoring core** (`src/selectivity.py`,
-`src/conformal.py`, `src/applicability.py`) — the same code path scores the wide
-library and re-scores whatever comes back from the deep dive, so "re-scored through
-the same models" is a code fact, not a claim.
+---
+
+## Two modes — workflow pipelines
+
+### Mode 1: Target screen
+
+**Entry point:** user types a target name (e.g. `EGFR`, `JAK1`) in the sidebar.
 
 ```
-                        Stage B — CPU, deployed app
-  WIDE LIBRARY   ~7.8k diverse drug-like, target-agnostic (assets/library)
-        │
-  Tier 0  Ro5 + PAINS                near-free, precomputed in the library
-        │                            cache                    7.8k -> ~7.1k
-  Tier 1  3x isoform regressor       cheap; rank by gap S,
-        │  gap S = pred(JAK1) - max(pred(JAK2), pred(JAK3))    keep top ~300
-  Tier 2  conformal interval + AD    pricier, survivors only ->
-        │  (Tanimoto + descriptor leverage)                    shortlist ~60
-        │
-  [SELECT]  user marks rows in the dashboard
-        │   export loop_contract.json
-        │   (pins model_ids + conformal alpha + code version)
-        ▼
-                  Stage A — offline, Colab (notebooks/deep_dive.ipynb)
-  assert_models_match   refuse to run if models drifted from the export
-  generate_analogues    CPU, RDKit substituent decoration (today's generator;
-                         a GPU generative model is a documented swap-in, not
-                         yet built)
-  score_molecules       the SAME Tier-1+2 pipeline as Stage B
-  report_markdown       before/after gap S + AD, "in-silico hypothesis --
-                         requires wet-lab validation"
-  [docking: documented seam in the notebook; src/docking.py not built]
-        │
-        │   A_rescore contract (loop_case_A_rescore.json)
-        ▼
-  loop closes: re-scored analogues re-enter Tier 0
+  [user input: target name]
+          │
+  ChEMBL retrieval          src/data/chembl_client.py
+  ─ resolve name → ChEMBL target ID (prefers SINGLE_PROTEIN)
+  ─ fetch bioactivities (IC50/Ki/Kd/EC50, pchembl ≥ 6)
+  ─ collapse to one row/molecule (best potency)
+  ─ cache raw pages → data/cache/*.parquet
+          │
+  Optional: PubChem expansion   src/data/pubchem_client.py
+  ─ for each known active, find similar molecules not in ChEMBL
+  ─ returns structural near-analogues (not de-novo novel)
+          │
+  Drug-likeness filter      src/filters/druglikeness.py
+  ─ Lipinski Ro5 (mw ≤ 500, logp ≤ 5, hbd ≤ 5, hba ≤ 10; 1 violation ok)
+  ─ PAINS substructure screen
+          │
+  Per-target QSAR model     src/models/target_model.py
+  ─ HistGradientBoosting on 2048-bit ECFP4 (Morgan r=2)
+  ─ scaffold split for evaluation (tests new chemotypes, not random split)
+  ─ model cached → data/models/<target>.pkl; re-loaded on repeat runs
+          │
+  Property models           assets/models/property_models.pkl
+  ─ Solubility (ESOL regression, R² 0.86 scaffold-split)
+  ─ Toxicity alert (Tox21 classification, AUC 0.75)
+          │
+  Composite score           src/pipeline.py  screen()
+  ─ 0.5·activity + 0.2·QED + 0.15·solubility + 0.15·(1 − tox risk)
+  ─ activity = predicted pchembl mapped to [0,1] on a fixed scale
+          │
+  Dashboard — two tabs      app.py  render_target_screen()
+  ─ "Novel candidates": PubChem molecules scored on prediction
+  ─ "Known actives":   ChEMBL molecules scored on measured potency
+     (kept separate so measured binders don't bury every prediction)
 ```
 
-**Stage B, tier by tier** (`src/funnel.py`):
-- **Tier 0 — Ro5 + PAINS** (`src/filters/druglikeness.py`). Near-free rule filters;
-  a property of the library alone, so it's computed once when the library is built
-  and shipped as columns in `assets/library/library.parquet`, not recomputed per run.
-- **Tier 1 — per-isoform regressors → gap S** (`src/models/isoform_regressor.py`,
-  `src/selectivity.py`). One HistGradientBoosting pchembl regressor per isoform on
-  2048-bit ECFP4; `S` is the difference-of-regressors, ranked among molecules
-  clearing a target-potency floor. Cheap enough to run on the whole surviving
-  library.
-- **Tier 2 — conformal interval + applicability domain** (`src/conformal.py`,
-  `src/applicability.py`). Runs only on Tier-1 survivors, which is what keeps its
-  per-molecule cost bounded: a **split-conformal** 90 % interval per isoform,
-  propagated to the gap; and an **applicability-domain** verdict (Tanimoto
-  nearest-neighbour + descriptor leverage, both must agree) — a molecule the model
-  is extrapolating on is flagged `uncertain`, never silently trusted. The
-  training-side half of the AD check is precomputed and shipped in
-  `assets/ad_reference/*.npz`, so this tier doesn't rebuild ~10k training
-  fingerprints on every run.
+**Honest limits of this mode:**
+- "Novel" = PubChem 2D-similarity expansion → near-analogues of known actives,
+  not genuinely new scaffolds.
+- No uncertainty (point predictions only) and no applicability-domain flag.
+- Composite weights are not validated against any endpoint.
+- Cold train on a data-rich target (~2k molecules) takes 30–40 s.
 
-**Two separate data sources feed this**, and conflating them was v1's flaw: the
-**wide library** (target-agnostic, unlabelled — what gets screened) is distinct from
-the **ChEMBL per-isoform activity data** (what trains and validates the models,
-`src/data/jak.py`). The wide screen's `S` is pure prediction; it's trusted only
-where Tier 2 says in-domain.
+---
 
-**SELECT → Stage A handoff**: the user marks shortlist rows in the dashboard and
-downloads `loop_contract.json` — one versioned JSON, the only thing that crosses
-from the CPU app to the notebook. It pins the exact `model_ids`, the conformal `α`,
-and the git `code_version`, so Stage A can *assert* it is re-scoring through
-identical models before doing anything else (`src/loop_contract.py`).
+### Mode 2: Selectivity funnel
 
-**Stage A today** (`src/deep_dive.py`, wrapped by `notebooks/deep_dive.ipynb`) runs
-entirely on CPU: it generates analogues by RDKit substituent decoration, re-scores
-seeds + analogues through the identical Stage-B modules, and emits a before/after
-report plus an `A_rescore` contract. The notebook documents two GPU seams — a
-heavier generative model, and confirmatory docking — but **neither is implemented
-today**; the "Colab, GPU" framing describes where the expensive tier is designed to
-live, not code that currently runs there. See [Known gaps](#known-gaps-toward-a-gpu-backed-stage-a)
-below.
+**Entry point:** select "Selectivity funnel" in the sidebar; no user input needed —
+the library and models are pre-loaded.
 
-Full mechanics, schemas, and the module map: [WORKFLOW.md](WORKFLOW.md). Why each
-choice: [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
+```
+               ┌─────────────────────────────────────────┐
+               │        Stage B — CPU, deployed app       │
+               └─────────────────────────────────────────┘
+
+  WIDE LIBRARY  ~7.8k diverse drug-like, target-agnostic
+  assets/library/library.parquet        src/data/library.py
+          │
+  Tier 0  Ro5 + PAINS                   near-free           7.8k → ~7.1k
+  ─ precomputed into library cache (property of library + rules only)
+  ─ columns druglike/ro5_pass/pains_pass already in the parquet
+          │
+  Tier 1  per-isoform regressors → gap S   ms/molecule     ~7.1k → ~300
+  ─ one HistGB pchembl regressor per isoform on ECFP4
+  ─ gap S = pred(JAK1) − max(pred(JAK2), pred(JAK3))
+  ─ ranked by S, above a target-potency floor (pred JAK1 ≥ 6)
+  src/models/isoform_regressor.py   src/selectivity.py   src/funnel.py
+          │
+  Tier 2  conformal interval + applicability domain       ~300 → ~60
+  ─ split-conformal 90 % prediction interval per isoform, propagated to gap
+  ─ AD: Tanimoto NN to training set  AND  descriptor leverage (hat value)
+  ─   both must pass; flagged "uncertain" if either isoform is OOD
+  ─ training-side AD check precomputed → assets/ad_reference/*.npz
+  ─   (eliminates ~30 s rebuild of 10k training fingerprints per call)
+  src/conformal.py   src/applicability.py   src/funnel.py
+          │
+  Dashboard — shortlist table   app.py  render_funnel()
+  ─ columns: gap S, [lo, hi] interval, AD badge, JAK1/2/3 predicted pchembl
+  ─ user marks rows → "Export loop contract"
+          │
+  [SELECT] export loop_contract.json           src/loop_contract.py
+  ─ versioned JSON pinning: model_ids, conformal α, code_version
+  ─ only artefact that crosses from app to notebook
+
+               ┌─────────────────────────────────────────┐
+               │    Stage A — offline, Colab notebook     │
+               │    notebooks/deep_dive.ipynb             │
+               └─────────────────────────────────────────┘
+
+  assert_models_match   refuse if model_ids drifted from the export
+  generate_analogues    RDKit aromatic substituent decoration (CPU today;
+  ─                     GPU generative model is a documented swap-in)
+  score_molecules       the SAME Tier-1+2 modules as Stage B
+  ─                     src/deep_dive.py imports src/funnel.score_molecules()
+  report_markdown       before/after gap S + AD per analogue
+  ─                     "in-silico hypothesis — requires wet-lab validation"
+
+  [docking seam: documented in notebook; src/docking.py does not yet exist]
+          │
+  A_rescore contract (loop_case_A_rescore.json)
+          ▼
+  loop closes: analogues re-enter Tier 0 with before/after report
+```
+
+**Two separate data sources feed this:**
+- **Wide library** (`assets/library/`) — target-agnostic, unlabelled, what gets screened.
+- **ChEMBL per-isoform data** (`assets/jak/`, `src/data/jak.py`) — what trains and
+  validates the models. Never mixed: the wide screen's `S` is pure prediction,
+  trusted only where Tier 2 says in-domain.
+
+**Key design properties:**
+- Tier 2 (conformal + AD) runs *only on Tier-1 survivors* (~300 molecules), not the
+  full library — that is what makes its per-molecule cost economically real.
+- "Re-scored through the same models" is a code fact: Stage A imports `src/funnel`
+  directly; `assert_models_match()` rejects any drift.
+- Out-of-domain molecules are flagged, not silently extrapolated — AD carries the
+  non-binder burden that regression alone cannot.
+
+Full data-flow schemas and module map: [WORKFLOW.md](WORKFLOW.md).
+Design rationale and rejected alternatives: [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
 
 ## Headline results — all measured, reproducible via `./scripts/reproduce.sh`
 
