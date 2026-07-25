@@ -156,19 +156,25 @@ def run_screen(target: str, expand: bool, max_records: int):
 
 
 def funnel_cache_state() -> tuple[bool, str]:
-    """(models+library already cached?, honest one-line cost estimate)."""
-    from src.data.library import CACHE as LIB_CACHE
-    from src.models.isoform_regressor import MODEL_DIR
+    """(models + library available without training?, honest one-line cost estimate)."""
+    from src.conformal import BUNDLED_QUANTILES
+    from src.data import library
+    from src.models import isoform_regressor as ir
     from src.selectivity import OFFS, TARGET
 
-    models_ready = all((MODEL_DIR / f"{iso}_reg.pkl").exists() for iso in (TARGET, *OFFS))
-    ready = models_ready and LIB_CACHE.exists()
+    models = all(any((d / f"{iso}_reg.pkl").exists()
+                     for d in (ir.MODEL_DIR, ir.BUNDLED_MODEL_DIR))
+                 for iso in (TARGET, *OFFS))
+    ready = models and any(p.exists() for p in (library.CACHE, library.BUNDLED))
+    if ready and BUNDLED_QUANTILES.exists():
+        return True, ("Models, library and conformal calibration ship with the repo. "
+                      "This run screens the library end to end — about a minute.")
     if ready:
-        return True, ("Models and library are cached. This run re-calibrates the "
-                      "conformal intervals and screens the library — a few minutes.")
-    return False, ("First run on this machine: it downloads the ChEMBL activity sets "
-                   "and trains the three isoform regressors from scratch. Budget "
-                   "15–30 minutes on a cold CPU; every later run reads the cache.")
+        return True, ("Models and library are available; the conformal intervals are "
+                      "calibrated on this run — a few minutes.")
+    return False, ("Nothing is cached on this machine: the run downloads the ChEMBL "
+                   "activity sets and trains the three isoform regressors from "
+                   "scratch. Budget 15–30 minutes on a cold CPU.")
 
 
 # --------------------------------------------------------------------------- #

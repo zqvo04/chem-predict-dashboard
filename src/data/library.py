@@ -23,7 +23,8 @@ from ..models.property_models import _download
 RDLogger.DisableLog("rdApp.*")
 
 _ROOT = Path(__file__).resolve().parents[2]
-CACHE = _ROOT / "data" / "library" / "library.parquet"
+CACHE = _ROOT / "data" / "library" / "library.parquet"          # runtime cache, gitignored
+BUNDLED = _ROOT / "assets" / "library" / "library.parquet"      # committed for deploys
 
 
 def _canonical(smiles: str) -> str | None:
@@ -33,8 +34,10 @@ def _canonical(smiles: str) -> str | None:
 
 def load_library(use_cache: bool = True) -> pd.DataFrame:
     """Diverse, target-agnostic drug-like library as a frame of canonical SMILES."""
-    if use_cache and CACHE.exists():
-        return pd.read_parquet(CACHE)
+    if use_cache:
+        for path in (CACHE, BUNDLED):     # runtime rebuild wins over the shipped copy
+            if path.exists():
+                return pd.read_parquet(path)
 
     import gzip
     raw = gzip.decompress(_download("tox21.csv.gz"))

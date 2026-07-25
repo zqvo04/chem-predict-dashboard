@@ -30,7 +30,17 @@ TARGETS = {"JAK1": "CHEMBL2835", "JAK2": "CHEMBL2971", "JAK3": "CHEMBL2148"}
 MAX_RECORDS = 40000  # full coverage; pagination does not truncate at this size
 
 _ROOT = Path(__file__).resolve().parents[2]
-CACHE_DIR = _ROOT / "data" / "jak"
+CACHE_DIR = _ROOT / "data" / "jak"          # runtime cache, gitignored
+BUNDLED_DIR = _ROOT / "assets" / "jak"      # committed, so a fresh deploy skips retrieval
+
+
+def _cached(filename: str) -> Path | None:
+    """Runtime cache first, then the committed copy; None if neither exists."""
+    for directory in (CACHE_DIR, BUNDLED_DIR):
+        path = directory / filename
+        if path.exists():
+            return path
+    return None
 
 
 def _canonical(smiles: str) -> str | None:
@@ -62,28 +72,30 @@ def build_isoform_dataset(name: str, use_cache: bool = True) -> pd.DataFrame:
     """Clean, cached median-pchembl dataset for one isoform (smi, pchembl, n_meas)."""
     if name not in TARGETS:
         raise ValueError(f"Unknown isoform {name!r}; expected one of {list(TARGETS)}")
-    path = CACHE_DIR / f"{name}.parquet"
-    if use_cache and path.exists():
-        return pd.read_parquet(path)
+    if use_cache:
+        cached = _cached(f"{name}.parquet")
+        if cached is not None:
+            return pd.read_parquet(cached)
 
     acts = cc.fetch_activities(TARGETS[name], pchembl_gte=None, max_records=MAX_RECORDS)
     data = _collapse(acts)
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    data.to_parquet(path, index=False)
+    data.to_parquet(CACHE_DIR / f"{name}.parquet", index=False)
     return data
 
 
 def build_cross_measured(use_cache: bool = True) -> pd.DataFrame:
     """Molecules measured on all three isoforms (smi, JAK1, JAK2, JAK3 pchembl)."""
-    path = CACHE_DIR / "cross_measured.parquet"
-    if use_cache and path.exists():
-        return pd.read_parquet(path)
+    if use_cache:
+        cached = _cached("cross_measured.parquet")
+        if cached is not None:
+            return pd.read_parquet(cached)
 
     frames = [build_isoform_dataset(n, use_cache=use_cache)
                   .set_index("smi")["pchembl"].rename(n) for n in TARGETS]
     cross = pd.concat(frames, axis=1, join="inner").reset_index()
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cross.to_parquet(path, index=False)
+    cross.to_parquet(CACHE_DIR / "cross_measured.parquet", index=False)
     return cross
 
 

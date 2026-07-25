@@ -15,8 +15,10 @@ CLI (empirical coverage at 90% nominal, per isoform):
 """
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -28,6 +30,11 @@ from .models.scaffold_split import scaffold_split
 TARGET_ISOFORMS = ("JAK1", "JAK2", "JAK3")
 SEEDS = (0, 1, 2, 3, 4)
 DEFAULT_ALPHA = 0.10          # 90% nominal coverage
+
+# Deploy-time half-widths for the bundled models. Calibration is deterministic
+# given the pinned dataset + seed, so these are exactly what halfwidth() would
+# recompute — committed only so a fresh deploy skips three model fits.
+BUNDLED_QUANTILES = Path(__file__).resolve().parents[1] / "assets" / "conformal_quantiles.json"
 
 
 def conformal_quantile(cal_residuals: np.ndarray, alpha: float = DEFAULT_ALPHA) -> float:
@@ -71,9 +78,26 @@ def _seed_errors(isoform: str, seed: int, use_cache: bool = True
     return test_err, cal_res
 
 
+def _bundled_quantile(isoform: str, alpha: float, seed: int) -> float | None:
+    """The committed half-width for this exact (isoform, alpha, seed), if present."""
+    if not BUNDLED_QUANTILES.exists():
+        return None
+    table = json.loads(BUNDLED_QUANTILES.read_text(encoding="utf-8"))
+    value = table.get(f"{isoform}|alpha={alpha}|seed={seed}")
+    return float(value) if value is not None else None
+
+
 def halfwidth(isoform: str, alpha: float = DEFAULT_ALPHA, seed: int = 0,
               use_cache: bool = True) -> float:
-    """A calibrated interval half-width q for the deployed screen (one split)."""
+    """A calibrated interval half-width q for the deployed screen (one split).
+
+    Calibration means fitting a model on the proper-train split, so the committed
+    table is consulted first; any (alpha, seed) it does not cover is computed.
+    """
+    if use_cache:
+        cached = _bundled_quantile(isoform, alpha, seed)
+        if cached is not None:
+            return cached
     _, cal_res = _seed_errors(isoform, seed, use_cache=use_cache)
     return conformal_quantile(cal_res, alpha)
 
