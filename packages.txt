@@ -1,2 +1,17 @@
+# System libraries RDKit's compiled Chem.Draw extension (rdMolDraw2D, Cairo-backed)
+# needs but does not bundle in its wheel. Streamlit Community Cloud's base image
+# already carries most of these; a minimal image (e.g. python:3.11-slim, see
+# Dockerfile) does not, and fails with "ImportError: libexpat.so.1: cannot open
+# shared object file" or similar on `from rdkit.Chem import Draw`.
+#
+# Verified against `ldd` on the actual rdMolDraw2D.so — every non-libc entry that
+# isn't bundled under rdkit/../rdkit.libs/ is listed here.
 libxrender1
 libxext6
+libexpat1
+libx11-6
+libxcb1
+libxau6
+libxdmcp6
+libbsd0
+libmd0
