@@ -30,3 +30,28 @@ def test_in_domain_requires_both_signals():
     flags = ad.in_domain(["c1ccccc1", "CCCCCCCCCCCCCCO"], train)
     assert flags["in_domain"][0]                       # benzene: close + typical
     assert not flags["in_domain"][1]                   # long chain: far / atypical
+
+
+def test_precomputed_reference_matches_the_on_the_spot_path():
+    # The reference exists purely to skip recomputing the training side; it must
+    # never change a verdict.
+    train = ["c1ccccc1", "Cc1ccccc1", "CCc1ccccc1", "CCO", "CCN"]
+    query = ["c1ccccc1", "CCCCCCCCCCCCCCO", "Cc1ccccc1O"]
+    direct = ad.in_domain(query, train)
+    viaref = ad.in_domain(query, reference=ad.build_reference(train))
+    for key in ("nn_sim", "leverage", "in_domain"):
+        assert np.array_equal(direct[key], viaref[key])
+
+
+def test_reference_survives_a_save_load_roundtrip(tmp_path):
+    train = ["c1ccccc1", "Cc1ccccc1", "CCc1ccccc1", "CCO", "CCN"]
+    query = ["c1ccccc1", "CCCCCCCCCCCCCCO"]
+    ref = ad.build_reference(train)
+    path = tmp_path / "ref.npz"
+    ad._save_reference(ref, path)
+    restored = ad._load_reference(path)
+
+    assert restored.threshold == ref.threshold
+    before, after = ad.in_domain(query, reference=ref), ad.in_domain(query, reference=restored)
+    for key in ("nn_sim", "leverage", "in_domain"):
+        assert np.array_equal(before[key], after[key])

@@ -157,6 +157,7 @@ def run_screen(target: str, expand: bool, max_records: int):
 
 def funnel_cache_state() -> tuple[bool, str]:
     """(models + library available without training?, honest one-line cost estimate)."""
+    from src import applicability as ad
     from src.conformal import BUNDLED_QUANTILES
     from src.data import library
     from src.models import isoform_regressor as ir
@@ -165,13 +166,17 @@ def funnel_cache_state() -> tuple[bool, str]:
     models = all(any((d / f"{iso}_reg.pkl").exists()
                      for d in (ir.MODEL_DIR, ir.BUNDLED_MODEL_DIR))
                  for iso in (TARGET, *OFFS))
+    domain = all(any((d / f"{iso}.npz").exists()
+                     for d in (ad.AD_CACHE_DIR, ad.BUNDLED_AD_DIR))
+                 for iso in (TARGET, *OFFS))
     ready = models and any(p.exists() for p in (library.CACHE, library.BUNDLED))
-    if ready and BUNDLED_QUANTILES.exists():
-        return True, ("Models, library and conformal calibration ship with the repo. "
-                      "This run screens the library end to end — about a minute.")
+    if ready and domain and BUNDLED_QUANTILES.exists():
+        return True, ("Models, library, conformal calibration and the applicability "
+                      "reference all ship with the repo. This run screens the library "
+                      "end to end — a few seconds.")
     if ready:
-        return True, ("Models and library are available; the conformal intervals are "
-                      "calibrated on this run — a few minutes.")
+        return True, ("Models and library are available; the conformal calibration and "
+                      "the applicability reference are built on this run — a minute or two.")
     return False, ("Nothing is cached on this machine: the run downloads the ChEMBL "
                    "activity sets and trains the three isoform regressors from "
                    "scratch. Budget 15–30 minutes on a cold CPU.")

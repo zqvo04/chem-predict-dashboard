@@ -12,6 +12,7 @@ def test_load_library_canonicalises_and_dedups(tmp_path, monkeypatch):
     out = lib.load_library(use_cache=False)
     assert set(out["smi"]) == {"CCO", "c1ccccc1"}        # deduped + canonical, bad dropped
     assert out["smi"].is_unique
+    assert out["druglike"].all()                          # Tier 0 carried by the cache
     assert (tmp_path / "library.parquet").exists()        # cached
 
 

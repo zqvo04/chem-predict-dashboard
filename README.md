@@ -59,14 +59,16 @@ The Stage-A deep dive runs in [`notebooks/deep_dive.ipynb`](notebooks/deep_dive.
 
 The funnel's cost is in *training*, not screening. So the trained artifacts ship
 with the repo under `assets/` — three isoform regressors, the per-isoform ChEMBL
-datasets, the wide library, and the conformal half-widths (~5 MB total):
+datasets, the wide library, the conformal half-widths and the applicability
+reference (~6.6 MB total):
 
 | Path | What |
 |------|------|
 | `assets/models/jak/*_reg.pkl` | the three deployed isoform regressors |
 | `assets/jak/*.parquet` | per-isoform datasets + the cross-measured join |
-| `assets/library/library.parquet` | the wide screening library |
+| `assets/library/library.parquet` | the wide screening library, with its Tier-0 verdict |
 | `assets/conformal_quantiles.json` | calibrated 90 % half-widths per isoform |
+| `assets/ad_reference/*.npz` | per-isoform applicability reference (training fingerprints + leverage constants) |
 
 Every loader checks the runtime cache in `data/` first and falls back to `assets/`,
 so a local rebuild still wins while a fresh deploy retrains nothing. Measured on a
@@ -75,9 +77,17 @@ clean checkout with no `data/` directory at all:
 | | cold run | peak RSS |
 |---|---|---|
 | training from scratch | 15–30 min | ~870 MB |
-| **from bundled assets** | **~64 s** | **~425 MB** |
+| **from bundled assets** | **~3.3 s** | **~425 MB** |
 
 Same output either way (60-molecule shortlist, 3 in-domain, best gap +2.00).
+
+Two of those artifacts exist only to keep the screen cheap, and neither can change
+a result: **Tier 0** (Ro5 + PAINS) is a property of the library and the filter rules
+alone, and the **applicability reference** is the training-side half of the AD check
+— the training fingerprints and the leverage standardisation. Recomputing them from
+SMILES on every cold start cost 16 s and ~30 s respectively, the latter charged
+again on *every* call, so scoring a single molecule cost as much as scoring three
+hundred. Precomputed, one molecule now scores in **0.3 s** from a cold process.
 
 **Streamlit Community Cloud** — push and point it at `app.py`; `packages.txt`
 supplies the RDKit drawing libraries. The bundled assets are what keep the free
@@ -94,15 +104,21 @@ Regenerating the bundle after a data or model change:
 
 ```bash
 python -m src.data.jak                 # refresh datasets  -> data/jak/
-python -m src.data.library             # refresh library   -> data/library/
+python -m src.data.library             # refresh library   -> data/library/  (incl. Tier 0)
 python -m src.models.isoform_regressor # retrain isoforms  -> data/models/jak/
+python -c "from src.applicability import load_reference as r; \
+           [r(i, use_cache=False) for i in ('JAK1','JAK2','JAK3')]"   # -> data/ad_reference/
 cp data/jak/*.parquet assets/jak/ && cp data/library/*.parquet assets/library/
-cp data/models/jak/*.pkl assets/models/jak/
+cp data/models/jak/*.pkl assets/models/jak/ && cp data/ad_reference/*.npz assets/ad_reference/
 ```
 
 Then refresh `assets/conformal_quantiles.json` — calibration is deterministic given
 the pinned dataset and seed, so `src.conformal.halfwidth(iso)` reproduces each value
 exactly once the stale entry is removed.
+
+The applicability reference must be rebuilt whenever `assets/jak/*.parquet` changes,
+since it *is* the training set in precomputed form; run the line above after any data
+refresh (~10 s per isoform from cached datasets).
 
 ### Documentation
 
