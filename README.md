@@ -10,18 +10,85 @@ dive generates more-selective analogues and **re-scores them through the same
 models** (Stage A) — closing the loop. Built on a v1 single-target screen
 (documented further below).
 
+## Pipeline
+
+Two execution surfaces share **one scoring core** (`src/selectivity.py`,
+`src/conformal.py`, `src/applicability.py`) — the same code path scores the wide
+library and re-scores whatever comes back from the deep dive, so "re-scored through
+the same models" is a code fact, not a claim.
+
 ```
-  WIDE LIBRARY (~10^4 diverse drug-like, target-agnostic)
-        |
-  Tier 0  Ro5 + PAINS            Tier 1  regressors -> gap S            [B, CPU]
-  Tier 2  conformal interval + applicability domain (survivors only)
-        |
-  [SELECT] human picks a few  --export loop_contract.json-->
-        |
-  Tier 3  DEEP DIVE: generate analogues + re-score via the SAME models  [A, Colab]
-        |
-        +----- before/after gap + AD --- loop closes (analogues re-enter Tier 0)
+                        Stage B — CPU, deployed app
+  WIDE LIBRARY   ~7.8k diverse drug-like, target-agnostic (assets/library)
+        │
+  Tier 0  Ro5 + PAINS                near-free, precomputed in the library
+        │                            cache                    7.8k -> ~7.1k
+  Tier 1  3x isoform regressor       cheap; rank by gap S,
+        │  gap S = pred(JAK1) - max(pred(JAK2), pred(JAK3))    keep top ~300
+  Tier 2  conformal interval + AD    pricier, survivors only ->
+        │  (Tanimoto + descriptor leverage)                    shortlist ~60
+        │
+  [SELECT]  user marks rows in the dashboard
+        │   export loop_contract.json
+        │   (pins model_ids + conformal alpha + code version)
+        ▼
+                  Stage A — offline, Colab (notebooks/deep_dive.ipynb)
+  assert_models_match   refuse to run if models drifted from the export
+  generate_analogues    CPU, RDKit substituent decoration (today's generator;
+                         a GPU generative model is a documented swap-in, not
+                         yet built)
+  score_molecules       the SAME Tier-1+2 pipeline as Stage B
+  report_markdown       before/after gap S + AD, "in-silico hypothesis --
+                         requires wet-lab validation"
+  [docking: documented seam in the notebook; src/docking.py not built]
+        │
+        │   A_rescore contract (loop_case_A_rescore.json)
+        ▼
+  loop closes: re-scored analogues re-enter Tier 0
 ```
+
+**Stage B, tier by tier** (`src/funnel.py`):
+- **Tier 0 — Ro5 + PAINS** (`src/filters/druglikeness.py`). Near-free rule filters;
+  a property of the library alone, so it's computed once when the library is built
+  and shipped as columns in `assets/library/library.parquet`, not recomputed per run.
+- **Tier 1 — per-isoform regressors → gap S** (`src/models/isoform_regressor.py`,
+  `src/selectivity.py`). One HistGradientBoosting pchembl regressor per isoform on
+  2048-bit ECFP4; `S` is the difference-of-regressors, ranked among molecules
+  clearing a target-potency floor. Cheap enough to run on the whole surviving
+  library.
+- **Tier 2 — conformal interval + applicability domain** (`src/conformal.py`,
+  `src/applicability.py`). Runs only on Tier-1 survivors, which is what keeps its
+  per-molecule cost bounded: a **split-conformal** 90 % interval per isoform,
+  propagated to the gap; and an **applicability-domain** verdict (Tanimoto
+  nearest-neighbour + descriptor leverage, both must agree) — a molecule the model
+  is extrapolating on is flagged `uncertain`, never silently trusted. The
+  training-side half of the AD check is precomputed and shipped in
+  `assets/ad_reference/*.npz`, so this tier doesn't rebuild ~10k training
+  fingerprints on every run.
+
+**Two separate data sources feed this**, and conflating them was v1's flaw: the
+**wide library** (target-agnostic, unlabelled — what gets screened) is distinct from
+the **ChEMBL per-isoform activity data** (what trains and validates the models,
+`src/data/jak.py`). The wide screen's `S` is pure prediction; it's trusted only
+where Tier 2 says in-domain.
+
+**SELECT → Stage A handoff**: the user marks shortlist rows in the dashboard and
+downloads `loop_contract.json` — one versioned JSON, the only thing that crosses
+from the CPU app to the notebook. It pins the exact `model_ids`, the conformal `α`,
+and the git `code_version`, so Stage A can *assert* it is re-scoring through
+identical models before doing anything else (`src/loop_contract.py`).
+
+**Stage A today** (`src/deep_dive.py`, wrapped by `notebooks/deep_dive.ipynb`) runs
+entirely on CPU: it generates analogues by RDKit substituent decoration, re-scores
+seeds + analogues through the identical Stage-B modules, and emits a before/after
+report plus an `A_rescore` contract. The notebook documents two GPU seams — a
+heavier generative model, and confirmatory docking — but **neither is implemented
+today**; the "Colab, GPU" framing describes where the expensive tier is designed to
+live, not code that currently runs there. See [Known gaps](#known-gaps-toward-a-gpu-backed-stage-a)
+below.
+
+Full mechanics, schemas, and the module map: [WORKFLOW.md](WORKFLOW.md). Why each
+choice: [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
 
 ## Headline results — all measured, reproducible via `./scripts/reproduce.sh`
 
@@ -140,6 +207,34 @@ refresh (~10 s per isoform from cached datasets).
 - **Wide gap intervals.** A 90% gap interval spans ~±2 pchembl and often crosses
   zero; the ranking is trustworthy, the per-molecule interval tempers confidence.
 - **Docking is a documented seam**, not executed (see the notebook).
+
+## Known gaps (toward a GPU-backed Stage A)
+
+The scoring core (Tier 1–2) and the B→A loop contract are built and tested; what's
+*not* yet built is a **single-molecule entry point** and an **executed GPU
+workload**. In the order they'd need to be closed:
+
+1. **No "score one molecule" mode.** The app only runs the full library screen or
+   the v1 target screen — there's no page that takes one SMILES (or a name) and
+   returns its gap/interval/AD verdict directly. `funnel.score_molecules()` already
+   supports this (and now runs in well under a second per molecule); it just isn't
+   wired to a UI control.
+2. **No name → structure resolution.** `src/data/pubchem_client.py` only does
+   *similarity* expansion from an existing SMILES, not name/synonym lookup, so a
+   user could not type e.g. "ruxolitinib" and get a structure.
+3. **The B→A handoff is manual.** `st.download_button` → the user opens Colab
+   themselves → `google.colab.files.upload()`. There's no one-click path from a
+   dashboard selection into a running Colab session.
+4. **No GPU workload actually executes.** `src/generate.py` is a deterministic CPU
+   RDKit decorator; re-scoring runs the same sklearn models as Stage B. Docking
+   (`src/docking.py`) is referenced in the module map as `future` and does not
+   exist. Today, "Stage A" and "Colab" describe *where the expensive tier is meant
+   to run*, not a GPU computation that runs there now.
+5. **No loop closure back into the app.** `run_from_file` produces an
+   `A_rescore` contract and a markdown report inside the notebook; the dashboard has
+   no importer to show that report or re-enter the analogues into Tier 0 itself —
+   the loop closes conceptually (same schema, same scoring) but not inside one
+   running app.
 
 ---
 
