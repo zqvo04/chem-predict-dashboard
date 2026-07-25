@@ -82,12 +82,31 @@
   --color-safe-deep: oklch(38% 0.10 163);           /* #005232 text-on-wash */
   --color-safe-wash: oklch(95% 0.03 163);           /* #ddf5e9 */
 
-  --color-warn: oklch(76.9% 0.165 70);              /* #f59e0b predictive-gold */
-  --color-warn-deep: oklch(45% 0.13 65);            /* #844100 text-on-wash */
-  --color-warn-wash: oklch(95% 0.04 70);            /* #ffebd2 */
+  /* Gold is reserved by the brief for "Lead status and high-priority
+   * predictions" specifically — not a general caution colour. */
+  --color-lead: oklch(76.9% 0.165 70);              /* #f59e0b predictive-gold */
+  --color-lead-deep: oklch(45% 0.13 65);            /* #844100 text-on-wash */
+  --color-lead-wash: oklch(95% 0.04 70);            /* #ffebd2 */
+
+  --color-danger: oklch(63.7% 0.208 25);            /* #ef4444 danger-red */
+  --color-danger-deep: oklch(42% 0.18 25);          /* #97000f text-on-wash */
+  --color-danger-wash: oklch(95% 0.03 25);          /* #ffe7e4 */
 
   --color-focus: oklch(48.8% 0.175 258);            /* clinical blue — brief names it
                                                         as both the action and focus colour */
+
+  /* ---- nav (deep-slate rail) --------------------------------------------- */
+  /* The brief's "Deep Slate navigation environment vs. Clinical White/Gray
+   * workspace": the sidebar stays on this fixed dark surface regardless of the
+   * light/dark toggle below, which only ever affects the main canvas. Values
+   * intentionally mirror the dark-mode paper/ink/accent numbers. */
+  --color-nav-bg: oklch(20% 0.02 258);              /* #10161f */
+  --color-nav-bg-raised: oklch(24% 0.022 258);      /* #19202a */
+  --color-nav-ink: oklch(95% 0.004 258);            /* #edeef1 */
+  --color-nav-ink-2: oklch(66% 0.012 258);          /* #8e939a */
+  --color-nav-rule: oklch(32% 0.02 258);            /* #2d333d */
+  --color-nav-accent: oklch(67.7% 0.167 262);       /* #5c94fd */
+  --color-nav-accent-wash: oklch(24% 0.05 258);     /* #0f1f37 */
 }
 
 /* ---- colour · dark ------------------------------------------------------- */
@@ -117,9 +136,13 @@
   --color-safe-deep: oklch(89% 0.10 162);
   --color-safe-wash: oklch(24% 0.045 162);
 
-  --color-warn: oklch(82% 0.13 70);
-  --color-warn-deep: oklch(90% 0.09 70);
-  --color-warn-wash: oklch(27% 0.05 70);
+  --color-lead: oklch(82% 0.13 70);
+  --color-lead-deep: oklch(90% 0.09 70);
+  --color-lead-wash: oklch(27% 0.05 70);
+
+  --color-danger: oklch(72% 0.19 25);
+  --color-danger-deep: oklch(85% 0.13 25);
+  --color-danger-wash: oklch(26% 0.06 25);
 
   --color-focus: oklch(67.7% 0.167 262);
 }
