@@ -2,11 +2,13 @@
 
     streamlit run app.py
 
-Two modes over the same model layer:
+Three modes over the same model layer:
 
   * **Selectivity funnel** — run the wide, target-agnostic library down the JAK1
     cost funnel (Ro5/PAINS -> per-isoform QSAR -> gap S -> conformal + applicability
     domain) and export the picked cases as a versioned loop contract.
+  * **Single molecule** — the same Tier-1+2 scoring for one compound entered as a
+    SMILES or by name, reported against the library distribution.
   * **Target screen** — the v1 single-target pipeline: ChEMBL retrieval, PubChem
     expansion, drug-likeness filter, per-target QSAR, ranking.
 """
@@ -97,6 +99,45 @@ def note(html: str) -> None:
     st.html(f"<div class='cp-note'>{html}</div>")
 
 
+def colab_handoff(contract: dict, download_label: str) -> None:
+    """Download the contract + open the deep-dive notebook at the pinned commit.
+
+    The two belong together: the Colab link is built from the contract's own
+    `code_version`, so the notebook that opens is the commit the contract was
+    exported from and `assert_models_match` passes by construction.
+    """
+    from src.loop_contract import colab_url
+
+    prov = contract["provenance"]
+    url = colab_url(contract)
+    col_dl, col_colab = st.columns(2)
+    with col_dl:
+        st.download_button(download_label, data=json.dumps(contract, indent=2),
+                           file_name=f"{contract['case_id']}.json",
+                           mime="application/json", type="primary", width="stretch")
+    with col_colab:
+        if url:
+            st.link_button(f"Open the deep dive in Colab @ {prov['code_version']}",
+                           url, width="stretch")
+        else:
+            st.button("Colab link unavailable", disabled=True, width="stretch",
+                      help="Needs a git origin remote and a known commit.")
+    st.caption(
+        "Upload the downloaded contract in the notebook's first cell. The link pins "
+        f"commit `{prov['code_version']}` — push it first, since Colab reads the "
+        "notebook from GitHub, not from this machine."
+        if url else
+        "No Colab link: this checkout has no GitHub origin remote or no resolvable commit."
+    )
+    provenance(
+        [("case id", contract["case_id"]),
+         ("molecules", str(len(contract["molecules"]))),
+         ("conformal α", f"{prov['conformal_alpha']}"),
+         ("code version", prov["code_version"])]
+        + [(f"{iso} model", mid) for iso, mid in prov["model_ids"].items()]
+    )
+
+
 def provenance(items: list[tuple[str, str]]) -> None:
     body = "".join(
         f"<div class='cp-prov-item'><span class='cp-prov-key'>{k}</span>"
@@ -153,6 +194,37 @@ def run_funnel():
 def run_screen(target: str, expand: bool, max_records: int):
     tgt, model, scored = screen(target, expand=expand, max_records=max_records, use_cache=True)
     return tgt, model.metrics, scored
+
+
+@st.cache_data(show_spinner=False)
+def score_one(smiles: str):
+    """Tier-1+2 score for a single molecule, plus its percentile in the library."""
+    from src.funnel import gap_percentile, score_molecules
+
+    scored = score_molecules([smiles])
+    if scored.empty:
+        return None, None
+    return scored.iloc[0], gap_percentile(float(scored.iloc[0]["gap"]))
+
+
+@st.cache_data(show_spinner=False)
+def resolve_input(text: str) -> tuple[str, str]:
+    """Turn what the user typed into (standardised SMILES, provenance label).
+
+    SMILES first, then a PubChem name lookup — so a valid structure never costs a
+    network round trip, and a name still works. Both paths return the neutral
+    parent: PubChem serves marketed drugs as salts, and the counterion would move
+    the molecule out of the applicability domain it actually belongs in.
+    """
+    from src.data.pubchem_client import resolve_name
+    from src.standardize import standardize
+
+    text = text.strip()
+    parent = standardize(text)
+    if parent is not None:
+        return parent, "parsed as SMILES"
+    smiles, cid, title = resolve_name(text)
+    return smiles, f"resolved by name → PubChem CID {cid} ({title})"
 
 
 def funnel_cache_state() -> tuple[bool, str]:
@@ -238,6 +310,7 @@ def render_funnel() -> None:
         "gap S": sl["gap"].round(2),
         "gap 90% CI": [f"[{lo:+.1f}, {hi:+.1f}]" for lo, hi in zip(sl["gap_lo"], sl["gap_hi"])],
         "domain": sl["verdict"].map({"in_domain": "in-domain", "uncertain": "uncertain"}),
+        "MPO": sl["mpo"].round(2),
     })
     # Tint the domain cell: it is the call the table exists to support, and a
     # legend alone makes the reader translate every row by hand.
@@ -259,6 +332,11 @@ def render_funnel() -> None:
                 "gap 90% CI", help="Split-conformal interval, propagated from both isoforms"),
             "domain": st.column_config.TextColumn(
                 "domain", help="Tanimoto-distance and descriptor-leverage signals combined"),
+            "MPO": st.column_config.NumberColumn(
+                "MPO", format="%.2f",
+                help="Geometric mean of QED, predicted solubility and (1 − tox alert). "
+                     "Near zero means one property is disqualifying — the ranking is "
+                     "still on gap S, so read this as a veto, not a tie-breaker."),
         },
     )
 
@@ -275,20 +353,121 @@ def render_funnel() -> None:
         img = mol_grid(chosen, "gap", "gap S", smiles_col="smi", id_col="", signed=True)
         if img is not None:
             st.image(img, width="stretch")
-        contract = screen_to_contract(chosen)
-        st.download_button(
-            f"Export contract — {len(picked)} molecule{'s' if len(picked) != 1 else ''}",
-            data=json.dumps(contract, indent=2),
-            file_name=f"{contract['case_id']}.json",
-            mime="application/json", type="primary",
+        colab_handoff(screen_to_contract(chosen),
+                      f"Export contract — {len(picked)} molecule"
+                      f"{'s' if len(picked) != 1 else ''}")
+
+
+def render_single(query: str) -> None:
+    from src.data.pubchem_client import NameNotFound
+    from src.funnel import screen_to_contract
+    from src.selectivity import OFFS, POTENCY_FLOOR, TARGET
+
+    section_head(
+        "Score one molecule",
+        f"The same Tier-1 and Tier-2 scoring the wide screen runs, on a single "
+        f"compound — predicted {TARGET}/{'/'.join(OFFS)} potency, the selectivity gap "
+        f"<code>S</code> with its conformal interval, the applicability-domain verdict "
+        f"and the property axes."
+    )
+    if not query:
+        st.info("Enter a SMILES string or a compound name in the sidebar "
+                "(e.g. `ruxolitinib`, or `CCO`).")
+        return
+
+    try:
+        smiles, provenance_label = resolve_input(query)
+    except NameNotFound as err:
+        st.error(str(err))
+        return
+    except Exception as err:
+        st.error(f"Structure lookup failed ({type(err).__name__}: {err}). "
+                 "A name lookup needs network access to PubChem; a SMILES string does not.")
+        return
+
+    try:
+        row, percentile = score_one(smiles)
+    except Exception as err:
+        st.error(f"{type(err).__name__}: {err}")
+        return
+    if row is None:
+        st.error("RDKit could not build a molecule from that structure.")
+        return
+
+    # Percentile leads. A lone gap value is weakly supported — the 90 % interval
+    # spans ~±2 pchembl and usually crosses zero — while the *ranking* is what was
+    # validated (Spearman 0.80 against measured gaps). Reporting the rank first
+    # keeps the headline on the claim the evidence actually supports.
+    gap, lo, hi = float(row["gap"]), float(row["gap_lo"]), float(row["gap_hi"])
+    stat_row([
+        ("Library percentile", f"{percentile:.1f}", "rank by gap S in the drug-like library"),
+        ("Gap S", f"{gap:+.2f}", "log-units over the worst off-isoform"),
+        (f"pred {TARGET}", f"{row[f'pred_{TARGET}']:.2f}",
+         f"potency floor {POTENCY_FLOOR:.1f} — {'clears' if row['meets_floor'] else 'below'}"),
+        ("Domain", "in-domain" if row["in_domain"] else "uncertain",
+         "both applicability signals agree" if row["in_domain"] else "a model is extrapolating"),
+    ], accent_first=True)
+
+    # A single-molecule box invites famous drugs, and every marketed JAK inhibitor
+    # is in ChEMBL and therefore in the training set. A Tanimoto nearest neighbour
+    # of 1.0 means the model is reciting a molecule it was fitted on, which is a
+    # different claim from a prediction and has to be said out loud.
+    memorised = [i for i in (TARGET, *OFFS) if float(row[f"nn_sim_{i}"]) >= 0.999]
+    if memorised:
+        st.info(
+            f"**This molecule is in the training set** for {', '.join(memorised)} "
+            f"(Tanimoto nearest neighbour 1.000). The numbers below are a *fit*, not a "
+            f"forecast — the model has seen this structure and its measured potency. "
+            f"Scaffold-split metrics describe performance on chemotypes the model has "
+            f"never seen, so they do not apply here."
         )
-        prov = contract["provenance"]
-        provenance(
-            [("case id", contract["case_id"]),
-             ("conformal α", f"{prov['conformal_alpha']}"),
-             ("code version", prov["code_version"])]
-            + [(f"{iso} model", mid) for iso, mid in prov["model_ids"].items()]
-        )
+
+    mol = Chem.MolFromSmiles(smiles)
+    left, right = st.columns([1, 2])
+    with left:
+        if mol is not None:
+            st.image(Draw.MolToImage(mol, size=(320, 260)), width="content")
+        st.caption(provenance_label)
+        st.code(smiles, language=None)
+    with right:
+        st.markdown(f"**Selectivity gap** `{gap:+.2f}`  90% CI `[{lo:+.2f}, {hi:+.2f}]`")
+        if lo <= 0.0 <= hi:
+            st.warning(
+                f"The interval crosses zero, so this molecule cannot be called "
+                f"{TARGET}-selective on its own evidence. What the model supports is its "
+                f"**rank**: it sits at the {percentile:.1f}th percentile of the library. "
+                f"Selectivity ranking was validated (Spearman 0.80 vs measured gaps, "
+                f"4.5× enrichment); per-molecule intervals this wide were not.")
+        else:
+            st.success(f"The interval excludes zero — the predicted direction of "
+                       f"selectivity is supported at 90 % confidence.")
+
+        st.markdown("**Per-isoform prediction**")
+        st.dataframe(pd.DataFrame({
+            "isoform": [TARGET, *OFFS],
+            "pred pChEMBL": [round(float(row[f"pred_{i}"]), 2) for i in (TARGET, *OFFS)],
+            "90% CI": [f"[{row[f'lo_{i}']:.2f}, {row[f'hi_{i}']:.2f}]" for i in (TARGET, *OFFS)],
+            "Tanimoto NN": [f"{float(row[f'nn_sim_{i}']):.3f}" for i in (TARGET, *OFFS)],
+            "in domain": ["yes" if row[f"in_domain_{i}"] else "no" for i in (TARGET, *OFFS)],
+        }), width="stretch", hide_index=True)
+
+    section_head("Property axes (MPO)",
+                 "Selectivity is not the only thing that disqualifies a molecule. These "
+                 "are combined as a geometric mean, so one unacceptable property pulls "
+                 "the score down rather than being averaged away.")
+    stat_row([
+        ("MPO", f"{row['mpo']:.2f}" if pd.notna(row["mpo"]) else "—", "geometric mean of desirabilities"),
+        ("QED", f"{row['qed']:.2f}" if pd.notna(row["qed"]) else "—", "RDKit drug-likeness"),
+        ("logS", f"{row['logS_pred']:.2f}" if pd.notna(row["logS_pred"]) else "—",
+         "predicted, ESOL model"),
+        ("Tox alert", f"{row['tox_prob']:.2f}" if pd.notna(row["tox_prob"]) else "—",
+         "P(any Tox21 hit) — a screening alert, not a safety verdict"),
+    ])
+
+    section_head("Hand this molecule to the deep dive",
+                 "The contract pins the models, the conformal level and the code version; "
+                 "the Colab link opens the notebook at that same commit.")
+    colab_handoff(screen_to_contract(pd.DataFrame([row])), "Export contract — 1 molecule")
 
 
 def render_target_screen(target: str, top_n: int, expand: bool, max_records: int) -> None:
@@ -370,12 +549,18 @@ apply_theme()
 with st.sidebar:
     st.markdown("### Mode")
     # segmented_control returns None when the active chip is clicked again.
-    mode = st.segmented_control("Mode", ["Selectivity funnel", "Target screen"],
+    mode = st.segmented_control("Mode", ["Selectivity funnel", "Single molecule", "Target screen"],
                                 default="Selectivity funnel",
                                 label_visibility="collapsed") or "Selectivity funnel"
     st.divider()
 
-    if mode == "Target screen":
+    if mode == "Single molecule":
+        st.markdown("### Score a molecule")
+        single_query = st.text_input("SMILES or compound name", value="ruxolitinib")
+        st.caption("A SMILES string is parsed locally. Anything else is looked up by "
+                   "name on PubChem and reduced to its neutral parent, so a salt form "
+                   "scores as the drug it is.")
+    elif mode == "Target screen":
         st.markdown("### Screen a target")
         target = st.text_input("Target name or ChEMBL id", value="EGFR")
         top_n = st.slider("Top N per track", 4, 24, 8)
@@ -392,10 +577,12 @@ with st.sidebar:
             run_funnel.clear()
             st.rerun()
 
-masthead(["CPU-only", "JAK1 / JAK2 / JAK3", "conformal 90%"]
-         if mode == "Selectivity funnel" else ["CPU-only", "ChEMBL + PubChem"])
+masthead(["CPU-only", "ChEMBL + PubChem"] if mode == "Target screen"
+         else ["CPU-only", "JAK1 / JAK2 / JAK3", "conformal 90%"])
 
 if mode == "Selectivity funnel":
     render_funnel()
+elif mode == "Single molecule":
+    render_single(single_query)
 else:
     render_target_screen(target, top_n, expand, max_records)

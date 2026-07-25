@@ -16,10 +16,11 @@ import io
 from pathlib import Path
 
 import pandas as pd
-from rdkit import Chem, RDLogger
+from rdkit import RDLogger
 
 from ..filters.druglikeness import apply_druglikeness
 from ..models.property_models import _download
+from ..standardize import standardize
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -28,13 +29,14 @@ CACHE = _ROOT / "data" / "library" / "library.parquet"          # runtime cache,
 BUNDLED = _ROOT / "assets" / "library" / "library.parquet"      # committed for deploys
 
 
-def _canonical(smiles: str) -> str | None:
-    mol = Chem.MolFromSmiles(smiles) if isinstance(smiles, str) else None
-    return Chem.MolToSmiles(mol) if mol else None
-
-
 def load_library(use_cache: bool = True) -> pd.DataFrame:
-    """Diverse, target-agnostic drug-like library as a frame of canonical SMILES.
+    """Diverse, target-agnostic drug-like library as a frame of standardised SMILES.
+
+    Molecules are reduced to their neutral parent (`src.standardize`) before
+    dedup: the raw collection ships salts and charged forms, and screening a
+    counterion is wrong twice over — it inflates the molecular weight Tier 0
+    checks against Ro5, and it changes the fingerprint Tier 1 and the
+    applicability domain read.
 
     Carries the funnel's Tier-0 verdict (Ro5 + PAINS) as columns: it is a property
     of the library and the filter rules alone — no model enters it — so computing
@@ -47,7 +49,7 @@ def load_library(use_cache: bool = True) -> pd.DataFrame:
 
     import gzip
     raw = gzip.decompress(_download("tox21.csv.gz"))
-    smiles = pd.read_csv(io.BytesIO(raw))["smiles"].dropna().map(_canonical).dropna()
+    smiles = pd.read_csv(io.BytesIO(raw))["smiles"].dropna().map(standardize).dropna()
     lib = apply_druglikeness(pd.DataFrame({"smi": pd.Series(smiles.unique())}),
                              smiles_col="smi")
 

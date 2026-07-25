@@ -21,14 +21,49 @@ import pandas as pd
 
 SCHEMA_VERSION = "1.0"
 
+NOTEBOOK_PATH = "notebooks/deep_dive.ipynb"
+_COLAB_BASE = "https://colab.research.google.com/github"
 
-def code_version() -> str:
+
+def _git(*args: str) -> str | None:
     try:
-        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
+        return subprocess.check_output(["git", *args],
                                        cwd=Path(__file__).resolve().parent,
                                        stderr=subprocess.DEVNULL).decode().strip()
     except Exception:
-        return "unknown"
+        return None
+
+
+def code_version() -> str:
+    return _git("rev-parse", "--short", "HEAD") or "unknown"
+
+
+def repo_slug() -> str | None:
+    """'owner/repo' parsed from the git origin remote, or None if it isn't set."""
+    url = _git("config", "--get", "remote.origin.url")
+    if not url:
+        return None
+    slug = url.removesuffix(".git").rstrip("/")
+    parts = [p for p in slug.replace(":", "/").split("/") if p]
+    return "/".join(parts[-2:]) if len(parts) >= 2 else None
+
+
+def colab_url(contract: dict) -> str | None:
+    """Open the deep-dive notebook in Colab at the contract's exact code version.
+
+    This is what turns the B->A handoff from "download a file, find the notebook
+    yourself" into one link, and it does more than save a click: pinning the URL to
+    the contract's `code_version` means the notebook Colab opens is the same commit
+    the contract was exported from, so `assert_models_match` passes by construction
+    instead of by luck.
+
+    Returns None when the commit or the remote is unknown. The commit must be
+    pushed for the link to resolve — Colab reads it from GitHub, not from disk.
+    """
+    slug, ref = repo_slug(), contract["provenance"]["code_version"]
+    if not slug or ref == "unknown":
+        return None
+    return f"{_COLAB_BASE}/{slug}/blob/{ref}/{NOTEBOOK_PATH}"
 
 
 def model_id(chembl_id: str, model) -> str:

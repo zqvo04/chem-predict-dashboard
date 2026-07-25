@@ -50,3 +50,33 @@ def test_model_id_is_stable_and_content_addressed():
     m = DummyRegressor().fit(np.zeros((3, 2)), [1, 2, 3])
     a, b = lc.model_id("CHEMBL2835", m), lc.model_id("CHEMBL2835", m)
     assert a == b and a.startswith("CHEMBL2835@")
+
+
+# --- Colab handoff -------------------------------------------------------- #
+
+def test_colab_url_pins_the_contracts_own_code_version(monkeypatch):
+    """The point of the link is not the saved click: pinning it to the contract's
+    commit means the notebook Colab opens is the one the contract was exported
+    from, so assert_models_match passes by construction."""
+    monkeypatch.setattr(lc, "repo_slug", lambda: "owner/repo")
+    url = lc.colab_url({"provenance": {"code_version": "abc1234"}})
+    assert url == ("https://colab.research.google.com/github/owner/repo/"
+                   "blob/abc1234/notebooks/deep_dive.ipynb")
+
+
+def test_colab_url_is_none_without_a_remote_or_a_known_commit(monkeypatch):
+    monkeypatch.setattr(lc, "repo_slug", lambda: None)
+    assert lc.colab_url({"provenance": {"code_version": "abc1234"}}) is None
+    monkeypatch.setattr(lc, "repo_slug", lambda: "owner/repo")
+    assert lc.colab_url({"provenance": {"code_version": "unknown"}}) is None
+
+
+@pytest.mark.parametrize("remote", [
+    "https://github.com/owner/repo.git",
+    "https://github.com/owner/repo",
+    "git@github.com:owner/repo.git",
+    "http://proxy@127.0.0.1:8080/git/owner/repo",
+])
+def test_repo_slug_parses_the_usual_remote_spellings(monkeypatch, remote):
+    monkeypatch.setattr(lc, "_git", lambda *a: remote)
+    assert lc.repo_slug() == "owner/repo"
