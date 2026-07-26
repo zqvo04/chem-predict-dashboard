@@ -369,6 +369,7 @@ def render_funnel() -> None:
         f"pred {TARGET}": sl[f"pred_{TARGET}"].round(2),
         "gap S": sl["gap"].round(2),
         "gap 90% CI": [f"[{lo:+.1f}, {hi:+.1f}]" for lo, hi in zip(sl["gap_lo"], sl["gap_hi"])],
+        "binder": sl["binder_prob"].round(2),
         "domain": sl["verdict"].map({"in_domain": "in-domain", "uncertain": "uncertain"}),
         "MPO": sl["mpo"].round(2),
     })
@@ -390,6 +391,10 @@ def render_funnel() -> None:
                 help="Selectivity gap in log-units; +1 ≈ 10× selective"),
             "gap 90% CI": st.column_config.TextColumn(
                 "gap 90% CI", help="Split-conformal interval, propagated from both isoforms"),
+            "binder": st.column_config.NumberColumn(
+                "binder", format="%.2f",
+                help="Tier-0.5 binder-gate probability P(JAK binder). Every shortlisted "
+                     "molecule cleared the gate; the value is its margin above the cutoff."),
             "domain": st.column_config.TextColumn(
                 "domain", help="Tanimoto-distance and descriptor-leverage signals combined"),
             "MPO": st.column_config.NumberColumn(
@@ -453,6 +458,19 @@ def render_single(query: str) -> None:
     if row is None:
         st.error("RDKit could not build a molecule from that structure.")
         return
+
+    # The binder gate reframes everything below it. The regressors emit a pChEMBL
+    # for any structure, so a non-binder still gets a gap and a percentile — but the
+    # wide screen would drop it before ranking, and saying so up front stops the
+    # percentile from reading as endorsement of a molecule the models never saw.
+    if "is_binder" in row and not bool(row["is_binder"]):
+        st.warning(
+            f"**Binder gate: unlikely JAK binder** — P(binder) "
+            f"{float(row['binder_prob']):.2f}. This molecule looks unlike the JAK actives "
+            f"the models were trained on, so the wide screen would gate it out before Tier 1. "
+            f"The gap, percentile and interval below are shown for completeness — read them "
+            f"as *what the regressors extrapolate*, not as a selectivity claim."
+        )
 
     # Percentile leads. A lone gap value is weakly supported — the 90 % interval
     # spans ~±2 pchembl and usually crosses zero — while the *ranking* is what was

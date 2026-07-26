@@ -41,6 +41,13 @@ python -m src.applicability
 python scripts/make_ad_figure.py
 
 echo
+echo "== Binder gate (STEP 10, Tier 0.5) =="
+echo "Build the physchem-matched presumed-inactives (needs network to ten ChEMBL"
+echo "targets; caches under data/) and the binder gate: ROC-AUC + Youden's-J point."
+python -m src.data.negatives
+python -m src.models.binder_gate
+
+echo
 echo "== Tiered wide screen (STEP 7) =="
 echo "Screen the diverse library down the funnel to a selective + in-domain shortlist."
 python -m src.data.library

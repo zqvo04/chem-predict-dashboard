@@ -71,6 +71,27 @@ substitute for "I have never seen a true inactive." A DUD-E-style decoy class fo
 a genuine binder/non-binder gate is kept **in reserve** as an optional future
 addition, not a dependency.
 
+**Update (2026-07-26) — the reserve was activated: the binder gate (Tier 0.5).**
+The live wide screen showed AD alone did not carry the censored-label burden. A
+tree ensemble reverts to its training mean (~6.3 pchembl) on anything off-domain,
+so **ethanol scored a predicted JAK1 pchembl of 6.12** (a 760 nM "inhibitor"),
+**83 %** of a diverse target-agnostic library cleared the potency floor, and a
+neonicotinoid insecticide ranked third by selectivity gap — because a gap between
+three shrunk-to-mean predictions is a model artefact, not chemistry. AD flagged
+these as *uncertain* but only *after* the gap had already ranked them, and the
+funnel's headline still read off that ranking. So the reserved gate is now built
+(`src/models/binder_gate.py`): a binary classifier that runs *before* Tier 1 and
+drops molecules that do not look like JAK binders at all. Its negatives are real,
+drug-like molecules measured active on other targets with no JAK record,
+**physchem-matched** to the JAK actives so the classifier cannot separate the
+classes on molecular size or lipophilicity alone (`src/data/negatives.py`). This
+does **not** revive the killed classification plan — the regressors, the gap and
+every number §2–§6 report are untouched; the gate filters what reaches them. It is
+additive, exactly as this section reserved it. Residual limit: a promiscuous
+other-kinase inhibitor that would in fact hit JAK but carries no JAK record is a
+mislabelled negative; known cross-actives are removed by the JAK exclusion, and the
+two kinase targets are a minority of the ten-target basket.
+
 **Rejected alternatives.**
 - *Binary classification (the reverted plan).* Killed by Gate 0 — no inactive
   class, and it discards the gap that selectivity is made of.
