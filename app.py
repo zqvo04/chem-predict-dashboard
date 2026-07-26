@@ -166,6 +166,14 @@ def colab_handoff(contract: dict, download_label: str) -> None:
             f"Stage A re-scores through these exact models — and refuses to run if "
             f"it cannot. It hands back an `A_rescore` contract at the end."
         )
+        # The download -> upload round trip needs a filesystem, which a phone (or a
+        # browser that blocks Colab's upload widget) does not usefully have. The
+        # notebook's first cell takes a paste when no file is picked, so the whole
+        # handoff can happen between two browser tabs.
+        with st.expander("Paste it into Colab instead of downloading"):
+            st.caption("Copy this, dismiss the notebook's file picker, and paste it "
+                       "at the prompt. Same contract, same pin — no file involved.")
+            st.code(json.dumps(contract, separators=(",", ":")), language="json")
         if commit_on_remote(ref) is False:
             st.warning(
                 f"Commit `{ref}` is not on the GitHub remote. Colab reads both the "

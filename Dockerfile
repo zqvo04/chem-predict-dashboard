@@ -21,6 +21,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# The Colab handoff pins the deep dive to the commit the contract was exported
+# from, and this image has neither git nor .git — so pass the commit in, or the
+# dashboard has no commit to pin and drops the link:
+#
+#   docker build --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) .
+#
+# Render needs no build arg: it injects RENDER_GIT_COMMIT / RENDER_GIT_REPO_SLUG
+# at runtime and src/loop_contract.py reads those too.
+ARG GIT_COMMIT=unknown
+ENV CHEM_PREDICT_COMMIT=$GIT_COMMIT
+ENV CHEM_PREDICT_REPO=zqvo04/chem-predict-dashboard
+
 # Render injects $PORT; default to Streamlit's own for local `docker run`.
 ENV PORT=8501
 EXPOSE 8501

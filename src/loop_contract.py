@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import pickle
 import subprocess
 from datetime import datetime, timezone
@@ -24,6 +25,14 @@ SCHEMA_VERSION = "1.0"
 NOTEBOOK_PATH = "notebooks/deep_dive.ipynb"
 _COLAB_BASE = "https://colab.research.google.com/github"
 
+# Deployment fallbacks. The container serving the dashboard has neither a git
+# binary nor a .git directory, so on the web — where most people meet the funnel —
+# the commit would read "unknown" and the Colab handoff would silently disappear.
+# Render injects the RENDER_* pair; CHEM_PREDICT_* is the generic escape hatch the
+# Dockerfile bakes in. See README "Deploying".
+_COMMIT_ENV = ("CHEM_PREDICT_COMMIT", "RENDER_GIT_COMMIT")
+_REPO_ENV = ("CHEM_PREDICT_REPO", "RENDER_GIT_REPO_SLUG")
+
 
 def _git(*args: str) -> str | None:
     try:
@@ -34,16 +43,29 @@ def _git(*args: str) -> str | None:
         return None
 
 
+def _env(names: tuple[str, ...]) -> str | None:
+    for name in names:
+        value = os.environ.get(name, "").strip()
+        if value and value != "unknown":
+            return value
+    return None
+
+
 def code_version() -> str:
-    return _git("rev-parse", "--short", "HEAD") or "unknown"
+    """Short commit of the running code — from git, else from the deployment env."""
+    sha = _git("rev-parse", "--short", "HEAD")
+    if sha:
+        return sha
+    env = _env(_COMMIT_ENV)
+    return env[:7] if env else "unknown"       # the env pair carries the full sha
 
 
 def repo_slug() -> str | None:
-    """'owner/repo' parsed from the git origin remote, or None if it isn't set."""
-    url = _git("config", "--get", "remote.origin.url")
-    if not url:
+    """'owner/repo' from the git origin remote, else the deployment env, else None."""
+    raw = _git("config", "--get", "remote.origin.url") or _env(_REPO_ENV)
+    if not raw:
         return None
-    slug = url.removesuffix(".git").rstrip("/")
+    slug = raw.removesuffix(".git").rstrip("/")
     parts = [p for p in slug.replace(":", "/").split("/") if p]
     return "/".join(parts[-2:]) if len(parts) >= 2 else None
 
