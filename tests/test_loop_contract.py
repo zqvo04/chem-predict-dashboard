@@ -136,3 +136,40 @@ def test_validate_rejects_json_that_is_not_a_contract():
 def test_colab_url_points_at_a_notebook_that_actually_exists():
     """The URL is built from NOTEBOOK_PATH; if the notebook moves, the link 404s."""
     assert (Path(__file__).resolve().parents[1] / lc.NOTEBOOK_PATH).exists()
+
+
+# --- Deployment fallbacks (the web app has no git) ------------------------- #
+
+def test_code_version_and_slug_fall_back_to_the_deployment_env(monkeypatch):
+    """The container serving the dashboard has neither git nor .git, so without
+    this the commit reads 'unknown' on the web and the Colab handoff disappears
+    exactly where most people meet the funnel."""
+    monkeypatch.setattr(lc, "_git", lambda *a: None)
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "ab1a969" + "f" * 33)   # Render gives the full sha
+    monkeypatch.setenv("RENDER_GIT_REPO_SLUG", "owner/repo")
+    assert lc.code_version() == "ab1a969"
+    assert lc.repo_slug() == "owner/repo"
+    assert lc.colab_url({"provenance": {"code_version": lc.code_version()}}) == (
+        "https://colab.research.google.com/github/owner/repo/"
+        "blob/ab1a969/notebooks/deep_dive.ipynb")
+
+
+def test_git_wins_over_the_env_and_a_repo_url_still_parses(monkeypatch):
+    monkeypatch.setenv("CHEM_PREDICT_COMMIT", "eeeeeee")
+    monkeypatch.setattr(lc, "_git", lambda *a: "abc1234")
+    assert lc.code_version() == "abc1234"
+    monkeypatch.setattr(lc, "_git", lambda *a: None)
+    monkeypatch.setenv("CHEM_PREDICT_REPO", "https://github.com/owner/fork.git")
+    assert lc.code_version() == "eeeeeee" and lc.repo_slug() == "owner/fork"
+
+
+def test_no_git_and_no_env_stays_honest(monkeypatch):
+    """No silent fallback to a branch name: a contract that cannot name its commit
+    cannot be pinned, and the notebook refuses to run against an unpinned checkout."""
+    monkeypatch.setattr(lc, "_git", lambda *a: None)
+    for name in ("CHEM_PREDICT_COMMIT", "RENDER_GIT_COMMIT",
+                 "CHEM_PREDICT_REPO", "RENDER_GIT_REPO_SLUG"):
+        monkeypatch.delenv(name, raising=False)
+    assert lc.code_version() == "unknown"
+    assert lc.repo_slug() is None
+    assert lc.colab_url({"provenance": {"code_version": "unknown"}}) is None

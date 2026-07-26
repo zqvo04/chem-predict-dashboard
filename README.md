@@ -1,5 +1,12 @@
 # chem-predict-dashboard
 
+[![Open the Stage-A deep dive in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/zqvo04/chem-predict-dashboard/blob/main/notebooks/deep_dive.ipynb)
+
+This badge opens the deep-dive notebook at `main`. The **dashboard's own Colab
+button** ([Mode 2](#mode-2-selectivity-funnel)) is the one to use for real work: it
+is built from the exported contract's `code_version`, so the notebook — and the
+clone it makes — land on the exact commit the case was screened at.
+
 The dashboard has **three independent modes**, selectable from the sidebar:
 
 | Mode | What it does |
@@ -118,6 +125,8 @@ the library and models are pre-loaded.
   ─ the notebook re-reads code_version out of the uploaded contract and
     checks its clone out at it, so the models are the exported ones too
   ─ app warns when that commit is not pushed — Colab reads GitHub, not disk
+  ─ or copy the contract from the paste box and paste it into the notebook:
+    web app to Colab in two browser tabs, no file involved
 
                ┌─────────────────────────────────────────┐
                │    Stage A — offline, Colab notebook     │
@@ -257,7 +266,10 @@ print(f"{gap_percentile(row['gap']):.1f}th percentile of the library")
 ```
 
 The Stage-A deep dive runs in [`notebooks/deep_dive.ipynb`](notebooks/deep_dive.ipynb)
-(Colab). One worked case is committed under [`examples/`](examples/).
+— [open it in Colab](https://colab.research.google.com/github/zqvo04/chem-predict-dashboard/blob/main/notebooks/deep_dive.ipynb),
+upload a contract in the first cell, and it checks its own clone out at that
+contract's commit before re-scoring. One worked case is committed under
+[`examples/`](examples/); `python scripts/run_loop.py` runs the same thing locally.
 
 ## Deploying
 
@@ -302,8 +314,31 @@ tier from throttling the app for CPU overuse.
 using [`Dockerfile`](Dockerfile). Locally:
 
 ```bash
-docker build -t chem-predict . && docker run -p 8501:8501 chem-predict
+docker build --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) -t chem-predict .
+docker run -p 8501:8501 chem-predict
 ```
+
+### Keeping the Colab handoff alive on the web
+
+That `--build-arg` is not cosmetic. The export panel builds its Colab link from
+the running code's commit, and the notebook checks its clone out at that same
+commit — but a deployed container has neither a git binary nor a `.git`
+directory, so without help the commit reads `unknown` and the handoff disappears
+on the web, which is where most people meet the funnel. There is deliberately
+**no fallback to a branch name**: a contract that cannot name its commit cannot
+be pinned, and a deep dive that silently ran against a different `main` is the
+failure the contract exists to prevent.
+
+`src/loop_contract.py` reads two env-var pairs, the explicit one first:
+
+| Var | Set by |
+|-----|--------|
+| `CHEM_PREDICT_COMMIT` / `CHEM_PREDICT_REPO` | you — the `Dockerfile` bakes these in from `GIT_COMMIT` |
+| `RENDER_GIT_COMMIT` / `RENDER_GIT_REPO_SLUG` | Render, automatically — nothing to configure |
+
+Streamlit Community Cloud deploys from a git clone and needs neither. Whatever
+the host, **the deployed commit must be pushed to GitHub** — Colab reads both the
+notebook and the clone from there — and the app says so when it is not.
 
 Regenerating the bundle after a data or model change:
 
