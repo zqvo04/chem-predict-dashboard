@@ -115,12 +115,16 @@ the library and models are pre-loaded.
   ─ only artefact that crosses from app to notebook
   ─ "Open in Colab" link built from that same code_version, so the notebook
     Colab opens is the commit the contract came from
+  ─ the notebook re-reads code_version out of the uploaded contract and
+    checks its clone out at it, so the models are the exported ones too
+  ─ app warns when that commit is not pushed — Colab reads GitHub, not disk
 
                ┌─────────────────────────────────────────┐
                │    Stage A — offline, Colab notebook     │
                │    notebooks/deep_dive.ipynb             │
                └─────────────────────────────────────────┘
 
+  validate_contract     refuse a file that is not a readable contract
   assert_models_match   refuse if model_ids drifted from the export
   generate_analogues    RDKit aromatic substituent decoration (CPU today;
   ─                     GPU generative model is a documented swap-in)

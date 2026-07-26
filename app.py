@@ -135,11 +135,17 @@ def colab_handoff(contract: dict, download_label: str) -> None:
 
     The two belong together: the Colab link is built from the contract's own
     `code_version`, so the notebook that opens is the commit the contract was
-    exported from and `assert_models_match` passes by construction.
+    exported from. The notebook then reads the same `code_version` out of the
+    uploaded contract and checks the clone out at it, so `assert_models_match`
+    passes by construction rather than by luck.
+
+    Both halves of that pin resolve through GitHub, so an unpushed commit is a
+    dead handoff — checked here and said plainly rather than discovered in Colab.
     """
-    from src.loop_contract import colab_url
+    from src.loop_contract import colab_url, commit_on_remote
 
     prov = contract["provenance"]
+    ref = prov["code_version"]
     url = colab_url(contract)
     col_dl, col_colab = st.columns(2)
     with col_dl:
@@ -148,18 +154,29 @@ def colab_handoff(contract: dict, download_label: str) -> None:
                            mime="application/json", type="primary", width="stretch")
     with col_colab:
         if url:
-            st.link_button(f"Open the deep dive in Colab @ {prov['code_version']}",
-                           url, width="stretch")
+            st.link_button(f"Open the deep dive in Colab @ {ref}", url, width="stretch")
         else:
             st.button("Colab link unavailable", disabled=True, width="stretch",
                       help="Needs a git origin remote and a known commit.")
-    st.caption(
-        "Upload the downloaded contract in the notebook's first cell. The link pins "
-        f"commit `{prov['code_version']}` — push it first, since Colab reads the "
-        "notebook from GitHub, not from this machine."
-        if url else
-        "No Colab link: this checkout has no GitHub origin remote or no resolvable commit."
-    )
+    if url:
+        st.caption(
+            f"**1.** Download the contract. **2.** Open the notebook in Colab and "
+            f"upload it in the first cell. **3.** The notebook reads `code_version` "
+            f"from the contract and checks the clone out at commit `{ref}`, so "
+            f"Stage A re-scores through these exact models — and refuses to run if "
+            f"it cannot. It hands back an `A_rescore` contract at the end."
+        )
+        if commit_on_remote(ref) is False:
+            st.warning(
+                f"Commit `{ref}` is not on the GitHub remote. Colab reads both the "
+                f"notebook and the clone from GitHub, not from this machine, so push "
+                f"it before opening the deep dive — otherwise the link 404s and the "
+                f"pinned checkout fails."
+            )
+    else:
+        st.caption("No Colab link: this checkout has no GitHub origin remote or no "
+                   "resolvable commit. The contract still downloads, and the notebook "
+                   "runs anywhere the repo is checked out at this contract's commit.")
     provenance(
         [("case id", contract["case_id"]),
          ("molecules", str(len(contract["molecules"]))),

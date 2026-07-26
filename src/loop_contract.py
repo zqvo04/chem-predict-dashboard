@@ -54,8 +54,9 @@ def colab_url(contract: dict) -> str | None:
     This is what turns the B->A handoff from "download a file, find the notebook
     yourself" into one link, and it does more than save a click: pinning the URL to
     the contract's `code_version` means the notebook Colab opens is the same commit
-    the contract was exported from, so `assert_models_match` passes by construction
-    instead of by luck.
+    the contract was exported from. The notebook then pins its own checkout to the
+    same `code_version` (it reads it out of the uploaded contract), so
+    `assert_models_match` passes by construction instead of by luck.
 
     Returns None when the commit or the remote is unknown. The commit must be
     pushed for the link to resolve — Colab reads it from GitHub, not from disk.
@@ -64,6 +65,23 @@ def colab_url(contract: dict) -> str | None:
     if not slug or ref == "unknown":
         return None
     return f"{_COLAB_BASE}/{slug}/blob/{ref}/{NOTEBOOK_PATH}"
+
+
+def commit_on_remote(ref: str) -> bool | None:
+    """Is the pinned commit reachable from the `origin` remote? None if unknowable.
+
+    Colab fetches both the notebook and the clone from GitHub, so a contract
+    exported from an unpushed commit yields a link that 404s and a checkout that
+    cannot be pinned. Checking here is what lets the handoff say so instead of
+    handing over a dead link. Reads the local view of the remote refs — it does not
+    fetch, so a commit pushed from elsewhere since the last fetch reads as absent.
+    """
+    if ref == "unknown":
+        return None
+    out = _git("branch", "-r", "--contains", ref, "--format=%(refname)")
+    if out is None:
+        return None
+    return any(line.startswith("refs/remotes/origin/") for line in out.splitlines())
 
 
 def model_id(chembl_id: str, model) -> str:
@@ -124,6 +142,43 @@ def write_contract(contract: dict, path: str | Path) -> None:
 
 def read_contract(path: str | Path) -> dict:
     return json.loads(Path(path).read_text())
+
+
+def validate_contract(contract: dict) -> None:
+    """Stage A guard: refuse anything that is not a contract this code can read.
+
+    The file crosses machines by hand — downloaded from the dashboard, uploaded into
+    Colab — so the wrong file, a truncated one, or one written by a future schema all
+    arrive as plausible JSON. Failing here names what is wrong; failing later shows a
+    `KeyError` inside the scoring code.
+    """
+    if not isinstance(contract, dict):
+        raise ValueError(f"Not a loop contract: expected a JSON object, got {type(contract).__name__}.")
+
+    missing = [k for k in ("schema_version", "case_id", "target_isoform",
+                           "off_isoforms", "provenance", "molecules") if k not in contract]
+    if missing:
+        raise ValueError(f"Not a loop contract: missing {', '.join(missing)}. "
+                         "Upload the JSON exported by the dashboard's SELECT step.")
+
+    major = str(contract["schema_version"]).split(".")[0]
+    if major != SCHEMA_VERSION.split(".")[0]:
+        raise ValueError(f"Contract schema {contract['schema_version']} is incompatible "
+                         f"with this code (schema {SCHEMA_VERSION}).")
+
+    prov = contract["provenance"]
+    missing = [k for k in ("model_ids", "conformal_alpha", "code_version", "stage")
+               if k not in prov]
+    if missing:
+        raise ValueError(f"Contract provenance is missing {', '.join(missing)} — "
+                         "without it the re-scoring cannot be pinned to the export.")
+
+    if not contract["molecules"]:
+        raise ValueError("Contract carries no molecules: select at least one row "
+                         "in the funnel table before exporting.")
+    for i, m in enumerate(contract["molecules"]):
+        if not isinstance(m, dict) or not m.get("smiles"):
+            raise ValueError(f"Molecule {i} has no SMILES — the contract is malformed.")
 
 
 def assert_models_match(contract: dict, model_ids: dict[str, str]) -> None:
