@@ -13,11 +13,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import pickle
 import subprocess
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 SCHEMA_VERSION = "1.0"
@@ -106,9 +107,52 @@ def commit_on_remote(ref: str) -> bool | None:
     return any(line.startswith("refs/remotes/origin/") for line in out.splitlines())
 
 
+# A fixed, committed probe set. Model identity here is **behavioural**: two models
+# that predict the same values on these molecules are interchangeable for
+# re-scoring, which is exactly what `assert_models_match` needs to guarantee.
+# Spans kinase-inhibitor chemotypes, simple aromatics/aliphatics and marketed drugs
+# so two genuinely different regressors cannot agree across all of them by accident.
+# NEVER change this tuple: it would change every model id and invalidate every
+# contract ever exported.
+PROBE_SMILES = (
+    "CCO", "c1ccccc1", "CC(=O)Oc1ccccc1C(=O)O", "CN1C=NC2=C1C(=O)N(C)C(=O)N2C",
+    "CC[C@@H](CC#N)n1cc(-c2ncnc3[nH]ccc23)cn1",
+    "C[C@@H]1CCN(C(=O)CC#N)C[C@@H]1N(C)c1ncnc2[nH]ccc12",
+    "COc1cc2ncnc(Nc3cccc(Br)c3)c2cc1OC", "O=C(O)c1ccccc1O",
+    "c1ccc2[nH]ccc2c1", "c1ccc2ncncc2c1", "CCCCCCCC", "OCC(O)CO",
+    "Clc1ccccc1", "c1ccncc1", "O=S(=O)(N)c1ccccc1", "CC(C)Cc1ccc(C(C)C(=O)O)cc1",
+)
+
+
+@lru_cache(maxsize=1)
+def _probe_matrix():
+    """Fingerprints of the probe set, built once per process."""
+    from .models.features import morgan_matrix
+
+    X, mask = morgan_matrix(list(PROBE_SMILES))
+    if not mask.all():
+        raise RuntimeError("A probe SMILES failed to parse; model ids would be unstable.")
+    return X
+
+
 def model_id(chembl_id: str, model) -> str:
-    """Stable id pinning a specific fitted model: '<chembl_id>@<content-hash>'."""
-    digest = hashlib.sha1(pickle.dumps(model)).hexdigest()[:10]
+    """Stable id pinning a specific fitted model: '<chembl_id>@<behaviour-hash>'.
+
+    The digest is over the model's **predictions on a fixed probe set**, not over
+    its pickle. Hashing `pickle.dumps(model)` looked content-addressed but was not
+    idempotent: the same model serialised at different round-trip depths produced
+    different bytes (verified — dump/load/dump changes the digest), so a model that
+    had passed through an extra cache layer on the app side hashed differently from
+    the identical model loaded straight from disk in Colab. `assert_models_match`
+    then rejected the deep dive over serialisation noise rather than model drift.
+
+    Predictions are exactly what the guard cares about and are stable across
+    round-trips, sklearn versions and platforms; they are formatted at fixed
+    precision so last-bit float noise cannot move the id either.
+    """
+    preds = np.asarray(model.predict(_probe_matrix()), dtype=float).ravel()
+    payload = ";".join(f"{v:.6f}" for v in preds)
+    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
     return f"{chembl_id}@{digest}"
 
 

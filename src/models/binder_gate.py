@@ -42,7 +42,7 @@ from sklearn.metrics import average_precision_score, roc_auc_score, roc_curve
 
 from ..data import jak
 from ..data.negatives import build_negatives, jak_positive_smiles
-from .features import morgan_matrix
+from .features import iter_morgan_batches, morgan_matrix
 from .scaffold_split import scaffold_split
 
 SEEDS = (0, 1, 2, 3, 4)
@@ -72,11 +72,21 @@ class BinderGate:
     metrics: GateMetrics
 
     def predict_proba(self, smiles: list[str]) -> np.ndarray:
-        """P(JAK binder) aligned with input; NaN where a SMILES fails to parse."""
-        X, mask = morgan_matrix(list(smiles))
-        out = np.full(len(mask), np.nan)
-        if X.shape[0]:
-            out[mask] = self.model.predict_proba(X)[:, 1]
+        """P(JAK binder) aligned with input; NaN where a SMILES fails to parse.
+
+        Batched: the gate runs over the whole library, so featurising it in one go
+        would rebuild the memory spike Tier 1 was just fixed to avoid.
+        """
+        smiles = list(smiles)
+        masks, probs = [], []
+        for X, mask in iter_morgan_batches(smiles):
+            masks.append(mask)
+            if X.shape[0]:
+                probs.append(self.model.predict_proba(X)[:, 1])
+        out = np.full(len(smiles), np.nan)
+        if masks:
+            out[np.concatenate(masks)] = (np.concatenate(probs) if probs
+                                          else np.empty(0))
         return out
 
     def is_binder(self, smiles: list[str]) -> np.ndarray:

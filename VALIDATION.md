@@ -213,8 +213,9 @@ burden regression alone cannot.
 
 ## STEP 7 — wide library + tiered screen + SELECT export (2026-07-24)
 
-**Wide library** (`src/data/library.py`): 7 823 unique, canonical, drug-like,
-**target-agnostic** molecules (Tox21 collection — diverse, not JAK actives).
+**Wide library** (`src/data/library.py`): 38 594 unique, canonical, **target-agnostic**
+molecules from 20 diverse ChEMBL targets, 32 322 clearing Tier 0 (superseded the
+original 7 823-molecule Tox21 collection — see STEP 13).
 Demo-scale and offline-cached; the pipeline scales to larger libraries.
 
 **Tiered screen** (`src/funnel.py`, `python -m src.funnel`), JAK1 over JAK2/JAK3:
@@ -257,19 +258,26 @@ artifacts in `examples/`):
    the current models, generated **90 analogues** (`src/generate.py`, CPU aromatic
    decoration), and **re-scored them through the same `src` funnel scoring**.
 
+> **Re-run 2026-07-26** after the binder gate (STEP 10), the `model_id` fix
+> (STEP 12) and the library replacement (STEP 13). Each reshaped the shortlist, so
+> the selected parents changed; the numbers below are the current run and supersede
+> the original ones.
+
 | set | n | median gap | max gap | % ≥10× selective | % in-domain |
 |-----|--:|:----------:|:-------:|:----------------:|:-----------:|
-| before (selected) | 3 | +1.29 | +1.39 | 100% | 100% |
-| after (generated) | 90 | +1.21 | +1.79 | 71% | 19% |
+| before (selected) | 3 | +1.62 | +1.68 | 100% | 100% |
+| after (generated) | 90 | +1.45 | +2.38 | 93% | 100% |
 
-The honest before/after story: generation reached a **higher max gap (+1.79 vs
-+1.39)** and produced an in-domain analogue that **improves on its parent** —
-`COc1cc(NC(=O)c2cc(Cl)ccc2O)c(Cl)cc1[N+](=O)[O-]`, gap **+1.74** (parent +1.39).
-But only **19%** of generated analogues stay in-domain: decorating a scaffold
-often pushes molecules out of the training domain, and AD flags them — the loop is
-honest, not triumphant. `figures/loop_before_after.png` shows the shift; the
-re-scored analogues are written back as `examples/loop_case_A_rescore.json`
-(`stage: A_rescore`), so they re-enter Stage B — the funnel is a cycle.
+The honest before/after story: generation reached a **higher max gap (+2.38 vs
++1.68)** and produced an in-domain analogue that **improves on its parent** —
+`Cc1cc(Nc2nc(N)c(Cl)c(Nc3cn(C)nc3S(=O)(=O)C(C)C)n2)c(OC2CC2)cc1C1COC1`, gap **+2.38**
+(parent +1.68). Both sets are now **100% in-domain** and the selected parents are
+already ≥10x selective, because the library is real kinase-adjacent chemistry rather
+than a toxicology panel: the gate admits molecules close to the training
+distribution, and decorating those scaffolds stays in-domain too.
+`figures/loop_before_after.png` shows the shift; the re-scored analogues are written
+back as `examples/loop_case_A_rescore.json` (`stage: A_rescore`), so they re-enter
+Stage B — the funnel is a cycle.
 
 **Gate 8 passed:** the loop runs end-to-end on one worked case, re-scoring uses the
 identical `src` (enforced by `assert_models_match`), and the report ends with
@@ -484,4 +492,192 @@ python -m src.models.binder_gate      # evaluate (5 seeds) + cache the deployed 
 cp data/jak/negatives.parquet assets/jak/
 cp data/models/jak/binder_gate.pkl assets/models/jak/
 python -m src.funnel                  # screen the library through Tier 0.5 + 1 + 2
+```
+
+---
+
+## STEP 11 — memory: the deployed funnel fit in 512 MB (2026-07-26)
+
+**The failure.** The deployed app raised *"Ran out of memory (used over 512MB)"* on
+the funnel mode. Profiled stage by stage on the real screen:
+
+| Stage | RSS |
+|-------|----:|
+| imports (numpy + pandas + rdkit + sklearn) | 222 MB |
+| library **data** (6 882 rows) | 0.6 MB |
+| `morgan_matrix` over the library, **float64** | **+113 MB** |
+
+The data was never the problem — it is 0.6 MB. The cost was holding every
+fingerprint at once **as float64**: 2048 single bits stored in 8 bytes each. The
+screen paid it three times over (binder gate, Tier 1, and the percentile
+distribution), on top of a 222 MB import floor.
+
+**The fix.** Two changes, neither of which touches any model:
+
+1. **`uint8` fingerprints** (`src/models/features.py`). The same matrix is 113 MB as
+   float64, 14 MB as uint8.
+2. **Batched featurise-and-score** (`iter_morgan_batches`). One slice is built, all
+   three isoform models score it, and it is released before the next.
+
+| | before | after |
+|---|---:|---:|
+| library fingerprint matrix, resident | 113 MB | 13 MB (per batch) |
+| **peak RSS, full `screen_library()`** | — | **327 MB** |
+
+**Verified numerically inert.** The dtype change cannot move a result: training on
+uint8 vs float64 gives bit-identical predictions (max abs diff **0.0**) and an
+identical model **pickle hash**, so `model_id` is stable and contracts still match.
+The bundled models predict identically on either dtype. `iter_morgan_batches` is
+pinned by a test asserting its concatenation equals `morgan_matrix` exactly.
+
+**Gate 11 passed:** peak RSS 327 MB for the full wide screen, all 119 tests green,
+shortlist unchanged (20 molecules, 4 in-domain, best gap +0.782).
+
+**What was *not* done, and why.** Precomputing the library fingerprints into a
+committed `packbits` asset (1.76 MB) was planned and then dropped on measurement:
+featurising the whole library takes **0.9 s** and loading all three AD references
+**0.3 s**, so the asset would buy about a second while adding a staleness-invalidation
+burden. It becomes worthwhile only when the library reaches ~10⁵–10⁶ molecules,
+where that 0.9 s scales to minutes.
+
+### Known consequence — the gap percentile reference is now small
+
+STEP 10's binder gate filters the percentile reference population to the molecules
+the funnel actually ranks. On the current library that is **23 molecules**, i.e.
+4.3 percentile points per molecule. The single-molecule view leads with this number,
+so it now reports the reference size alongside it and says plainly when the set is
+small. The underlying cause is the **Tox21 screening library**, which contains
+almost no JAK-like chemistry; replacing it is the fix, not loosening the gate.
+
+---
+
+## STEP 12 — `model_id` was not a stable identity (2026-07-26)
+
+**The failure.** The Colab deep dive refused to run:
+
+```
+ValueError: Model mismatch: contract pinned {'JAK1': 'CHEMBL2835@b1bfc32323', ...},
+current models {'JAK1': 'CHEMBL2835@fd9840028c', ...}
+```
+
+Only **JAK1** differed; JAK2 and JAK3 matched exactly. A code or dtype change would
+have moved all three, so this was not model drift.
+
+**The cause.** `model_id` hashed `pickle.dumps(model)`, which *looks*
+content-addressed but is **not idempotent**. Measured on the bundled JAK1 model:
+
+```
+dump -> load -> dump gives identical bytes: False
+  hash after 0 round-trips: fd9840028c     <- Colab, loading straight from disk
+  hash after 1 round-trip : b1bfc32323     <- the app, via a cache that re-serialises
+```
+
+Both digests are the *same model*. `assets/models/jak/JAK1_reg.pkl` is byte-identical
+in every commit that has ever contained it (blob `b800cb7c…`) — nothing about the
+model changed. The guard was rejecting the deep dive over **serialisation noise**.
+The committed example contracts carried the stale digest too, so the repo's own
+worked example could not be re-scored.
+
+The old test only asserted `model_id(m) == model_id(m)` on one object in one
+process, which never exercises a round-trip — which is why this passed CI while the
+real workflow failed.
+
+**The fix.** Model identity is now **behavioural**: the digest is over the model's
+predictions on a fixed, committed 16-molecule probe set (`PROBE_SMILES`), formatted
+at 6 decimal places so last-bit float noise cannot move it either. Two models that
+predict identically on the probe are interchangeable for re-scoring, which is
+exactly what `assert_models_match` needs to guarantee — and predictions are stable
+across round-trips, sklearn versions and platforms.
+
+| | pickle-hash (old) | prediction-hash (new) |
+|---|:---:|:---:|
+| stable across 0/1/2 pickle round-trips | ❌ | ✅ |
+| distinguishes genuinely different fits | ✅ | ✅ |
+
+**Verified end-to-end**, simulating the exact Colab failure — a contract whose ids
+come from cache-round-tripped models, validated against models loaded fresh from
+disk as a fresh clone does:
+
+```
+app-side ids == colab-side ids: True
+assert_models_match(committed contract, fresh clone): PASS
+```
+
+**Gate 12 passed:** `python scripts/run_loop.py` runs B→SELECT→A→re-score
+end-to-end, the regenerated example contracts validate from a fresh clone, and
+three tests pin the property — idempotence, round-trip stability, and that a
+genuinely different fit still produces a different id (so stability did not come
+from the id going blind).
+
+**Cost of the fix.** Every model id changes, so contracts exported before this
+commit will not validate. `examples/*.json` are regenerated; the STEP 8 loop table
+above is re-run and superseded. `PROBE_SMILES` must never be edited for the same
+reason — it would silently invalidate every contract ever exported.
+
+---
+
+## STEP 13 — the wide library was the wrong haystack (2026-07-26)
+
+**Two defects, one cause.** The wide library was the **Tox21 collection**, chosen in
+STEP 7 because it was diverse, drug-like and already wired for download. Both of its
+problems come from that convenience:
+
+1. **It is a toxicology panel, not a discovery library.** Tox21 is environmental
+   chemicals, pesticides and industrial reagents. Once the binder gate (STEP 10)
+   could tell a plausible JAK binder from junk, only **23 of 6 882** drug-like
+   molecules survived — 0.33 %. The shortlist and the gap percentile (4.3 points per
+   molecule) were both near-meaningless, and the funnel's top-ranked molecules had
+   been a neonicotinoid insecticide and 4-chlorothioanisole.
+2. **It was the toxicity model's own training set.** `library.py` downloaded
+   `tox21.csv.gz` and `property_models.py` trained the Tox21 classifier on the same
+   file: **7 613 / 7 613 = 100 % overlap**. Every MPO `tox_prob` on the shortlist was
+   a recalled training label, not a prediction — including the "MPO 0.01, Tox21 alert
+   ≈ 0.9" figures the README had cited as evidence the MPO axis worked.
+
+**The replacement.** Bioactive drug-like molecules from **20 diverse ChEMBL targets**
+(ten kinases, ten non-kinases: proteases, GPCRs, nuclear receptors, epigenetic and
+metabolic enzymes), pulled with the same client the rest of the repo uses. The panel
+is chosen to be **disjoint from everything the binder gate was trained on** — no JAK
+isoform (its positives), none of `negatives.NEGATIVE_TARGETS` (its negatives) — and
+molecules appearing in either training class are dropped by SMILES as well, so the
+gate's verdict on a library molecule is a genuine prediction rather than recall.
+Half the panel is kinases so a JAK screen has plausible chemistry to enrich from
+without the library becoming a kinase-inhibitor set.
+
+| | Tox21 (before) | ChEMBL panel (after) |
+|---|---:|---:|
+| library molecules | 7 613 | **38 594** |
+| clearing Tier 0 | 6 882 | **32 322** |
+| clearing the binder gate | 23 (0.33 %) | **6 120 (18.9 %)** |
+| shortlist | 20 | **60** |
+| **in-domain shortlist** | 4 | **33** |
+| gap-percentile reference | 23 | **6 120** |
+| overlap with the tox model's training set | **100 %** | **0.50 %** |
+| peak RSS, full screen | 327 MB | 341 MB |
+| wall clock, full screen | — | 12 s |
+
+The MPO leak is closed (0.50 % residual, 193 molecules active on both a panel target
+and a Tox21 assay — real chemistry, not a wiring mistake). The shortlist is now
+aminopyrimidines, ureas, benzisoxazoles and pyrazolopyrimidines — kinase chemotypes —
+rather than pesticides.
+
+**The 4.7x larger library costs 14 MB of peak memory**, because STEP 11 made the
+screen stream its fingerprints; before that change this library would not have fit.
+
+**Gate 13 passed:** the funnel screens a real discovery library, the gate's verdict on
+it is a prediction rather than recall, and the shortlist carries 33 in-domain
+candidates instead of 4. All 128 tests green.
+
+**What this does not fix.** The gap interval still crosses zero for 100 % of the
+shortlist — that is the conformal-calibration problem (intervals are calibrated on
+ChEMBL JAK molecules and propagated by summing two half-widths), untouched here and
+still open.
+
+### Reproduce
+
+```bash
+python -m src.data.library      # rebuild from the 20-target panel (needs network)
+cp data/library/library.parquet assets/library/
+python -m src.funnel            # screen it
+python scripts/run_loop.py      # regenerate the worked case
 ```

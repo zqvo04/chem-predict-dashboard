@@ -254,13 +254,20 @@ def run_screen(target: str, expand: bool, max_records: int):
 
 @st.cache_data(show_spinner=False)
 def score_one(smiles: str):
-    """Tier-1+2 score for a single molecule, plus its percentile in the library."""
-    from src.funnel import gap_percentile, score_molecules
+    """Tier-1+2 score for one molecule, its gap percentile, and the reference size.
+
+    The percentile is taken against the molecules that clear the binder gate — the
+    population the funnel actually ranks — so the reference count is returned too:
+    on the current Tox21 library that set is small, which makes the percentile
+    coarse, and a headline number has to carry its own resolution.
+    """
+    from src.funnel import gap_percentile, library_gap_distribution, score_molecules
 
     scored = score_molecules([smiles])
     if scored.empty:
-        return None, None
-    return scored.iloc[0], gap_percentile(float(scored.iloc[0]["gap"]))
+        return None, None, 0
+    n_ref = len(library_gap_distribution())
+    return scored.iloc[0], gap_percentile(float(scored.iloc[0]["gap"])), n_ref
 
 
 @st.cache_data(show_spinner=False)
@@ -451,7 +458,7 @@ def render_single(query: str) -> None:
         return
 
     try:
-        row, percentile = score_one(smiles)
+        row, percentile, n_ref = score_one(smiles)
     except Exception as err:
         st.error(f"{type(err).__name__}: {err}")
         return
@@ -478,7 +485,8 @@ def render_single(query: str) -> None:
     # keeps the headline on the claim the evidence actually supports.
     gap, lo, hi = float(row["gap"]), float(row["gap_lo"]), float(row["gap_hi"])
     stat_row([
-        ("Library percentile", f"{percentile:.1f}", "rank by gap S in the drug-like library"),
+        ("Gap percentile", f"{percentile:.1f}",
+         f"rank by gap S among the {n_ref} molecules clearing the binder gate"),
         ("Gap S", f"{gap:+.2f}", "log-units over the worst off-isoform"),
         (f"pred {TARGET}", f"{row[f'pred_{TARGET}']:.2f}",
          f"potency floor {POTENCY_FLOOR:.1f} — {'clears' if row['meets_floor'] else 'below'}"),
@@ -513,8 +521,11 @@ def render_single(query: str) -> None:
             st.warning(
                 f"The interval crosses zero, so this molecule cannot be called "
                 f"{TARGET}-selective on its own evidence. What the model supports is its "
-                f"**rank**: it sits at the {percentile:.1f}th percentile of the library. "
-                f"Selectivity ranking was validated (Spearman 0.80 vs measured gaps, "
+                f"**rank**: it sits at the {percentile:.1f}th percentile of the {n_ref} "
+                f"gate-clearing molecules"
+                + (" — a small reference set, so read the percentile as coarse."
+                   if n_ref < 100 else ". ") +
+                f" Selectivity ranking was validated (Spearman 0.80 vs measured gaps, "
                 f"4.5× enrichment); per-molecule intervals this wide were not.")
         else:
             st.success(f"The interval excludes zero — the predicted direction of "

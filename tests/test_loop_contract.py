@@ -46,12 +46,44 @@ def test_assert_models_match_guards_stage_a():
         lc.assert_models_match(c, {**ids, "JAK1": "CHEMBL2835@CHANGED"})
 
 
-def test_model_id_is_stable_and_content_addressed():
-    from sklearn.dummy import DummyRegressor
+def _tiny_regressor(seed=0):
     import numpy as np
-    m = DummyRegressor().fit(np.zeros((3, 2)), [1, 2, 3])
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    from src.models.features import FP_SIZE
+
+    rng = np.random.default_rng(seed)
+    X = rng.integers(0, 2, size=(60, FP_SIZE)).astype("uint8")
+    y = X[:, :5].sum(axis=1) + rng.normal(0, 0.1, 60)
+    return HistGradientBoostingRegressor(max_iter=20, random_state=0).fit(X, y)
+
+
+def test_model_id_is_stable_and_content_addressed():
+    m = _tiny_regressor()
     a, b = lc.model_id("CHEMBL2835", m), lc.model_id("CHEMBL2835", m)
     assert a == b and a.startswith("CHEMBL2835@")
+
+
+def test_model_id_survives_pickle_round_trips():
+    """The bug this pins: `model_id` used to hash `pickle.dumps(model)`, which is
+    not idempotent — dump/load/dump changes the bytes. A model that had passed
+    through an extra cache layer in the app hashed differently from the identical
+    model loaded straight from disk in Colab, so `assert_models_match` rejected the
+    deep dive over serialisation noise instead of real model drift."""
+    import pickle
+
+    m0 = _tiny_regressor()
+    m1 = pickle.loads(pickle.dumps(m0))
+    m2 = pickle.loads(pickle.dumps(m1))
+    ids = {lc.model_id("CHEMBL2835", m) for m in (m0, m1, m2)}
+    assert len(ids) == 1, f"model_id drifted across round-trips: {ids}"
+
+
+def test_model_id_distinguishes_genuinely_different_models():
+    """Stability must not come from the id being insensitive: a different fit has
+    to produce a different id, or the guard would never catch real drift."""
+    a = lc.model_id("CHEMBL2835", _tiny_regressor(seed=0))
+    b = lc.model_id("CHEMBL2835", _tiny_regressor(seed=1))
+    assert a != b
 
 
 # --- Colab handoff -------------------------------------------------------- #

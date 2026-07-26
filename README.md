@@ -11,7 +11,7 @@ The dashboard has **three independent modes**, selectable from the sidebar:
 
 | Mode | What it does |
 |------|-------------|
-| **Selectivity funnel** | Screens a diverse ~7.6k-molecule library across JAK1/2/3, ranks by isoform selectivity with calibrated uncertainty, applicability-domain verdicts and property (MPO) annotations, lets you pick survivors, and hands them off to an offline deep dive. |
+| **Selectivity funnel** | Screens a diverse ~38.6k-molecule library across JAK1/2/3, ranks by isoform selectivity with calibrated uncertainty, applicability-domain verdicts and property (MPO) annotations, lets you pick survivors, and hands them off to an offline deep dive. |
 | **Single molecule** | The same Tier-1+2 scoring for one compound entered as a SMILES **or by name**, reported against the library distribution (~1.7 s from a cold process). |
 | **Target screen** | Takes any protein target name, retrieves known actives from ChEMBL, optionally expands with PubChem analogues, trains a per-target QSAR model on the fly, and scores everything with a composite potency/drug-likeness score. |
 
@@ -91,27 +91,27 @@ the library and models are pre-loaded.
                │        Stage B — CPU, deployed app       │
                └─────────────────────────────────────────┘
 
-  WIDE LIBRARY  ~7.6k diverse drug-like, target-agnostic (standardised parents)
+  WIDE LIBRARY  ~38.6k bioactive drug-like, target-agnostic (standardised parents)
   assets/library/library.parquet        src/data/library.py
           │
-  Tier 0  Ro5 + PAINS                   near-free           7,613 → 6,882
+  Tier 0  Ro5 + PAINS                   near-free          38,594 → 32,322
   ─ precomputed into library cache (property of library + rules only)
   ─ columns druglike/ro5_pass/pains_pass already in the parquet
           │
-  Tier 0.5  binder gate → P(JAK binder)   ms/molecule       6,882 → 23
+  Tier 0.5  binder gate → P(JAK binder)   ms/molecule      32,322 → 6,120
   ─ HistGB classifier: JAK actives vs physchem-matched presumed-inactives
   ─ drops molecules the regressors would only score at their training mean
   ─   (ethanol scored a "760 nM" JAK1 pchembl before this existed)
   ─ Youden's-J operating point; ROC-AUC 0.998, keeps 98 % of known actives
   src/models/binder_gate.py   src/data/negatives.py
           │
-  Tier 1  per-isoform regressors → gap S   ms/molecule     23 → 20
+  Tier 1  per-isoform regressors → gap S   ms/molecule    6,120 → 300
   ─ one HistGB pchembl regressor per isoform on ECFP4
   ─ gap S = pred(JAK1) − max(pred(JAK2), pred(JAK3))
   ─ ranked by S, above a target-potency floor (pred JAK1 ≥ 6)
   src/models/isoform_regressor.py   src/selectivity.py   src/funnel.py
           │
-  Tier 2  conformal interval + applicability domain + MPO  20 → 20 (4 in-domain)
+  Tier 2  conformal interval + applicability domain + MPO  300 → 60 (33 in-domain)
   ─ split-conformal 90 % prediction interval per isoform, propagated to gap
   ─ AD: Tanimoto NN to training set  AND  descriptor leverage (hat value)
   ─   both must pass; flagged "uncertain" if either isoform is OOD
@@ -160,9 +160,22 @@ the library and models are pre-loaded.
 
 **Two separate data sources feed this:**
 - **Wide library** (`assets/library/`) — target-agnostic, unlabelled, what gets screened.
+  Bioactive drug-like molecules from **20 diverse ChEMBL targets** (ten kinases, ten
+  non-kinases), chosen to be **disjoint from everything the binder gate was trained
+  on** — no JAK isoform, none of the gate's negative targets, and any molecule in
+  either training class dropped by SMILES. So the gate's verdict on a library
+  molecule is a prediction, not recall.
 - **ChEMBL per-isoform data** (`assets/jak/`, `src/data/jak.py`) — what trains and
   validates the models. Never mixed: the wide screen's `S` is pure prediction,
   trusted only where Tier 2 says in-domain.
+
+> The library was previously the **Tox21 collection**, which was the wrong haystack
+> twice over: it is a *toxicology panel* (pesticides, industrial chemicals) rather
+> than discovery chemistry, and it was **100 % identical to the toxicity model's own
+> training set**, so the MPO tox column was reciting memorised labels. Replacing it
+> ([STEP 13](VALIDATION.md#step-13--the-wide-library-was-the-wrong-haystack-2026-07-26))
+> cut that overlap to 0.5 %, raised the gate pass rate from 23 to 6 120 molecules,
+> and took the shortlist from 4 in-domain to **33**.
 
 **Key design properties:**
 - Tier 2 (conformal + AD) runs *only on Tier-1 survivors* (~300 molecules), not the
@@ -216,7 +229,7 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 | **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but see the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
 | Uncertainty | conformal 90% intervals | empirical coverage **0.89–0.91** |
 | Applicability domain | error out- vs in-domain | error rises **~2×** as molecules leave the domain |
-| **The loop** | one worked case B→SELECT→A→re-score | best in-domain analogue **+1.74** gap (parent +1.39) |
+| **The loop** | one worked case B→SELECT→A→re-score | best in-domain analogue **+2.38** gap (parent +1.68) |
 
 ### The headline selectivity number has a measured caveat
 
