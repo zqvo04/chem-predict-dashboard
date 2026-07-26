@@ -27,7 +27,7 @@ from .data.library import load_library
 from .filters.druglikeness import apply_druglikeness
 from .loop_contract import build_contract, model_id
 from .models.binder_gate import train_and_cache as train_gate
-from .models.features import morgan_matrix
+from .models.features import iter_morgan_batches
 from .models.isoform_regressor import train_and_cache
 from .mpo import annotate as mpo_annotate
 from .selectivity import OFFS, POTENCY_FLOOR, TARGET
@@ -58,21 +58,33 @@ def _context(target: str, offs: tuple[str, ...], use_cache: bool, step=_quiet):
 
 
 def _predict(df: pd.DataFrame, models, isoforms, target, offs) -> pd.DataFrame:
-    """Tier 1 (cheap): per-isoform predictions, gap S, potency floor."""
-    X, mask = morgan_matrix(df["smi"].tolist())
+    """Tier 1 (cheap): per-isoform predictions, gap S, potency floor.
+
+    Featurises and scores in batches: one slice of fingerprints is built, all three
+    isoform models score it, and it is released before the next slice. Holding the
+    whole library's fingerprints at once cost ~113 MB and was the largest single
+    contributor to the deployed app's memory ceiling.
+    """
+    masks, preds = [], {iso: [] for iso in isoforms}
+    for X, mask in iter_morgan_batches(df["smi"].tolist()):
+        masks.append(mask)
+        if X.shape[0]:
+            for iso in isoforms:
+                preds[iso].append(models[iso].predict(X))
+
+    mask = np.concatenate(masks) if masks else np.zeros(0, dtype=bool)
     df = df[mask].reset_index(drop=True)
     if df.empty:
         # Nothing survived an upstream filter (e.g. the binder gate rejected the
-        # whole set): sklearn.predict rejects a 0-row matrix, so return the empty
-        # frame with the Tier-1 columns rather than crash. Callers already handle
-        # an empty shortlist.
+        # whole set): return the empty frame carrying the Tier-1 columns rather than
+        # crash. Callers already handle an empty shortlist.
         for iso in isoforms:
             df[f"pred_{iso}"] = pd.Series(dtype=float)
         df["gap"] = pd.Series(dtype=float)
         df["meets_floor"] = pd.Series(dtype=bool)
         return df
     for iso in isoforms:
-        df[f"pred_{iso}"] = models[iso].predict(X)
+        df[f"pred_{iso}"] = np.concatenate(preds[iso])
     df["gap"] = df[f"pred_{target}"] - df[[f"pred_{o}" for o in offs]].max(axis=1)
     df["meets_floor"] = df[f"pred_{target}"] >= POTENCY_FLOOR
     return df

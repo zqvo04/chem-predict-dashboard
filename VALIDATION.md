@@ -485,3 +485,58 @@ cp data/jak/negatives.parquet assets/jak/
 cp data/models/jak/binder_gate.pkl assets/models/jak/
 python -m src.funnel                  # screen the library through Tier 0.5 + 1 + 2
 ```
+
+---
+
+## STEP 11 — memory: the deployed funnel fit in 512 MB (2026-07-26)
+
+**The failure.** The deployed app raised *"Ran out of memory (used over 512MB)"* on
+the funnel mode. Profiled stage by stage on the real screen:
+
+| Stage | RSS |
+|-------|----:|
+| imports (numpy + pandas + rdkit + sklearn) | 222 MB |
+| library **data** (6 882 rows) | 0.6 MB |
+| `morgan_matrix` over the library, **float64** | **+113 MB** |
+
+The data was never the problem — it is 0.6 MB. The cost was holding every
+fingerprint at once **as float64**: 2048 single bits stored in 8 bytes each. The
+screen paid it three times over (binder gate, Tier 1, and the percentile
+distribution), on top of a 222 MB import floor.
+
+**The fix.** Two changes, neither of which touches any model:
+
+1. **`uint8` fingerprints** (`src/models/features.py`). The same matrix is 113 MB as
+   float64, 14 MB as uint8.
+2. **Batched featurise-and-score** (`iter_morgan_batches`). One slice is built, all
+   three isoform models score it, and it is released before the next.
+
+| | before | after |
+|---|---:|---:|
+| library fingerprint matrix, resident | 113 MB | 13 MB (per batch) |
+| **peak RSS, full `screen_library()`** | — | **327 MB** |
+
+**Verified numerically inert.** The dtype change cannot move a result: training on
+uint8 vs float64 gives bit-identical predictions (max abs diff **0.0**) and an
+identical model **pickle hash**, so `model_id` is stable and contracts still match.
+The bundled models predict identically on either dtype. `iter_morgan_batches` is
+pinned by a test asserting its concatenation equals `morgan_matrix` exactly.
+
+**Gate 11 passed:** peak RSS 327 MB for the full wide screen, all 119 tests green,
+shortlist unchanged (20 molecules, 4 in-domain, best gap +0.782).
+
+**What was *not* done, and why.** Precomputing the library fingerprints into a
+committed `packbits` asset (1.76 MB) was planned and then dropped on measurement:
+featurising the whole library takes **0.9 s** and loading all three AD references
+**0.3 s**, so the asset would buy about a second while adding a staleness-invalidation
+burden. It becomes worthwhile only when the library reaches ~10⁵–10⁶ molecules,
+where that 0.9 s scales to minutes.
+
+### Known consequence — the gap percentile reference is now small
+
+STEP 10's binder gate filters the percentile reference population to the molecules
+the funnel actually ranks. On the current library that is **23 molecules**, i.e.
+4.3 percentile points per molecule. The single-molecule view leads with this number,
+so it now reports the reference size alongside it and says plainly when the set is
+small. The underlying cause is the **Tox21 screening library**, which contains
+almost no JAK-like chemistry; replacing it is the fix, not loosening the gate.
