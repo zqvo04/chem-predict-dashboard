@@ -1,4 +1,7 @@
 """STEP 8 tests: loop closure logic (offline, scoring mocked)."""
+import json
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -64,3 +67,49 @@ def test_report_labels_hypothesis(monkeypatch):
     report = deep_dive.report_markdown(res)
     assert "in-silico hypothesis" in report.lower()
     assert "before" in report and "after" in report
+
+
+def test_a_malformed_contract_fails_before_any_scoring(monkeypatch):
+    """The contract is hand-carried into Colab, so the wrong file is a normal
+    accident. It has to fail by name, not as a KeyError inside the scoring."""
+    _patch(monkeypatch)
+    c = _contract()
+    c["molecules"] = []
+    with pytest.raises(ValueError, match="no molecules"):
+        deep_dive.run_deep_dive(c)
+
+
+# --- The Colab handoff (notebooks/deep_dive.ipynb) ------------------------- #
+
+NOTEBOOK = Path(__file__).resolve().parents[1] / "notebooks" / "deep_dive.ipynb"
+
+
+def _code_cells():
+    nb = json.loads(NOTEBOOK.read_text())
+    return ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
+
+
+def test_notebook_reads_the_contract_before_it_clones():
+    """The contract names the commit the clone is pinned to, so it has to be read
+    first — a clone-then-upload order cannot pin anything."""
+    cells = _code_cells()
+    upload = next(i for i, s in enumerate(cells) if "files.upload()" in s)
+    clone = next(i for i, s in enumerate(cells) if "git clone" in s)
+    assert upload < clone
+
+
+def test_notebook_pins_the_checkout_to_the_contracts_code_version():
+    """Cloning the default branch would re-score through whatever HEAD is today:
+    the models are pickles in the repo, so that is a different experiment from the
+    one the contract describes. The pin — and its hard failure — is the handoff."""
+    cells = _code_cells()
+    assert 'ref = prov["code_version"]' in "".join(cells)
+    clone = next(s for s in cells if "git clone" in s)
+    assert '"git", "checkout", "-q", ref' in clone
+    assert "raise SystemExit" in clone      # never fall through to the default branch
+
+
+def test_notebook_returns_the_rescore_contract():
+    """The loop is a cycle: Stage A has to hand its A_rescore contract back."""
+    cells = _code_cells()
+    assert any("write_contract(a_contract" in s and "files.download" in s for s in cells)

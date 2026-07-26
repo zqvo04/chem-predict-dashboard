@@ -1,4 +1,6 @@
 """STEP 7 tests: loop-contract build / round-trip / model-pin guard (offline)."""
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -80,3 +82,57 @@ def test_colab_url_is_none_without_a_remote_or_a_known_commit(monkeypatch):
 def test_repo_slug_parses_the_usual_remote_spellings(monkeypatch, remote):
     monkeypatch.setattr(lc, "_git", lambda *a: remote)
     assert lc.repo_slug() == "owner/repo"
+
+
+def test_commit_on_remote_sees_a_pushed_commit(monkeypatch):
+    """The Colab link and the notebook's pinned checkout both resolve through
+    GitHub, so an unpushed commit is a dead handoff — the app has to be able to
+    say so before the user lands in Colab."""
+    monkeypatch.setattr(lc, "_git", lambda *a: "refs/remotes/origin/main")
+    assert lc.commit_on_remote("abc1234") is True
+
+
+def test_commit_on_remote_reports_an_unpushed_or_unknowable_commit(monkeypatch):
+    monkeypatch.setattr(lc, "_git", lambda *a: "")          # contained by no remote branch
+    assert lc.commit_on_remote("abc1234") is False
+    monkeypatch.setattr(lc, "_git", lambda *a: None)        # unknown sha / no git
+    assert lc.commit_on_remote("abc1234") is None
+    assert lc.commit_on_remote("unknown") is None
+
+
+# --- Contract validation (the Colab upload lands here) --------------------- #
+
+def _valid():
+    ids = {"JAK1": "CHEMBL2835@abc", "JAK2": "CHEMBL2971@def", "JAK3": "CHEMBL2148@ghi"}
+    return lc.build_contract(_shortlist(), "JAK1", ["JAK2", "JAK3"], ids, alpha=0.10)
+
+
+def test_validate_accepts_a_contract_this_code_built():
+    lc.validate_contract(_valid())
+
+
+@pytest.mark.parametrize("mutate, message", [
+    (lambda c: c.pop("molecules"), "missing molecules"),
+    (lambda c: c["provenance"].pop("model_ids"), "missing model_ids"),
+    (lambda c: c.update(schema_version="2.0"), "incompatible"),
+    (lambda c: c.update(molecules=[]), "no molecules"),
+    (lambda c: c["molecules"][0].update(smiles=""), "no SMILES"),
+])
+def test_validate_names_what_is_wrong(mutate, message):
+    """A hand-carried file arrives wrong in plausible ways — the wrong JSON, a
+    future schema, an empty selection. Each has to fail by name, not as a KeyError
+    inside the scoring code half an hour into a Colab session."""
+    c = _valid()
+    mutate(c)
+    with pytest.raises(ValueError, match=message):
+        lc.validate_contract(c)
+
+
+def test_validate_rejects_json_that_is_not_a_contract():
+    with pytest.raises(ValueError, match="expected a JSON object"):
+        lc.validate_contract([1, 2, 3])
+
+
+def test_colab_url_points_at_a_notebook_that_actually_exists():
+    """The URL is built from NOTEBOOK_PATH; if the notebook moves, the link 404s."""
+    assert (Path(__file__).resolve().parents[1] / lc.NOTEBOOK_PATH).exists()

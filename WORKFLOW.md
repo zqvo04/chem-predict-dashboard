@@ -262,8 +262,12 @@ asserts identity before re-scoring.
 Runs on the handful of selected molecules only. Two expensive analyses; both feed
 the same-model re-score that closes the loop.
 
-1. **Load** `loop_contract.json`; **import the SAME `src` modules** and assert
-   `model_ids` / `code_version` match.
+1. **Load** `loop_contract.json` *first*, before the clone: it carries the
+   `code_version` the notebook checks the clone out at, so the `src` modules and
+   the model pickles are the ones the contract was exported from. Then
+   `validate_contract` + `assert_models_match` — a checkout that could not be
+   pinned, or `model_ids` that drifted, stops the run instead of producing numbers
+   that cannot be compared.
 
 2. **(a) Confirmatory docking** `[new: src/docking.py wrapper]` — dock each
    selected molecule into published JAK1/2/3 structures (AutoDock Vina; CPU-capable,

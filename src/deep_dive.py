@@ -18,7 +18,8 @@ import pandas as pd
 
 from . import funnel
 from .generate import generate_analogues
-from .loop_contract import assert_models_match, build_contract, read_contract
+from .loop_contract import (assert_models_match, build_contract, read_contract,
+                            validate_contract)
 
 
 @dataclass
@@ -32,6 +33,7 @@ class LoopResult:
 
 def run_deep_dive(contract: dict, max_analogues_per_case: int = 30,
                   use_cache: bool = True) -> LoopResult:
+    validate_contract(contract)
     target = contract["target_isoform"]
     offs = tuple(contract["off_isoforms"])
 
