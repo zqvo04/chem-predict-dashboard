@@ -40,12 +40,14 @@ orangeColor = "#F59E0B"
 orangeBackgroundColor = "#FFEBD2"
 orangeTextColor = "#844100"
 
+# The brief's "Deep Slate navigation environment" — the sidebar stays on this
+# dark surface in both app themes; only the main canvas follows the toggle.
 [theme.light.sidebar]
-backgroundColor = "#F2F4F6"
-secondaryBackgroundColor = "#ECEEF0"
-borderColor = "#C6C6CD"
-primaryColor = "#085AC0"
-textColor = "#191C1E"
+backgroundColor = "#10161F"
+secondaryBackgroundColor = "#19202A"
+borderColor = "#2D333D"
+primaryColor = "#5C94FD"
+textColor = "#EDEEF1"
 
 [theme.dark]
 backgroundColor = "#10161F"

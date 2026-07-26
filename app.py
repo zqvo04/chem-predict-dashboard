@@ -31,7 +31,7 @@ _ASSETS = Path(__file__).parent / "assets"
 # strings itself and cannot resolve CSS custom properties, so the two hues are
 # repeated here from assets/tokens.css — keep them in step with the tokens.
 _TINT_IN_DOMAIN = "rgba(1, 150, 104, 0.12)"    # --color-safe    #019668
-_TINT_UNCERTAIN = "rgba(245, 158, 11, 0.12)"   # --color-warn    #F59E0B
+_TINT_UNCERTAIN = "rgba(239, 68, 68, 0.12)"    # --color-danger  #EF4444
 
 st.set_page_config(page_title="chem-predict — selectivity screening",
                    page_icon="🧪", layout="wide", initial_sidebar_state="auto")
@@ -97,6 +97,37 @@ def stat_row(stats: list[tuple[str, str, str]], accent_first: bool = False) -> N
 
 def note(html: str) -> None:
     st.html(f"<div class='cp-note'>{html}</div>")
+
+
+def lead_card(row: pd.Series, target: str, offs: tuple[str, ...]) -> None:
+    """Hero card for the best in-domain shortlist survivor.
+
+    "Lead" here is a real rank (highest gap S among in-domain rows in an
+    already gap-sorted shortlist), not invented copy — callers only pass a
+    row once one exists.
+    """
+    with st.container(border=True):
+        left, right = st.columns([1, 3])
+        with left:
+            mol = Chem.MolFromSmiles(row["smi"])
+            if mol is not None:
+                st.image(Draw.MolToImage(mol, size=(220, 180)), width="content")
+        with right:
+            st.html(
+                "<div class='cp-lead-head'>"
+                "<span class='cp-chip is-lead'>lead candidate</span>"
+                "<span class='cp-chip is-in'>in-domain</span>"
+                "</div>"
+                f"<p class='cp-lead-smiles'>{row['smi']}</p>"
+            )
+            stat_row([
+                (f"pred {target}", f"{row[f'pred_{target}']:.2f}",
+                 f"potency vs {'/'.join(offs)}"),
+                ("gap S", f"{row['gap']:+.2f}", "log-units over the worst off-isoform"),
+                ("90% CI", f"[{row['gap_lo']:+.1f}, {row['gap_hi']:+.1f}]",
+                 "split-conformal interval"),
+                ("MPO", f"{row['mpo']:.2f}", "geometric mean of desirabilities"),
+            ])
 
 
 def colab_handoff(contract: dict, download_label: str) -> None:
@@ -297,6 +328,10 @@ def render_funnel() -> None:
         ("Potency floor", f"{POTENCY_FLOOR:.1f}", f"minimum predicted {TARGET} pChEMBL"),
     ], accent_first=True)
 
+    in_domain_rows = sl[sl["in_domain"]]
+    if not in_domain_rows.empty:
+        lead_card(in_domain_rows.iloc[0], TARGET, OFFS)
+
     st.html(
         "<div class='cp-legend'><span class='cp-chip is-in'>in-domain</span>"
         "both applicability signals agree — the prediction is interpolation"
@@ -442,14 +477,23 @@ def render_single(query: str) -> None:
             st.success(f"The interval excludes zero — the predicted direction of "
                        f"selectivity is supported at 90 % confidence.")
 
-        st.markdown("**Per-isoform prediction**")
-        st.dataframe(pd.DataFrame({
+        st.markdown("**Per-isoform prediction — confidence matrix**")
+        st.caption("Tanimoto NN shaded by nearest-neighbour similarity to the training "
+                    "set — the applicability-domain signal in fingerprint space.")
+        iso_df = pd.DataFrame({
             "isoform": [TARGET, *OFFS],
             "pred pChEMBL": [round(float(row[f"pred_{i}"]), 2) for i in (TARGET, *OFFS)],
             "90% CI": [f"[{row[f'lo_{i}']:.2f}, {row[f'hi_{i}']:.2f}]" for i in (TARGET, *OFFS)],
-            "Tanimoto NN": [f"{float(row[f'nn_sim_{i}']):.3f}" for i in (TARGET, *OFFS)],
+            "Tanimoto NN": [round(float(row[f"nn_sim_{i}"]), 3) for i in (TARGET, *OFFS)],
             "in domain": ["yes" if row[f"in_domain_{i}"] else "no" for i in (TARGET, *OFFS)],
-        }), width="stretch", hide_index=True)
+        })
+        # Intensity-mapped green — --color-safe (#019668) at an alpha scaled to the
+        # similarity value itself, so the grid reads its own confidence at a glance.
+        styled = iso_df.style.map(
+            lambda v: f"background-color: rgba(1, 150, 104, {0.08 + 0.35 * min(1.0, max(0.0, v)):.2f})",
+            subset=["Tanimoto NN"],
+        ).format({"pred pChEMBL": "{:.2f}", "Tanimoto NN": "{:.3f}"})
+        st.dataframe(styled, width="stretch", hide_index=True)
 
     section_head("Property axes (MPO)",
                  "Selectivity is not the only thing that disqualifies a molecule. These "

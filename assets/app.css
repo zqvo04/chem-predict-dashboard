@@ -4,9 +4,14 @@
  * theme: custom "Molecular Clinical Precision" · anchor hue: clinical blue
  *        oklch(48.8% 0.175 258) — redesigned from a supplied design.md, replacing
  *        the prior "Assay" teal anchor
- * nav: masthead strip (page-level chrome; Streamlit owns the toolbar)
+ * nav: masthead strip (page chrome) + a Deep Slate vertical icon rail in the
+ *      sidebar (fixed dark surface via [theme.*.sidebar] in config.toml —
+ *      native Streamlit theming, not a CSS override — regardless of the main
+ *      canvas's light/dark toggle)
  * footer: provenance strip (real model ids + code version, no invented content)
- * enrichment: none — typography and data only
+ * enrichment: lead-candidate hero card (gold "lead" chip, reserved for
+ *      lead/priority status only) + a green intensity-mapped confidence-matrix
+ *      heatmap on the per-isoform table — both driven by real computed values
  * motion: button-press (focus ring is instant, never animated). Card hover moved
  *         from shadow-lift to a tonal background/border shift per the brief's
  *         "Tonal Layers and Low-Contrast Outlines, not box shadows" elevation rule.
@@ -213,9 +218,37 @@ body {
 }
 
 .cp-chip.is-out {
-  color: var(--color-warn-deep);
-  background: var(--color-warn-wash);
-  border-color: var(--color-warn);
+  color: var(--color-danger-deep);
+  background: var(--color-danger-wash);
+  border-color: var(--color-danger);
+}
+
+/* Gold is reserved for "Lead status / high-priority" per the brief — used only
+   for the top-ranked shortlist survivor, never for a caution/warning state. */
+.cp-chip.is-lead {
+  color: var(--color-lead-deep);
+  background: var(--color-lead-wash);
+  border-color: var(--color-lead);
+}
+
+/* ---- lead-candidate card --------------------------------------------------
+ * Rendered inside a native st.container(border=True) — the border/radius come
+ * from the Streamlit theme tokens, this only styles the text/chip row above
+ * the reused .cp-stats metrics. */
+.cp-lead-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin-bottom: var(--space-2xs);
+}
+
+.cp-lead-smiles {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+  overflow-wrap: anywhere;
+  margin: 0;
 }
 
 .cp-legend {
@@ -288,9 +321,11 @@ body {
 
 /* ---- Streamlit widget tuning --------------------------------------------- */
 /* Deliberately shallow: typography and spacing only, so a Streamlit upgrade
- * degrades to plain defaults instead of breaking the layout. */
+ * degrades to plain defaults instead of breaking the layout. The sidebar's own
+ * background/text/accent come from [theme.*.sidebar] in config.toml — real
+ * Streamlit theming, not a CSS override — so it survives upgrades too. */
 [data-testid="stSidebar"] {
-  border-right: var(--rule-hair) solid var(--color-rule);
+  border-right: var(--rule-hair) solid var(--color-nav-rule);
 }
 
 [data-testid="stSidebar"] .stMarkdown h3 {
@@ -300,7 +335,70 @@ body {
   font-weight: 600;
   letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
-  color: var(--color-ink-3);
+  color: var(--color-nav-ink-2);
+}
+
+/* ---- sidebar mode rail ----------------------------------------------------
+ * st.segmented_control renders as a horizontal pill row by default; restacked
+ * here into a full-width vertical rail (Dashboard / Analysis / Library
+ * archetype) with an active-state accent bar. Streamlit still owns selection
+ * state and the checked-state background (driven by the sidebar's
+ * primaryColor token) — this only changes layout, icon and idle-state colour. */
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] {
+  width: 100%;
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] [role="radiogroup"] {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3xs);
+  width: 100%;
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[role="radio"] {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--space-2xs);
+  /* Streamlit sizes segmented-control buttons to their horizontal-row content
+     by default (fixed flex-basis + nowrap/ellipsis text); !important is needed
+     to win that specificity fight and let the rail run full width. */
+  width: 100% !important;
+  flex: 1 1 100% !important;
+  border-left: var(--rule-accent) solid transparent;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--color-nav-ink-2);
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[role="radio"] * {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  max-width: none !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[role="radio"]::before {
+  font-family: "Material Symbols Rounded";
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[role="radio"]:nth-of-type(1)::before {
+  content: "filter_alt";
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[role="radio"]:nth-of-type(2)::before {
+  content: "biotech";
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[role="radio"]:nth-of-type(3)::before {
+  content: "adjust";
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[role="radio"][aria-checked="true"] {
+  border-left-color: var(--color-nav-accent);
+  color: var(--color-nav-accent);
 }
 
 .stButton button,

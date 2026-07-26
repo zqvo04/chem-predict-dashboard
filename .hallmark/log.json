@@ -3,6 +3,15 @@
     "date": "2026-07-25",
     "macrostructure": "Workbench",
     "theme": "custom",
+    "theme_axes": "dark-nav+light-canvas / grotesk-sans / chromatic-blue",
+    "vibe": "clinical, precise, computational — corporate modern with a technical edge",
+    "enrichment": "lead-candidate hero card (real top-ranked survivor) + confidence-matrix heatmap on the per-isoform table",
+    "brief": "chem-predict-dashboard · studied-DNA follow-up from a reference product screenshot the user attached — added the brief's Deep Slate nav rail (native Streamlit [theme.*.sidebar], not CSS override), a vertical icon nav, a gold \"lead candidate\" chip (reserved for lead/priority per the brief, split off the AD-uncertain chip which moved to danger-red), and a green intensity-mapped confidence matrix"
+  },
+  {
+    "date": "2026-07-25",
+    "macrostructure": "Workbench",
+    "theme": "custom",
     "theme_axes": "light / grotesk-sans / chromatic-blue",
     "vibe": "clinical, precise, computational — corporate modern with a technical edge",
     "enrichment": "none — typography and data only",
