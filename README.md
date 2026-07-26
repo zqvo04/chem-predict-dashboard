@@ -169,7 +169,8 @@ structure.
 The output **leads with the library percentile, not the gap value** — a deliberate
 choice. The 90 % gap interval spans ~±2 pchembl and usually crosses zero, so a
 per-molecule selectivity claim is not supported; what *was* validated is the
-ranking (Spearman 0.80 against measured gaps, 4.5× enrichment). The page says so
+ranking (Spearman 0.80 against measured gaps, 4.5× enrichment — with the
+[assay caveat](#the-headline-selectivity-number-has-a-measured-caveat)). The page says so
 explicitly whenever the interval crosses zero, and it flags a molecule whose
 Tanimoto nearest neighbour is 1.000 as **in the training set** — those numbers are
 a fit, not a forecast, and scaffold-split metrics do not describe them.
@@ -185,10 +186,43 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 | Stage | Claim | Result (5-seed scaffold split) |
 |------|-------|--------|
 | Per-isoform QSAR | pchembl regression, JAK1/2/3 | R² 0.71–0.77, Spearman 0.82–0.88 |
-| **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** |
+| **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but see the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
 | Uncertainty | conformal 90% intervals | empirical coverage **0.89–0.91** |
 | Applicability domain | error out- vs in-domain | error rises **~2×** as molecules leave the domain |
 | **The loop** | one worked case B→SELECT→A→re-score | best in-domain analogue **+1.74** gap (parent +1.39) |
+
+### The headline selectivity number has a measured caveat
+
+Two audits re-tested the selectivity claim against questions it had never been
+asked (`scripts/assay_time_audit.py`, full detail in
+[VALIDATION.md](VALIDATION.md#audit--assay-type-confound-and-time-split-validation-2026-07-26)).
+One result confirms the claim; the other qualifies it, and the qualification is
+stated here rather than buried because it changes how the number should be read.
+
+**It survives a time split.** Training only on chemistry published before a cutoff
+and testing on what came after — strictly harder than a scaffold split — costs
+about a tenth of the rank correlation at comparable training size (Spearman
+**0.715 vs 0.798**), and the top-decile enrichment reaches **90 % of its achievable
+ceiling vs 73 %** for the scaffold split. The ranking transfers to genuinely
+unpublished molecules.
+
+**Part of it is carried by assay conditions, not biology.** The training label
+pools IC50, Ki, Kd and EC50. An IC50 for an ATP-competitive kinase inhibitor
+depends on the assay's ATP concentration and JAK1/2/3 do not share an ATP Km, so a
+gap assembled across assay types can encode an artefact. On the ATP-independent
+Ki/Kd-only subset, **at matched sample size**, Spearman falls from **0.682 to
+0.462** and the top-decile enrichment collapses from 3.71× to below random. Sample
+size explains part of the total drop; it does not explain that.
+
+So "Spearman 0.80" is correctly measured for what it measures, and the honest
+phrasing is **"0.80 on pooled assay types, substantially lower on the
+ATP-independent subset"**. The Ki/Kd set is small (n = 386) and differs in base
+rate, so this is a serious flag requiring follow-up rather than a refutation —
+separating the two would need a larger ATP-independent set than ChEMBL supplies, or
+explicit ATP normalisation of the IC50 records.
+
+One concern was measured and **dismissed**: 95–99 % of these records are binding
+assays, so biochemical-vs-cellular mixing is not a confound here.
 
 | Selectivity ranking flip (hero) | The loop closed |
 |---|---|
@@ -360,7 +394,22 @@ closed:
    the loop closes conceptually (same schema, same scoring) but not inside one
    running app.
 
-Two limits on what was just built are worth stating plainly:
+6. **The assay confound is open.** The audit above showed the gap ranking degrades
+   materially on the ATP-independent Ki/Kd subset at matched sample size. Closing
+   it needs either a larger ATP-independent set than ChEMBL supplies, or ATP-
+   concentration normalisation of the IC50 records (the assay description is
+   fetched but not parsed). Until then the headline number carries its caveat.
+7. **The featuriser is achiral.** `GetMorganGenerator` is built without
+   `includeChirality`, so a molecule and its enantiomer receive **identical**
+   fingerprints and identical predictions — verified. Many kinase inhibitors are
+   single enantiomers, so this is a real modelling limit. `standardize()` preserves
+   stereochemistry in the stored SMILES, so the information is in the data and
+   discarded at featurisation; turning it on forces a retrain.
+8. **TYK2 is missing.** The JAK family has four members and the model covers three.
+   Since the gap is `pred(JAK1) − max(off-isoforms)`, adding TYK2 can only lower it
+   — today's gaps are optimistic by an unmeasured amount.
+
+Limits on what was built are worth stating plainly:
 
 - **The training assets are not standardised.** `standardize()` runs on every
   ingest path *going forward*, and the wide library was rebuilt through it, but

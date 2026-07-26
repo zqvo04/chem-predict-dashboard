@@ -289,3 +289,105 @@ same-model re-scoring of generated analogues, which is done on CPU.
 - The cross-measured set is biased toward well-studied chemotypes — validation
   there may over-state performance on novel scaffolds (which is why scaffold-split
   evaluation and AD both matter downstream).
+
+---
+
+## AUDIT — assay-type confound and time-split validation (2026-07-26)
+
+**Purpose.** Re-test STEP 4's headline claim (Spearman ≈ 0.80, ~4.5× enrichment)
+against two harder questions it had never been asked. Neither audit adds a
+feature; both were run because either could invalidate a headline number.
+
+**Source.** ChEMBL re-fetched with assay provenance (`standard_type`, `assay_type`,
+`document_year`), standardised to neutral parents. JAK1 10 463 / JAK2 12 671 /
+JAK3 7 452 molecules; 3-way cross-measured **3621**. Metric is identical to
+Gate 4 (`src.selectivity.evaluate_split`), so all rows below are comparable.
+Reproduce: `python scripts/assay_time_audit.py`.
+
+### Assay mix (measured, and it settles one open question)
+
+| Isoform | molecules | with ≥1 Ki/Kd | binding (biochemical) assays |
+|---------|----------:|--------------:|-----------------------------:|
+| JAK1 | 10 463 | 2 372 (22.7 %) | 99.4 % |
+| JAK2 | 12 671 | 2 511 (19.8 %) | 94.7 % |
+| JAK3 | 7 452 | 1 162 (15.6 %) | 96.6 % |
+
+**Biochemical-vs-cellular mixing is not a confound here.** 95–99 % of records are
+binding assays, so pooled `EC50`/functional readouts are a rounding error. That
+concern is measured and dismissed.
+
+### Audit 1 — is the gap an artefact of pooled assay types?
+
+An IC50 for an ATP-competitive kinase inhibitor moves with the assay's ATP
+concentration, and JAK1/2/3 do not share an ATP Km; Ki/Kd are ATP-independent.
+The Ki/Kd-only subset is therefore the control for that artefact — but it is also
+~9× smaller, so a **like-sized random cut of the full set** is required before any
+drop can be attributed to assay type.
+
+| Set | n | Spearman (diff) | Spearman (direct) | Top-decile enrichment | base |
+|-----|--:|:---------------:|:-----------------:|:---------------------:|-----:|
+| all types (as deployed) | 3621 | 0.798 ± 0.044 | 0.816 ± 0.045 | 4.48 ± 0.56× (73 % of ceiling) | 16.4 % |
+| **control** — all types, cut to n = 386 | 386 | 0.682 ± 0.045 | 0.722 ± 0.035 | 3.71 ± 0.48× (65 % of ceiling) | 17.5 % |
+| **Ki/Kd only** (ATP-independent) | 386 | **0.462 ± 0.087** | 0.579 ± 0.035 | **0.48 ± 0.96×** (5 % of ceiling) | 9.6 % |
+
+**Finding — the confound is real and material.** Sample size accounts for part of
+the drop (0.798 → 0.682), but not the rest: at *matched* n the ATP-independent
+subset still falls from **0.682 to 0.462**, roughly 2.5 pooled standard deviations.
+Top-decile enrichment does not merely weaken, it disappears (3.71× → 0.48×, i.e.
+below random), though that particular figure is too noisy to lean on — its
+standard deviation exceeds its mean on a top decile of 39 molecules.
+
+**What this does and does not mean.** It does **not** refute STEP 4: the deployed
+number is correctly measured for what it measures. It does mean a meaningful part
+of the headline ranking performance is carried by *how the data was measured*
+rather than by selectivity biology alone, and the honest reading of "Spearman 0.80"
+is now "0.80 on pooled assay types, substantially lower on the ATP-independent
+subset."
+
+**Competing explanations not yet excluded** (n = 386 is small):
+- the Ki/Kd base rate is lower (9.6 % vs 17.5 %) and its gap distribution
+  narrower, which compresses a rank correlation independently of assay physics;
+- Ki/Kd-measured molecules may be a chemically distinct, older population rather
+  than a random sample of the same chemistry.
+
+### Audit 2 — does the gap predict chemistry that was not yet published?
+
+Cut on each molecule's **first** publication year: train on what existed at the
+cutoff, test on chemistry absent from the literature at that time. Strictly harder
+than a scaffold split. One split per cutoff (no seeds), so individual rows carry
+no error bar — read the trend, and compare the latest cutoff against the reference,
+whose training set is closest in size.
+
+| cutoff | train | test | Spearman | direct | enrichment | ceiling | % of max | base |
+|-------:|------:|-----:|---------:|-------:|-----------:|--------:|---------:|-----:|
+| 2015 | 865 | 2756 | 0.354 | 0.515 | 3.19× | 5.39× | 59 % | 18.5 % |
+| 2016 | 1232 | 2389 | 0.606 | 0.546 | 3.90× | 5.01× | 78 % | 20.0 % |
+| 2017 | 1358 | 2263 | 0.470 | 0.476 | 3.80× | 4.93× | 77 % | 20.3 % |
+| 2018 | 1727 | 1894 | 0.510 | 0.651 | 3.08× | 4.65× | 66 % | 21.5 % |
+| 2019 | 2096 | 1525 | 0.698 | 0.739 | 3.41× | 3.98× | 86 % | 25.1 % |
+| **2020** | **2541** | **1080** | **0.715** | 0.741 | 2.64× | 2.94× | **90 %** | 34.0 % |
+| *reference — scaffold split, 5 seeds* | *≈2896* | *724* | *0.798* | *0.816* | *4.48×* | *6.13×* | *73 %* | *16.4 %* |
+
+Raw enrichment is **not** comparable across these rows: the top decile is capped at
+`1/base_rate`, and the base rate climbs from 16 % to 34 % across the table. At a
+34 % base rate no ranker can exceed 2.94×, so the 2020 row's 2.64× is 90 % of the
+achievable maximum — the best row in the table, not the worst.
+
+**Finding — the ranking claim survives prospective-style evaluation.** At the
+closest-comparable training size, Spearman is **0.715 vs 0.798** and enrichment
+reaches **90 % of its ceiling vs 73 %**. Predicting genuinely unpublished chemistry
+costs roughly a tenth of the rank correlation, which is a smaller penalty than the
+scaffold-split framing would lead one to expect.
+
+**Caveat.** Spearman is non-monotonic across cutoffs (0.354 → 0.606 → 0.470 → 0.510
+→ 0.698 → 0.715) and each row is a single split. The trend tracks training size;
+the individual values are noisy and should not be quoted alone.
+
+### What these two audits jointly imply
+
+They are not in tension. The gap ranking **does** transfer forward in time, and a
+meaningful share of what it has learned **is** tied to assay conditions — a model
+can reliably reproduce an assay-correlated pattern that itself persists across
+years. The follow-up that would separate them is a larger ATP-independent set
+(ChEMBL alone will not supply it) or explicit ATP-concentration normalisation of
+the IC50 records.

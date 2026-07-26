@@ -55,22 +55,55 @@ def _canonical(smiles: str) -> str | None:
     return standardize(smiles)
 
 
+# Assay types whose pchembl is an ATP-concentration-independent constant. An IC50
+# for an ATP-competitive kinase inhibitor shifts with the assay's ATP level (and
+# the JAK isoforms do not share an ATP Km), so a gap built from IC50s measured
+# under different conditions carries an assay artefact. Ki/Kd do not have that
+# problem, which is what makes them the control subset.
+EQUILIBRIUM_TYPES = ("Ki", "Kd")
+
+_COLUMNS = ["smi", "pchembl", "n_meas", "pchembl_kikd", "n_kikd",
+            "year_first", "frac_binding"]
+
+
 def _collapse(activities: pd.DataFrame) -> pd.DataFrame:
     """Raw activities -> one median-pchembl row per canonical molecule.
 
-    Columns: smi, pchembl, n_meas. Unparseable SMILES and non-numeric pchembl are
-    dropped. n_meas records how many measurements the median was taken over
-    (provenance for downstream noise-awareness).
+    Columns: smi, pchembl, n_meas, plus the assay provenance needed to ask whether
+    a result is an artefact of how it was measured:
+
+      pchembl_kikd  median over Ki/Kd records only (NaN when the molecule has none)
+      n_kikd        how many of its measurements were Ki/Kd
+      year_first    earliest publication year — the molecule's arrival date, which
+                    is what a time split has to cut on
+      frac_binding  fraction measured in a binding (biochemical) assay rather than
+                    a functional (typically cellular) one
+
+    Unparseable SMILES and non-numeric pchembl are dropped. n_meas records how many
+    measurements the median was taken over (provenance for noise-awareness).
     """
     if activities.empty:
-        return pd.DataFrame(columns=["smi", "pchembl", "n_meas"])
+        return pd.DataFrame(columns=_COLUMNS)
     df = activities.copy()
     df["pchembl"] = pd.to_numeric(df["pchembl_value"], errors="coerce")
     df = df.dropna(subset=["canonical_smiles", "pchembl"])
     df["smi"] = df["canonical_smiles"].map(_canonical)
     df = df.dropna(subset=["smi"])
+
+    # Provenance fields are optional: an activities frame cached before they were
+    # requested simply yields NaN rather than failing the build.
+    def _col(name: str) -> pd.Series:
+        return df[name] if name in df.columns else pd.Series(pd.NA, index=df.index)
+
+    df["_kikd"] = df["pchembl"].where(_col("standard_type").isin(EQUILIBRIUM_TYPES))
+    df["_year"] = pd.to_numeric(_col("document_year"), errors="coerce")
+    df["_binding"] = (_col("assay_type") == "B").astype(float).where(
+        _col("assay_type").notna())
+
     out = (df.groupby("smi", sort=False)
-             .agg(pchembl=("pchembl", "median"), n_meas=("pchembl", "size"))
+             .agg(pchembl=("pchembl", "median"), n_meas=("pchembl", "size"),
+                  pchembl_kikd=("_kikd", "median"), n_kikd=("_kikd", "count"),
+                  year_first=("_year", "min"), frac_binding=("_binding", "mean"))
              .reset_index())
     return out
 

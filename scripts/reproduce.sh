@@ -57,4 +57,10 @@ echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py
 
 echo
+echo "== Assay-type + time-split audit (VALIDATION.md) =="
+echo "Re-tests the headline gap claim on the ATP-independent Ki/Kd subset and on a"
+echo "publication-year cut. Either can invalidate a headline number — that is the point."
+python scripts/assay_time_audit.py
+
+echo
 echo "Done. Compare the Gate 0 tables above against VALIDATION.md."
