@@ -1,222 +1,58 @@
 {
   "schema_version": "1.0",
-  "case_id": "JAK1-selective-ab1a969",
+  "case_id": "JAK1-selective-019a7e9",
   "target_isoform": "JAK1",
   "off_isoforms": [
     "JAK2",
     "JAK3"
   ],
   "provenance": {
-    "created": "2026-07-24T14:28:48.372426+00:00",
+    "created": "2026-07-26T14:14:09.234848+00:00",
     "stage": "A_rescore",
     "model_ids": {
-      "JAK1": "CHEMBL2835@b1bfc32323",
-      "JAK2": "CHEMBL2971@0eaa59df68",
-      "JAK3": "CHEMBL2148@d4d623ab4f"
+      "JAK1": "CHEMBL2835@61edd879da",
+      "JAK2": "CHEMBL2971@5649ee4718",
+      "JAK3": "CHEMBL2148@0772985d8c"
     },
     "conformal_alpha": 0.1,
-    "code_version": "ab1a969"
+    "code_version": "019a7e9"
   },
   "molecules": [
     {
-      "smiles": "O=C(Nc1c(F)cc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1F",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.387,
+          "pred_pchembl": 6.457,
           "interval": [
-            6.331,
-            8.442
+            5.401,
+            7.512
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.103,
+          "pred_pchembl": 5.872,
           "interval": [
-            4.903,
-            7.303
+            4.671,
+            7.072
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.98,
+          "pred_pchembl": 6.565,
           "interval": [
-            4.771,
-            7.189
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.284,
-        "gap_interval": [
-          -0.972,
-          3.539
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1c(Cl)cc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.892,
-          "interval": [
-            5.837,
-            7.948
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.918,
-          "interval": [
-            4.717,
-            7.118
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.941,
-          "interval": [
-            4.732,
-            7.15
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.951,
-        "gap_interval": [
-          -1.313,
-          3.215
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1c(Cl)cc([N+](=O)[O-])cc1Br)c1cc(Cl)ccc1O",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.9,
-          "interval": [
-            5.845,
-            7.955
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.055,
-          "interval": [
-            4.855,
-            7.256
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.03,
-          "interval": [
-            4.821,
-            7.239
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.844,
-        "gap_interval": [
-          -1.411,
-          3.1
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Cc1cc([N+](=O)[O-])cc(Cl)c1NC(=O)c1cc(Cl)ccc1O",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.937,
-          "interval": [
-            5.881,
-            7.992
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.876,
-          "interval": [
-            4.675,
-            7.076
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.848,
-          "interval": [
-            4.64,
-            7.057
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.061,
-        "gap_interval": [
-          -1.195,
-          3.317
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1cc([N+](=O)[O-])cc(Cl)c1NC(=O)c1cc(Cl)ccc1O",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.296,
-          "interval": [
-            6.241,
-            8.352
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.905,
-          "interval": [
-            4.705,
-            7.106
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.062,
-          "interval": [
-            4.854,
-            7.271
+            5.357,
+            7.774
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.234,
+        "gap": -0.109,
         "gap_interval": [
-          -1.03,
-          3.498
+          -2.373,
+          2.155
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -224,286 +60,491 @@
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1c(O)cc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1Cl",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.037,
+          "pred_pchembl": 6.52,
           "interval": [
-            5.982,
-            8.093
+            5.464,
+            7.575
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.837,
+          "pred_pchembl": 5.81,
           "interval": [
-            4.637,
-            7.037
+            4.61,
+            7.01
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.511,
+          "pred_pchembl": 6.354,
           "interval": [
-            4.302,
-            6.72
+            5.145,
+            7.563
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.2,
+        "gap": 0.165,
         "gap_interval": [
-          -1.055,
-          3.456
+          -2.099,
+          2.429
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "Nc1cc([N+](=O)[O-])cc(Cl)c1NC(=O)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1Br",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.052,
+          "pred_pchembl": 6.601,
           "interval": [
-            5.996,
-            8.107
+            5.545,
+            7.656
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.728,
+          "pred_pchembl": 6.127,
           "interval": [
-            4.527,
-            6.928
+            4.927,
+            7.328
           ],
           "in_domain": true
         },
         "JAK3": {
+          "pred_pchembl": 6.924,
+          "interval": [
+            5.715,
+            8.133
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": -0.323,
+        "gap_interval": [
+          -2.587,
+          1.941
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1C",
+      "origin": "generated",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.395,
+          "interval": [
+            5.34,
+            7.45
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.778,
+          "interval": [
+            4.577,
+            6.978
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.202,
+          "interval": [
+            4.993,
+            7.411
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.193,
+        "gap_interval": [
+          -2.071,
+          2.457
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1OC",
+      "origin": "generated",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.479,
+          "interval": [
+            5.424,
+            7.535
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.597,
+          "interval": [
+            4.397,
+            6.797
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.142,
+          "interval": [
+            4.933,
+            7.351
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.337,
+        "gap_interval": [
+          -1.927,
+          2.601
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1O",
+      "origin": "generated",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.391,
+          "interval": [
+            5.336,
+            7.446
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
           "pred_pchembl": 5.921,
           "interval": [
-            4.712,
-            7.129
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.131,
-        "gap_interval": [
-          -1.133,
-          3.395
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "N#Cc1cc([N+](=O)[O-])cc(Cl)c1NC(=O)c1cc(Cl)ccc1O",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.813,
-          "interval": [
-            5.757,
-            7.868
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.862,
-          "interval": [
-            4.662,
-            7.062
+            4.721,
+            7.122
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.674,
+          "pred_pchembl": 6.409,
           "interval": [
-            4.466,
-            6.883
+            5.2,
+            7.618
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.95,
+        "gap": -0.018,
         "gap_interval": [
-          -1.305,
-          3.206
+          -2.282,
+          2.246
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1c(Cl)cc([N+](=O)[O-])cc1C(F)(F)F)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1N",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.095,
+          "pred_pchembl": 6.828,
           "interval": [
-            6.04,
-            8.15
+            5.773,
+            7.884
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.948,
+          "pred_pchembl": 5.609,
           "interval": [
-            4.748,
-            7.148
+            4.409,
+            6.81
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.88,
+          "pred_pchembl": 6.319,
           "interval": [
-            4.671,
-            7.089
+            5.11,
+            7.528
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.147,
+        "gap": 0.509,
         "gap_interval": [
-          -1.109,
-          3.403
+          -1.755,
+          2.773
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "CS(=O)(=O)c1cc([N+](=O)[O-])cc(Cl)c1NC(=O)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1C#N",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.104,
+          "pred_pchembl": 6.554,
           "interval": [
-            6.049,
-            8.16
+            5.499,
+            7.609
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.2,
+          "pred_pchembl": 5.857,
           "interval": [
-            5.0,
-            7.401
+            4.657,
+            7.058
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.041,
+          "pred_pchembl": 6.309,
           "interval": [
-            4.832,
-            7.25
+            5.1,
+            7.518
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.904,
+        "gap": 0.245,
         "gap_interval": [
-          -1.352,
-          3.159
+          -2.019,
+          2.509
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1cc(F)c([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1C(F)(F)F",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.59,
+          "pred_pchembl": 6.508,
           "interval": [
-            6.535,
-            8.645
+            5.452,
+            7.563
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.739,
+          "pred_pchembl": 5.923,
           "interval": [
-            4.538,
-            6.939
+            4.723,
+            7.123
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.797,
+          "pred_pchembl": 6.436,
           "interval": [
-            4.588,
-            7.005
+            5.228,
+            7.645
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.793,
+        "gap": 0.071,
         "gap_interval": [
-          -0.471,
-          4.057
+          -2.193,
+          2.335
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1cc(Cl)c([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1nccc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)c1S(C)(=O)=O",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.181,
+          "pred_pchembl": 6.565,
           "interval": [
-            6.126,
-            8.237
+            5.51,
+            7.62
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.883,
+          "pred_pchembl": 6.029,
           "interval": [
-            4.683,
+            4.829,
+            7.23
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.226,
+          "interval": [
+            5.017,
+            7.435
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.339,
+        "gap_interval": [
+          -1.925,
+          2.603
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2F)ccn1",
+      "origin": "generated",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.262,
+          "interval": [
+            5.206,
+            7.317
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.138,
+          "interval": [
+            3.938,
+            6.338
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.846,
+          "interval": [
+            4.637,
+            7.055
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.416,
+        "gap_interval": [
+          -1.849,
+          2.68
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2Cl)ccn1",
+      "origin": "generated",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.272,
+          "interval": [
+            5.216,
+            7.327
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.219,
+          "interval": [
+            4.019,
+            6.42
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.689,
+          "interval": [
+            4.48,
+            6.897
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.583,
+        "gap_interval": [
+          -1.681,
+          2.847
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2Br)ccn1",
+      "origin": "generated",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.286,
+          "interval": [
+            5.231,
+            7.341
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.602,
+          "interval": [
+            4.402,
+            6.803
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.875,
+          "interval": [
+            4.666,
             7.084
           ],
           "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.898,
-          "interval": [
-            4.689,
-            7.106
-          ],
-          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.284,
+        "gap": 0.411,
         "gap_interval": [
-          -0.98,
-          3.548
+          -1.853,
+          2.675
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -511,81 +552,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1cc(Br)c([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2C)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.363,
+          "pred_pchembl": 6.315,
           "interval": [
-            6.307,
-            8.418
+            5.259,
+            7.37
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.713,
+          "pred_pchembl": 5.288,
           "interval": [
-            4.513,
-            6.913
+            4.087,
+            6.488
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.811,
+          "pred_pchembl": 5.757,
           "interval": [
-            4.603,
-            7.02
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.551,
-        "gap_interval": [
-          -0.713,
-          3.815
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Cc1cc(NC(=O)c2cc(Cl)ccc2O)c(Cl)cc1[N+](=O)[O-]",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.419,
-          "interval": [
-            6.364,
-            8.474
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.686,
-          "interval": [
-            4.485,
-            6.886
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.923,
-          "interval": [
-            4.715,
-            7.132
+            4.548,
+            6.966
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.495,
+        "gap": 0.557,
         "gap_interval": [
-          -0.769,
-          3.76
+          -1.707,
+          2.821
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -593,40 +593,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "COc1cc(NC(=O)c2cc(Cl)ccc2O)c(Cl)cc1[N+](=O)[O-]",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2OC)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.764,
+          "pred_pchembl": 6.431,
           "interval": [
-            6.708,
-            8.819
+            5.376,
+            7.487
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.918,
+          "pred_pchembl": 5.308,
           "interval": [
-            4.718,
-            7.118
+            4.107,
+            6.508
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.026,
+          "pred_pchembl": 5.872,
           "interval": [
-            4.817,
-            7.235
+            4.663,
+            7.081
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.737,
+        "gap": 0.56,
         "gap_interval": [
-          -0.527,
-          4.002
+          -1.705,
+          2.824
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -634,40 +634,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1cc(O)c([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2O)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.373,
+          "pred_pchembl": 6.517,
           "interval": [
-            6.318,
-            8.428
+            5.462,
+            7.572
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.809,
+          "pred_pchembl": 5.462,
           "interval": [
-            4.609,
-            7.009
+            4.261,
+            6.662
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.989,
+          "pred_pchembl": 5.856,
           "interval": [
-            4.78,
-            7.198
+            4.647,
+            7.065
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.384,
+        "gap": 0.661,
         "gap_interval": [
-          -0.88,
-          3.649
+          -1.603,
+          2.925
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -675,40 +675,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "Nc1cc(NC(=O)c2cc(Cl)ccc2O)c(Cl)cc1[N+](=O)[O-]",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2N)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.628,
+          "pred_pchembl": 6.789,
           "interval": [
-            6.572,
-            8.683
+            5.734,
+            7.844
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.077,
+          "pred_pchembl": 5.455,
           "interval": [
-            4.877,
-            7.277
+            4.255,
+            6.656
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.648,
+          "pred_pchembl": 5.786,
           "interval": [
-            4.439,
-            6.857
+            4.577,
+            6.995
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.551,
+        "gap": 1.003,
         "gap_interval": [
-          -0.705,
-          3.806
+          -1.261,
+          3.268
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -716,40 +716,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "N#Cc1cc(NC(=O)c2cc(Cl)ccc2O)c(Cl)cc1[N+](=O)[O-]",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2C#N)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.384,
+          "pred_pchembl": 6.596,
           "interval": [
-            6.328,
-            8.439
+            5.541,
+            7.652
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.927,
+          "pred_pchembl": 5.285,
           "interval": [
-            4.727,
-            7.127
+            4.084,
+            6.485
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.235,
+          "pred_pchembl": 6.028,
           "interval": [
-            5.026,
-            7.444
+            4.82,
+            7.237
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.149,
+        "gap": 0.568,
         "gap_interval": [
-          -1.115,
-          3.413
+          -1.696,
+          2.832
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -757,507 +757,302 @@
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1cc(C(F)(F)F)c([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2C(F)(F)F)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.537,
+          "pred_pchembl": 6.084,
           "interval": [
-            6.481,
-            8.592
+            5.029,
+            7.139
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.806,
+          "pred_pchembl": 5.338,
           "interval": [
-            4.606,
-            7.006
+            4.138,
+            6.538
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.21,
+          "pred_pchembl": 5.799,
           "interval": [
-            5.002,
-            7.419
+            4.59,
+            7.008
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.326,
+        "gap": 0.285,
         "gap_interval": [
-          -0.938,
-          3.59
+          -1.979,
+          2.549
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "CS(=O)(=O)c1cc(NC(=O)c2cc(Cl)ccc2O)c(Cl)cc1[N+](=O)[O-]",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2S(C)(=O)=O)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.655,
+          "pred_pchembl": 6.458,
           "interval": [
-            6.6,
-            8.71
+            5.402,
+            7.513
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.93,
+          "pred_pchembl": 5.491,
           "interval": [
-            4.73,
-            7.131
+            4.291,
+            6.692
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.016,
+          "pred_pchembl": 5.91,
           "interval": [
-            4.808,
-            7.225
+            4.701,
+            7.119
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.638,
+        "gap": 0.548,
         "gap_interval": [
-          -0.626,
-          3.903
+          -1.716,
+          2.812
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1ccc([N+](=O)[O-])c(F)c1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(F)c2)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.404,
+          "pred_pchembl": 6.745,
           "interval": [
-            6.349,
-            8.46
+            5.689,
+            7.8
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.965,
+          "pred_pchembl": 5.314,
           "interval": [
-            4.764,
-            7.165
+            4.114,
+            6.515
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.837,
+          "pred_pchembl": 5.56,
           "interval": [
-            4.628,
-            7.046
+            4.351,
+            6.769
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.44,
+        "gap": 1.185,
         "gap_interval": [
-          -0.816,
-          3.695
+          -1.079,
+          3.449
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1ccc([N+](=O)[O-])c(Cl)c1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(Cl)c2)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.072,
+          "pred_pchembl": 6.762,
           "interval": [
-            6.017,
-            8.128
+            5.707,
+            7.817
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.689,
+          "pred_pchembl": 5.343,
           "interval": [
-            4.488,
-            6.889
+            4.143,
+            6.543
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.573,
+          "pred_pchembl": 5.405,
           "interval": [
-            4.364,
-            6.782
+            4.196,
+            6.613
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.384,
+        "gap": 1.358,
         "gap_interval": [
-          -0.872,
-          3.639
+          -0.907,
+          3.622
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1ccc([N+](=O)[O-])c(Br)c1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(Br)c2)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.32,
+          "pred_pchembl": 6.968,
           "interval": [
-            6.265,
-            8.376
+            5.912,
+            8.023
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.761,
+          "pred_pchembl": 5.563,
           "interval": [
-            4.561,
-            6.961
+            4.363,
+            6.764
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.832,
+          "pred_pchembl": 5.431,
           "interval": [
-            4.623,
-            7.041
+            4.222,
+            6.639
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.488,
+        "gap": 1.404,
         "gap_interval": [
-          -0.776,
-          3.752
+          -0.851,
+          3.66
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "Cc1c([N+](=O)[O-])ccc(NC(=O)c2cc(Cl)ccc2O)c1Cl",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(C)c2)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.195,
+          "pred_pchembl": 6.861,
           "interval": [
-            6.139,
-            8.25
+            5.805,
+            7.916
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.444,
+          "pred_pchembl": 5.442,
           "interval": [
-            4.243,
-            6.644
+            4.242,
+            6.642
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.738,
+          "pred_pchembl": 5.409,
           "interval": [
-            4.53,
-            6.947
+            4.2,
+            6.618
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.456,
+        "gap": 1.419,
         "gap_interval": [
-          -0.808,
-          3.72
+          -0.837,
+          3.674
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "COc1c([N+](=O)[O-])ccc(NC(=O)c2cc(Cl)ccc2O)c1Cl",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(OC)c2)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.376,
+          "pred_pchembl": 7.146,
           "interval": [
-            6.321,
-            8.431
+            6.091,
+            8.201
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.869,
+          "pred_pchembl": 5.286,
           "interval": [
-            4.669,
-            7.069
+            4.086,
+            6.487
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.793,
+          "pred_pchembl": 5.537,
           "interval": [
-            4.584,
-            7.002
+            4.328,
+            6.746
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.507,
+        "gap": 1.609,
         "gap_interval": [
-          -0.749,
-          3.763
+          -0.655,
+          3.873
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1ccc([N+](=O)[O-])c(O)c1Cl)c1cc(Cl)ccc1O",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(O)c2)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.156,
+          "pred_pchembl": 6.953,
           "interval": [
-            6.101,
-            8.211
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.943,
-          "interval": [
-            4.743,
-            7.143
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.733,
-          "interval": [
-            4.525,
-            6.942
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.213,
-        "gap_interval": [
-          -1.043,
-          3.469
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Nc1c([N+](=O)[O-])ccc(NC(=O)c2cc(Cl)ccc2O)c1Cl",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.752,
-          "interval": [
-            6.697,
-            8.808
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.255,
-          "interval": [
-            5.055,
-            7.456
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.835,
-          "interval": [
-            4.626,
-            7.044
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.497,
-        "gap_interval": [
-          -0.759,
-          3.753
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "N#Cc1c([N+](=O)[O-])ccc(NC(=O)c2cc(Cl)ccc2O)c1Cl",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.13,
-          "interval": [
-            6.075,
-            8.186
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.812,
-          "interval": [
-            4.612,
-            7.013
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.035,
-          "interval": [
-            4.826,
-            7.244
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.096,
-        "gap_interval": [
-          -1.168,
-          3.36
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1Cl)c1cc(Cl)ccc1O",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.469,
-          "interval": [
-            6.413,
-            8.524
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.75,
-          "interval": [
-            4.55,
-            6.95
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.699,
-          "interval": [
-            4.49,
-            6.907
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.719,
-        "gap_interval": [
-          -0.537,
-          3.974
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "CS(=O)(=O)c1c([N+](=O)[O-])ccc(NC(=O)c2cc(Cl)ccc2O)c1Cl",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.486,
-          "interval": [
-            6.43,
-            8.541
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.364,
-          "interval": [
-            5.164,
-            7.565
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.916,
-          "interval": [
-            4.707,
-            7.125
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.121,
-        "gap_interval": [
-          -1.134,
-          3.377
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cccc(F)c1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.512,
-          "interval": [
-            6.457,
-            8.567
+            5.897,
+            8.008
           ],
           "in_domain": true
         },
@@ -1270,60 +1065,19 @@
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.933,
+          "pred_pchembl": 5.311,
           "interval": [
-            4.725,
-            7.142
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.579,
-        "gap_interval": [
-          -0.686,
-          3.843
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cccc(Cl)c1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.978,
-          "interval": [
-            5.923,
-            8.033
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.393,
-          "interval": [
-            4.193,
-            6.594
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.999,
-          "interval": [
-            4.79,
-            7.208
+            4.102,
+            6.52
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.979,
+        "gap": 1.351,
         "gap_interval": [
-          -1.285,
-          3.243
+          -0.904,
+          3.607
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -1331,1122 +1085,15 @@
       "deep_dive": null
     },
     {
-      "smiles": "O=C(Nc1ccccc1SSc1cccc(Br)c1NC(=O)c1ccccc1)c1ccccc1",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(N)c2)ccn1",
       "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 6.949,
+          "pred_pchembl": 7.107,
           "interval": [
-            5.893,
-            8.004
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.365,
-          "interval": [
-            4.165,
-            6.565
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.756,
-          "interval": [
-            4.547,
-            6.965
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.193,
-        "gap_interval": [
-          -1.072,
-          3.457
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Cc1cccc(SSc2ccccc2NC(=O)c2ccccc2)c1NC(=O)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.239,
-          "interval": [
-            6.184,
-            8.294
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.349,
-          "interval": [
-            4.149,
-            6.55
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.146,
-          "interval": [
-            4.937,
-            7.355
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.093,
-        "gap_interval": [
-          -1.171,
-          3.357
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1cccc(SSc2ccccc2NC(=O)c2ccccc2)c1NC(=O)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.162,
-          "interval": [
-            6.106,
-            8.217
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.398,
-          "interval": [
-            4.198,
-            6.599
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.866,
-          "interval": [
-            4.657,
-            7.075
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.296,
-        "gap_interval": [
-          -0.968,
-          3.56
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cccc(O)c1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.867,
-          "interval": [
-            5.812,
-            7.923
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.285,
-          "interval": [
-            4.084,
-            6.485
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.74,
-          "interval": [
-            4.532,
-            6.949
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.127,
-        "gap_interval": [
-          -1.137,
-          3.391
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Nc1cccc(SSc2ccccc2NC(=O)c2ccccc2)c1NC(=O)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.251,
-          "interval": [
-            6.196,
-            8.307
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.532,
-          "interval": [
-            4.331,
-            6.732
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.847,
-          "interval": [
-            4.638,
-            7.056
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.405,
-        "gap_interval": [
-          -0.859,
-          3.669
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "N#Cc1cccc(SSc2ccccc2NC(=O)c2ccccc2)c1NC(=O)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.95,
-          "interval": [
-            5.895,
-            8.006
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.066,
-          "interval": [
-            3.866,
-            6.267
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.975,
-          "interval": [
-            4.766,
-            7.183
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.976,
-        "gap_interval": [
-          -1.288,
-          3.24
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cccc(C(F)(F)F)c1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.219,
-          "interval": [
-            6.164,
-            8.274
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.528,
-          "interval": [
-            4.328,
-            6.728
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.945,
-          "interval": [
-            4.736,
-            7.154
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.274,
-        "gap_interval": [
-          -0.99,
-          3.538
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "CS(=O)(=O)c1cccc(SSc2ccccc2NC(=O)c2ccccc2)c1NC(=O)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.008,
-          "interval": [
-            5.953,
-            8.064
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.58,
-          "interval": [
-            4.379,
-            6.78
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.91,
-          "interval": [
-            4.701,
-            7.119
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.098,
-        "gap_interval": [
-          -1.166,
-          3.362
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1ccc(F)cc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.295,
-          "interval": [
-            6.239,
-            8.35
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.465,
-          "interval": [
-            4.265,
-            6.666
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.859,
-          "interval": [
-            4.65,
-            7.067
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.436,
-        "gap_interval": [
-          -0.828,
-          3.7
-        ],
-        "meets_potency_floor": true,
-        "verdict": "in_domain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1ccc(Cl)cc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.0,
-          "interval": [
-            5.945,
-            8.056
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.292,
-          "interval": [
-            4.091,
-            6.492
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.898,
-          "interval": [
-            4.689,
-            7.107
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.102,
-        "gap_interval": [
-          -1.162,
-          3.366
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1ccc(Br)cc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.174,
-          "interval": [
-            6.119,
-            8.23
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.232,
-          "interval": [
-            4.031,
-            6.432
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.57,
-          "interval": [
-            4.361,
-            6.779
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.604,
-        "gap_interval": [
-          -0.66,
-          3.868
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Cc1ccc(SSc2ccccc2NC(=O)c2ccccc2)c(NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.214,
-          "interval": [
-            6.159,
-            8.27
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.252,
-          "interval": [
-            4.052,
-            6.453
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.698,
-          "interval": [
-            4.489,
-            6.907
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.517,
-        "gap_interval": [
-          -0.748,
-          3.781
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(SSc2ccccc2NC(=O)c2ccccc2)c(NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.251,
-          "interval": [
-            6.196,
-            8.306
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.303,
-          "interval": [
-            4.103,
-            6.504
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.912,
-          "interval": [
-            4.703,
-            7.12
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.339,
-        "gap_interval": [
-          -0.925,
-          3.603
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1ccc(O)cc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.159,
-          "interval": [
-            6.103,
-            8.214
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.616,
-          "interval": [
-            4.416,
-            6.816
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.706,
-          "interval": [
-            4.497,
-            6.915
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.453,
-        "gap_interval": [
-          -0.811,
-          3.717
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Nc1ccc(SSc2ccccc2NC(=O)c2ccccc2)c(NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.233,
-          "interval": [
-            6.178,
-            8.289
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.694,
-          "interval": [
-            4.493,
-            6.894
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.795,
-          "interval": [
-            4.586,
-            7.004
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.439,
-        "gap_interval": [
-          -0.826,
-          3.703
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "N#Cc1ccc(SSc2ccccc2NC(=O)c2ccccc2)c(NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.108,
-          "interval": [
-            6.053,
-            8.163
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.252,
-          "interval": [
-            4.051,
-            6.452
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.812,
-          "interval": [
-            4.603,
-            7.021
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.296,
-        "gap_interval": [
-          -0.968,
-          3.56
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1ccc(C(F)(F)F)cc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.221,
-          "interval": [
-            6.166,
-            8.276
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.374,
-          "interval": [
-            4.173,
-            6.574
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.47,
-          "interval": [
-            4.261,
-            6.679
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.751,
-        "gap_interval": [
-          -0.513,
-          4.015
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "CS(=O)(=O)c1ccc(SSc2ccccc2NC(=O)c2ccccc2)c(NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.065,
-          "interval": [
-            6.01,
-            8.12
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.44,
-          "interval": [
-            4.24,
-            6.641
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.608,
-          "interval": [
-            4.399,
-            6.817
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.457,
-        "gap_interval": [
-          -0.807,
-          3.721
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cc(F)ccc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.295,
-          "interval": [
-            6.24,
-            8.35
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.448,
-          "interval": [
-            4.248,
-            6.648
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.776,
-          "interval": [
-            4.567,
-            6.985
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.519,
-        "gap_interval": [
-          -0.745,
-          3.783
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cc(Cl)ccc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.914,
-          "interval": [
-            5.858,
-            7.969
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.274,
-          "interval": [
-            4.074,
-            6.475
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.849,
-          "interval": [
-            4.64,
-            7.058
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.065,
-        "gap_interval": [
-          -1.199,
-          3.329
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cc(Br)ccc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.069,
-          "interval": [
-            6.014,
-            8.124
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.123,
-          "interval": [
-            3.923,
-            6.323
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.322,
-          "interval": [
-            4.113,
-            6.531
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.747,
-        "gap_interval": [
-          -0.517,
-          4.011
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Cc1ccc(NC(=O)c2ccccc2)c(SSc2ccccc2NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.095,
-          "interval": [
-            6.039,
-            8.15
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.312,
-          "interval": [
-            4.112,
-            6.512
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.507,
-          "interval": [
-            4.298,
-            6.716
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.588,
-        "gap_interval": [
-          -0.676,
-          3.852
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(NC(=O)c2ccccc2)c(SSc2ccccc2NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.067,
-          "interval": [
-            6.011,
-            8.122
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.307,
-          "interval": [
-            4.107,
-            6.508
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.823,
-          "interval": [
-            4.614,
-            7.031
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.244,
-        "gap_interval": [
-          -1.02,
-          3.508
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cc(O)ccc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.109,
-          "interval": [
-            6.054,
-            8.164
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.599,
-          "interval": [
-            4.398,
-            6.799
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.782,
-          "interval": [
-            4.573,
-            6.991
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.327,
-        "gap_interval": [
-          -0.937,
-          3.591
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "Nc1ccc(NC(=O)c2ccccc2)c(SSc2ccccc2NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.036,
-          "interval": [
-            5.98,
-            8.091
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 5.74,
-          "interval": [
-            4.539,
-            6.94
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.659,
-          "interval": [
-            4.45,
-            6.868
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.296,
-        "gap_interval": [
-          -0.96,
-          3.552
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "N#Cc1ccc(NC(=O)c2ccccc2)c(SSc2ccccc2NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.055,
-          "interval": [
-            6.0,
-            8.111
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.229,
-          "interval": [
-            4.029,
-            6.43
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.728,
-          "interval": [
-            4.519,
-            6.937
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.327,
-        "gap_interval": [
-          -0.937,
-          3.591
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "O=C(Nc1ccccc1SSc1cc(C(F)(F)F)ccc1NC(=O)c1ccccc1)c1ccccc1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.129,
-          "interval": [
-            6.074,
-            8.184
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 5.334,
-          "interval": [
-            4.134,
-            6.535
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.248,
-          "interval": [
-            4.039,
-            6.457
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.795,
-        "gap_interval": [
-          -0.461,
-          4.05
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "CS(=O)(=O)c1ccc(NC(=O)c2ccccc2)c(SSc2ccccc2NC(=O)c2ccccc2)c1",
-      "origin": "generated",
-      "parent_smiles": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.989,
-          "interval": [
-            5.933,
-            8.044
+            6.052,
+            8.162
           ],
           "in_domain": true
         },
@@ -2459,101 +1106,265 @@
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.546,
+          "pred_pchembl": 5.443,
           "interval": [
-            4.337,
-            6.755
+            4.235,
+            6.652
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.442,
+        "gap": 1.664,
         "gap_interval": [
-          -0.822,
-          3.707
+          -0.6,
+          3.928
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1F",
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(C#N)c2)ccn1",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.559,
+          "pred_pchembl": 7.1,
           "interval": [
-            6.504,
-            8.614
+            6.045,
+            8.155
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.364,
+          "pred_pchembl": 5.422,
+          "interval": [
+            4.222,
+            6.623
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.615,
+          "interval": [
+            4.406,
+            6.824
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 1.485,
+        "gap_interval": [
+          -0.779,
+          3.749
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(C(F)(F)F)c2)ccn1",
+      "origin": "generated",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.198,
+          "interval": [
+            6.143,
+            8.253
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.356,
+          "interval": [
+            4.156,
+            6.556
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.455,
+          "interval": [
+            4.246,
+            6.664
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 1.743,
+        "gap_interval": [
+          -0.521,
+          4.007
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(S(C)(=O)=O)c2)ccn1",
+      "origin": "generated",
+      "parent_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.812,
+          "interval": [
+            5.757,
+            7.867
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.526,
+          "interval": [
+            4.325,
+            6.726
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.346,
+          "interval": [
+            4.137,
+            6.555
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 1.287,
+        "gap_interval": [
+          -0.969,
+          3.542
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1c(F)cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.676,
+          "interval": [
+            5.621,
+            7.731
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.799,
+          "interval": [
+            4.599,
+            7.0
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.985,
+          "interval": [
+            4.777,
+            7.194
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.69,
+        "gap_interval": [
+          -1.574,
+          2.954
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1c(Cl)cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.585,
+          "interval": [
+            5.53,
+            7.64
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.013,
+          "interval": [
+            4.813,
+            7.214
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.257,
+          "interval": [
+            5.048,
+            7.466
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.328,
+        "gap_interval": [
+          -1.936,
+          2.592
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1c(Br)cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.68,
+          "interval": [
+            5.624,
+            7.735
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.365,
           "interval": [
             5.164,
-            7.564
-          ],
-          "in_domain": false
-        },
-        "JAK3": {
-          "pred_pchembl": 5.944,
-          "interval": [
-            4.736,
-            7.153
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.195,
-        "gap_interval": [
-          -1.061,
-          3.451
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1Cl",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.387,
-          "interval": [
-            6.332,
-            8.442
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.295,
-          "interval": [
-            5.095,
-            7.495
+            7.565
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.976,
+          "pred_pchembl": 6.172,
           "interval": [
-            4.767,
-            7.185
+            4.964,
+            7.381
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.092,
+        "gap": 0.315,
         "gap_interval": [
-          -1.164,
-          3.348
+          -1.941,
+          2.571
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -2561,122 +1372,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1Br",
+      "smiles": "Cc1cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc(Nc2nccc(-c3cccnc3)n2)c1C",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.448,
+          "pred_pchembl": 6.59,
           "interval": [
-            6.392,
-            8.503
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 6.395,
-          "interval": [
-            5.195,
-            7.596
-          ],
-          "in_domain": false
-        },
-        "JAK3": {
-          "pred_pchembl": 5.917,
-          "interval": [
-            4.708,
-            7.126
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.052,
-        "gap_interval": [
-          -1.203,
-          3.308
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1C",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.361,
-          "interval": [
-            6.306,
-            8.416
+            5.535,
+            7.645
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.086,
+          "pred_pchembl": 6.006,
           "interval": [
-            4.886,
-            7.286
+            4.805,
+            7.206
           ],
-          "in_domain": false
+          "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.793,
+          "pred_pchembl": 5.844,
           "interval": [
-            4.584,
-            7.001
+            4.635,
+            7.053
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 1.275,
+        "gap": 0.584,
         "gap_interval": [
-          -0.981,
-          3.53
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1OC",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.458,
-          "interval": [
-            6.402,
-            8.513
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.572,
-          "interval": [
-            5.371,
-            7.772
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.908,
-          "interval": [
-            4.699,
-            7.117
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 0.886,
-        "gap_interval": [
-          -1.37,
-          3.142
+          -1.672,
+          2.84
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -2684,15 +1413,712 @@
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1O",
+      "smiles": "COc1cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc(Nc2nccc(-c3cccnc3)n2)c1C",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.294,
+          "pred_pchembl": 6.657,
           "interval": [
-            6.238,
-            8.349
+            5.601,
+            7.712
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.831,
+          "interval": [
+            4.631,
+            7.032
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.547,
+          "interval": [
+            4.339,
+            6.756
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.825,
+        "gap_interval": [
+          -1.43,
+          3.081
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1c(O)cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.665,
+          "interval": [
+            5.609,
+            7.72
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.949,
+          "interval": [
+            4.748,
+            7.149
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.88,
+          "interval": [
+            4.671,
+            7.089
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.716,
+        "gap_interval": [
+          -1.54,
+          2.972
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1c(N)cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.779,
+          "interval": [
+            5.723,
+            7.834
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.947,
+          "interval": [
+            4.747,
+            7.147
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.886,
+          "interval": [
+            4.678,
+            7.095
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.832,
+        "gap_interval": [
+          -1.424,
+          3.088
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1c(C#N)cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.845,
+          "interval": [
+            5.789,
+            7.9
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.961,
+          "interval": [
+            4.761,
+            7.162
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.946,
+          "interval": [
+            4.738,
+            7.155
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.883,
+        "gap_interval": [
+          -1.372,
+          3.139
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1c(Nc2nccc(-c3cccnc3)n2)cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1C(F)(F)F",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.921,
+          "interval": [
+            5.865,
+            7.976
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.911,
+          "interval": [
+            4.711,
+            7.112
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.955,
+          "interval": [
+            4.746,
+            7.164
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.965,
+        "gap_interval": [
+          -1.299,
+          3.23
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1c(Nc2nccc(-c3cccnc3)n2)cc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1S(C)(=O)=O",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.97,
+          "interval": [
+            5.915,
+            8.026
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.097,
+          "interval": [
+            4.897,
+            7.297
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.894,
+          "interval": [
+            4.685,
+            7.103
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.873,
+        "gap_interval": [
+          -1.382,
+          3.129
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(F)c(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.918,
+          "interval": [
+            5.863,
+            7.974
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.289,
+          "interval": [
+            5.089,
+            7.49
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.554,
+          "interval": [
+            4.345,
+            6.763
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.629,
+        "gap_interval": [
+          -1.627,
+          2.885
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(Cl)c(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.844,
+          "interval": [
+            5.789,
+            7.9
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.104,
+          "interval": [
+            4.903,
+            7.304
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.818,
+          "interval": [
+            4.609,
+            7.027
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.741,
+        "gap_interval": [
+          -1.515,
+          2.996
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(Br)c(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.018,
+          "interval": [
+            5.963,
+            8.074
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.288,
+          "interval": [
+            5.088,
+            7.489
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.796,
+          "interval": [
+            4.587,
+            7.005
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.73,
+        "gap_interval": [
+          -1.525,
+          2.986
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(C)c(Nc2nccc(-c3cccnc3)n2)cc1NC(=O)c1ccc(CN2CCN(C)CC2)cc1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.776,
+          "interval": [
+            5.72,
+            7.831
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.102,
+          "interval": [
+            4.901,
+            7.302
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.571,
+          "interval": [
+            4.363,
+            6.78
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.674,
+        "gap_interval": [
+          -1.582,
+          2.929
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "COc1cc(C)c(Nc2nccc(-c3cccnc3)n2)cc1NC(=O)c1ccc(CN2CCN(C)CC2)cc1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.758,
+          "interval": [
+            5.703,
+            7.814
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.986,
+          "interval": [
+            4.785,
+            7.186
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.529,
+          "interval": [
+            4.32,
+            6.738
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.773,
+        "gap_interval": [
+          -1.483,
+          3.028
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(O)c(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.832,
+          "interval": [
+            5.777,
+            7.888
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.113,
+          "interval": [
+            4.913,
+            7.314
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.547,
+          "interval": [
+            4.338,
+            6.756
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.719,
+        "gap_interval": [
+          -1.537,
+          2.975
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(N)c(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.928,
+          "interval": [
+            5.873,
+            7.984
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.36,
+          "interval": [
+            5.16,
+            7.56
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.522,
+          "interval": [
+            4.313,
+            6.731
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.568,
+        "gap_interval": [
+          -1.688,
+          2.824
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(C#N)c(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.04,
+          "interval": [
+            5.985,
+            8.095
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.296,
+          "interval": [
+            5.096,
+            7.497
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.753,
+          "interval": [
+            4.544,
+            6.962
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.744,
+        "gap_interval": [
+          -1.512,
+          2.999
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(C(F)(F)F)c(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.193,
+          "interval": [
+            6.137,
+            8.248
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.157,
+          "interval": [
+            4.956,
+            7.357
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.572,
+          "interval": [
+            4.363,
+            6.781
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 1.036,
+        "gap_interval": [
+          -1.22,
+          3.292
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1cc(S(C)(=O)=O)c(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.721,
+          "interval": [
+            5.665,
+            7.776
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.252,
+          "interval": [
+            5.051,
+            7.452
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.542,
+          "interval": [
+            4.333,
+            6.751
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.469,
+        "gap_interval": [
+          -1.787,
+          2.724
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2F)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.916,
+          "interval": [
+            5.861,
+            7.972
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.403,
+          "interval": [
+            5.203,
+            7.603
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.186,
+          "interval": [
+            4.977,
+            7.395
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.513,
+        "gap_interval": [
+          -1.742,
+          2.769
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2Cl)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.777,
+          "interval": [
+            5.721,
+            7.832
           ],
           "in_domain": true
         },
@@ -2705,19 +2131,19 @@
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.741,
+          "pred_pchembl": 6.637,
           "interval": [
-            4.532,
-            6.95
+            5.428,
+            7.846
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.939,
+        "gap": 0.14,
         "gap_interval": [
-          -1.316,
-          3.195
+          -2.124,
+          2.404
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -2725,368 +2151,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1N",
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2Br)cc1Nc1nccc(-c2cccnc2)n1",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.34,
+          "pred_pchembl": 6.894,
           "interval": [
-            6.285,
-            8.396
+            5.839,
+            7.95
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.995,
+          "pred_pchembl": 6.697,
           "interval": [
-            4.795,
-            7.195
-          ],
-          "in_domain": false
-        },
-        "JAK3": {
-          "pred_pchembl": 5.86,
-          "interval": [
-            4.651,
-            7.069
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.345,
-        "gap_interval": [
-          -0.91,
-          3.601
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1C#N",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.489,
-          "interval": [
-            6.434,
-            8.544
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.242,
-          "interval": [
-            5.041,
-            7.442
+            5.497,
+            7.897
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.841,
-          "interval": [
-            4.632,
-            7.05
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.247,
-        "gap_interval": [
-          -1.008,
-          3.503
-        ],
-        "meets_potency_floor": true,
-        "verdict": "in_domain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1C(F)(F)F",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.495,
-          "interval": [
-            6.44,
-            8.551
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.143,
-          "interval": [
-            4.943,
-            7.343
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.765,
-          "interval": [
-            4.556,
-            6.974
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 1.352,
-        "gap_interval": [
-          -0.903,
-          3.608
-        ],
-        "meets_potency_floor": true,
-        "verdict": "in_domain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1S(C)(=O)=O",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.498,
-          "interval": [
-            6.443,
-            8.553
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 6.379,
-          "interval": [
-            5.179,
-            7.58
-          ],
-          "in_domain": false
-        },
-        "JAK3": {
-          "pred_pchembl": 5.852,
-          "interval": [
-            4.644,
-            7.061
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.119,
-        "gap_interval": [
-          -1.137,
-          3.374
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(F)c1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.536,
-          "interval": [
-            6.481,
-            8.592
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 6.479,
+          "pred_pchembl": 6.488,
           "interval": [
             5.279,
-            7.679
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.08,
-          "interval": [
-            4.871,
-            7.289
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.057,
-        "gap_interval": [
-          -1.199,
-          3.313
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(Cl)c1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.406,
-          "interval": [
-            6.351,
-            8.461
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 6.521,
-          "interval": [
-            5.321,
-            7.721
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.338,
-          "interval": [
-            5.13,
-            7.547
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.885,
-        "gap_interval": [
-          -1.371,
-          3.14
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(Br)c1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.389,
-          "interval": [
-            6.333,
-            8.444
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.705,
-          "interval": [
-            5.505,
-            7.906
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.428,
-          "interval": [
-            5.219,
-            7.637
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.683,
-        "gap_interval": [
-          -1.572,
-          2.939
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(C)c1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.247,
-          "interval": [
-            6.191,
-            8.302
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.593,
-          "interval": [
-            5.393,
-            7.793
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.063,
-          "interval": [
-            4.854,
-            7.272
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.654,
-        "gap_interval": [
-          -1.602,
-          2.909
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(OC)c1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.498,
-          "interval": [
-            6.443,
-            8.554
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.605,
-          "interval": [
-            5.405,
-            7.805
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.281,
-          "interval": [
-            5.073,
-            7.49
+            7.696
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.893,
+        "gap": 0.197,
         "gap_interval": [
-          -1.362,
-          3.149
+          -2.058,
+          2.453
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -3094,64 +2192,187 @@
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(O)c1",
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2C)cc1Nc1nccc(-c2cccnc2)n1",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.391,
+          "pred_pchembl": 6.725,
           "interval": [
-            6.335,
-            8.446
+            5.67,
+            7.78
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.769,
+          "pred_pchembl": 6.287,
           "interval": [
-            5.568,
-            7.969
+            5.087,
+            7.487
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.038,
+          "pred_pchembl": 6.071,
           "interval": [
-            4.829,
-            7.247
+            4.862,
+            7.28
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.622,
+        "gap": 0.438,
         "gap_interval": [
-          -1.633,
-          2.878
+          -1.818,
+          2.694
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(N)c1",
+      "smiles": "COc1cc(CN2CCN(C)CC2)ccc1C(=O)Nc1ccc(C)c(Nc2nccc(-c3cccnc3)n2)c1",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.333,
+          "pred_pchembl": 6.96,
           "interval": [
-            6.278,
-            8.389
+            5.904,
+            8.015
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.542,
+          "pred_pchembl": 6.236,
           "interval": [
-            5.341,
-            7.742
+            5.036,
+            7.436
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.079,
+          "interval": [
+            4.871,
+            7.288
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.724,
+        "gap_interval": [
+          -1.532,
+          2.979
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2O)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.72,
+          "interval": [
+            5.665,
+            7.775
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.464,
+          "interval": [
+            5.263,
+            7.664
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.914,
+          "interval": [
+            4.705,
+            7.122
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.256,
+        "gap_interval": [
+          -2.0,
+          2.512
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2N)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.841,
+          "interval": [
+            5.786,
+            7.897
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.35,
+          "interval": [
+            5.15,
+            7.551
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.192,
+          "interval": [
+            4.984,
+            7.401
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.491,
+        "gap_interval": [
+          -1.765,
+          2.747
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2C#N)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.781,
+          "interval": [
+            5.726,
+            7.836
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.292,
+          "interval": [
+            5.091,
+            7.492
           ],
           "in_domain": true
         },
@@ -3161,14 +2382,424 @@
             4.81,
             7.228
           ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.489,
+        "gap_interval": [
+          -1.766,
+          2.745
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2C(F)(F)F)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.956,
+          "interval": [
+            5.901,
+            8.011
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.33,
+          "interval": [
+            5.13,
+            7.531
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.019,
+          "interval": [
+            4.81,
+            7.228
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.626,
+        "gap_interval": [
+          -1.63,
+          2.881
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2S(C)(=O)=O)cc1Nc1nccc(-c2cccnc2)n1",
+      "origin": "generated",
+      "parent_smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.736,
+          "interval": [
+            5.68,
+            7.791
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.483,
+          "interval": [
+            5.283,
+            7.683
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.26,
+          "interval": [
+            5.051,
+            7.468
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.252,
+        "gap_interval": [
+          -2.003,
+          2.508
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2c(F)ccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.745,
+          "interval": [
+            5.69,
+            7.801
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.974,
+          "interval": [
+            4.774,
+            7.175
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.975,
+          "interval": [
+            4.766,
+            7.184
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.77,
+        "gap_interval": [
+          -1.494,
+          3.034
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2c(Cl)ccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.678,
+          "interval": [
+            5.623,
+            7.733
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.886,
+          "interval": [
+            4.686,
+            7.087
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.058,
+          "interval": [
+            4.849,
+            7.267
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.62,
+        "gap_interval": [
+          -1.644,
+          2.884
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2c(Br)ccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.951,
+          "interval": [
+            5.896,
+            8.006
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.048,
+          "interval": [
+            4.847,
+            7.248
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.977,
+          "interval": [
+            4.768,
+            7.186
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.903,
+        "gap_interval": [
+          -1.352,
+          3.159
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccnc(Nc2cccc(C(F)(F)F)c2)c1C(=O)OC1OC(=O)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.688,
+          "interval": [
+            5.632,
+            7.743
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.86,
+          "interval": [
+            4.66,
+            7.06
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.779,
+          "interval": [
+            4.57,
+            6.988
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.828,
+        "gap_interval": [
+          -1.428,
+          3.083
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "COc1ccnc(Nc2cccc(C(F)(F)F)c2)c1C(=O)OC1OC(=O)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.806,
+          "interval": [
+            5.751,
+            7.862
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.019,
+          "interval": [
+            4.818,
+            7.219
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.953,
+          "interval": [
+            4.745,
+            7.162
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.788,
+        "gap_interval": [
+          -1.468,
+          3.043
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2c(O)ccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.861,
+          "interval": [
+            5.805,
+            7.916
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.011,
+          "interval": [
+            4.81,
+            7.211
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.917,
+          "interval": [
+            4.709,
+            7.126
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.85,
+        "gap_interval": [
+          -1.406,
+          3.106
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Nc1ccnc(Nc2cccc(C(F)(F)F)c2)c1C(=O)OC1OC(=O)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.111,
+          "interval": [
+            6.056,
+            8.167
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 5.768,
+          "interval": [
+            4.567,
+            6.968
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.85,
+          "interval": [
+            4.641,
+            7.059
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 1.262,
+        "gap_interval": [
+          -1.003,
+          3.526
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "N#Cc1ccnc(Nc2cccc(C(F)(F)F)c2)c1C(=O)OC1OC(=O)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.889,
+          "interval": [
+            5.833,
+            7.944
+          ],
+          "in_domain": false
+        },
+        "JAK2": {
+          "pred_pchembl": 6.178,
+          "interval": [
+            4.978,
+            7.379
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.237,
+          "interval": [
+            5.028,
+            7.445
+          ],
           "in_domain": false
         }
       },
       "selectivity": {
-        "gap": 0.792,
+        "gap": 0.652,
         "gap_interval": [
-          -1.464,
-          3.047
+          -1.612,
+          2.916
         ],
         "meets_potency_floor": true,
         "verdict": "uncertain"
@@ -3176,113 +2807,195 @@
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(C#N)c1",
+      "smiles": "O=C1OC(OC(=O)c2c(C(F)(F)F)ccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.636,
+          "pred_pchembl": 6.594,
           "interval": [
-            6.58,
-            8.691
+            5.539,
+            7.649
           ],
-          "in_domain": false
+          "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 7.001,
+          "pred_pchembl": 5.941,
           "interval": [
-            5.8,
-            8.201
+            4.74,
+            7.141
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.159,
+          "pred_pchembl": 5.952,
           "interval": [
-            4.95,
-            7.367
+            4.743,
+            7.16
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.635,
+        "gap": 0.642,
         "gap_interval": [
-          -1.62,
-          2.891
+          -1.622,
+          2.906
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(C(F)(F)F)c1",
+      "smiles": "CS(=O)(=O)c1ccnc(Nc2cccc(C(F)(F)F)c2)c1C(=O)OC1OC(=O)c2ccccc21",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.606,
+          "pred_pchembl": 6.998,
           "interval": [
-            6.551,
-            8.661
+            5.943,
+            8.053
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.661,
+          "pred_pchembl": 6.095,
           "interval": [
-            5.461,
-            7.861
+            4.894,
+            7.295
           ],
-          "in_domain": false
+          "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.089,
+          "pred_pchembl": 5.772,
           "interval": [
-            4.881,
-            7.298
+            4.563,
+            6.981
           ],
-          "in_domain": false
+          "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.945,
+        "gap": 0.904,
         "gap_interval": [
-          -1.311,
-          3.201
+          -1.352,
+          3.159
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)c(S(C)(=O)=O)c1",
+      "smiles": "O=C1OC(OC(=O)c2cc(F)cnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.488,
+          "pred_pchembl": 7.151,
           "interval": [
-            6.432,
-            8.543
+            6.096,
+            8.207
           ],
-          "in_domain": false
+          "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.7,
+          "pred_pchembl": 6.931,
           "interval": [
-            5.499,
-            7.9
+            5.731,
+            8.131
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.182,
+          "pred_pchembl": 6.299,
           "interval": [
-            4.973,
-            7.391
+            5.09,
+            7.508
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.22,
+        "gap_interval": [
+          -2.036,
+          2.476
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2cc(Cl)cnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.147,
+          "interval": [
+            6.092,
+            8.202
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.849,
+          "interval": [
+            5.649,
+            8.05
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.292,
+          "interval": [
+            5.083,
+            7.5
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.298,
+        "gap_interval": [
+          -1.958,
+          2.553
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2cc(Br)cnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.559,
+          "interval": [
+            6.504,
+            8.614
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.771,
+          "interval": [
+            5.57,
+            7.971
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.127,
+          "interval": [
+            4.918,
+            7.335
           ],
           "in_domain": true
         }
@@ -3294,86 +3007,45 @@
           3.044
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2c(F)cccc2CCC2CCCCN2C)cc1",
+      "smiles": "Cc1cnc(Nc2cccc(C(F)(F)F)c2)c(C(=O)OC2OC(=O)c3ccccc32)c1",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.419,
+          "pred_pchembl": 7.207,
           "interval": [
-            6.364,
-            8.475
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 6.35,
-          "interval": [
-            5.149,
-            7.55
-          ],
-          "in_domain": false
-        },
-        "JAK3": {
-          "pred_pchembl": 6.074,
-          "interval": [
-            4.866,
-            7.283
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 1.07,
-        "gap_interval": [
-          -1.186,
-          3.325
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2c(Cl)cccc2CCC2CCCCN2C)cc1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.972,
-          "interval": [
-            5.916,
-            8.027
+            6.152,
+            8.262
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.213,
+          "pred_pchembl": 6.894,
           "interval": [
-            5.013,
-            7.414
+            5.694,
+            8.095
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.965,
+          "pred_pchembl": 6.14,
           "interval": [
-            4.756,
-            7.174
+            4.931,
+            7.349
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.758,
+        "gap": 0.312,
         "gap_interval": [
-          -1.497,
-          3.014
+          -1.943,
+          2.568
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -3381,286 +3053,614 @@
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2c(Br)cccc2CCC2CCCCN2C)cc1",
+      "smiles": "COc1cnc(Nc2cccc(C(F)(F)F)c2)c(C(=O)OC2OC(=O)c3ccccc32)c1",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 6.811,
+          "pred_pchembl": 7.113,
           "interval": [
-            5.756,
-            7.866
+            6.057,
+            8.168
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.489,
+          "pred_pchembl": 6.936,
           "interval": [
-            5.288,
-            7.689
+            5.735,
+            8.136
           ],
-          "in_domain": false
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.483,
+          "interval": [
+            5.274,
+            7.691
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.177,
+        "gap_interval": [
+          -2.079,
+          2.433
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2cc(O)cnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.221,
+          "interval": [
+            6.165,
+            8.276
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 7.114,
+          "interval": [
+            5.914,
+            8.314
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.333,
+          "interval": [
+            5.124,
+            7.542
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.107,
+        "gap_interval": [
+          -2.149,
+          2.362
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Nc1cnc(Nc2cccc(C(F)(F)F)c2)c(C(=O)OC2OC(=O)c3ccccc32)c1",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.436,
+          "interval": [
+            6.381,
+            8.492
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.829,
+          "interval": [
+            5.629,
+            8.029
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.267,
+          "interval": [
+            5.058,
+            7.476
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.607,
+        "gap_interval": [
+          -1.648,
+          2.863
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "N#Cc1cnc(Nc2cccc(C(F)(F)F)c2)c(C(=O)OC2OC(=O)c3ccccc32)c1",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.194,
+          "interval": [
+            6.139,
+            8.25
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.826,
+          "interval": [
+            5.626,
+            8.026
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.392,
+          "interval": [
+            5.183,
+            7.601
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.368,
+        "gap_interval": [
+          -1.887,
+          2.624
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2cc(C(F)(F)F)cnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.159,
+          "interval": [
+            6.103,
+            8.214
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.736,
+          "interval": [
+            5.535,
+            7.936
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.269,
+          "interval": [
+            5.061,
+            7.478
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.423,
+        "gap_interval": [
+          -1.833,
+          2.678
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "CS(=O)(=O)c1cnc(Nc2cccc(C(F)(F)F)c2)c(C(=O)OC2OC(=O)c3ccccc32)c1",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.072,
+          "interval": [
+            6.017,
+            8.128
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 7.016,
+          "interval": [
+            5.816,
+            8.217
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.44,
+          "interval": [
+            5.231,
+            7.648
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.056,
+        "gap_interval": [
+          -2.2,
+          2.312
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2ccc(F)nc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.989,
+          "interval": [
+            5.934,
+            8.045
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.594,
+          "interval": [
+            5.393,
+            7.794
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.149,
+          "interval": [
+            4.94,
+            7.357
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.396,
+        "gap_interval": [
+          -1.86,
+          2.651
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2ccc(Cl)nc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.931,
+          "interval": [
+            5.876,
+            7.987
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.566,
+          "interval": [
+            5.366,
+            7.766
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.583,
+          "interval": [
+            4.374,
+            6.792
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.365,
+        "gap_interval": [
+          -1.89,
+          2.621
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2ccc(Br)nc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.206,
+          "interval": [
+            6.151,
+            8.261
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.639,
+          "interval": [
+            5.439,
+            7.839
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.099,
+          "interval": [
+            4.89,
+            7.307
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.567,
+        "gap_interval": [
+          -1.688,
+          2.823
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Cc1ccc(C(=O)OC2OC(=O)c3ccccc32)c(Nc2cccc(C(F)(F)F)c2)n1",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.118,
+          "interval": [
+            6.062,
+            8.173
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.74,
+          "interval": [
+            5.54,
+            7.94
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.65,
+          "interval": [
+            5.442,
+            7.859
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.378,
+        "gap_interval": [
+          -1.878,
+          2.633
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "COc1ccc(C(=O)OC2OC(=O)c3ccccc32)c(Nc2cccc(C(F)(F)F)c2)n1",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.178,
+          "interval": [
+            6.123,
+            8.233
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.636,
+          "interval": [
+            5.436,
+            7.836
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.164,
+          "interval": [
+            4.955,
+            7.373
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.542,
+        "gap_interval": [
+          -1.713,
+          2.798
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2ccc(O)nc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.798,
+          "interval": [
+            5.743,
+            7.854
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.328,
+          "interval": [
+            5.127,
+            7.528
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.949,
+          "interval": [
+            4.74,
+            7.158
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.471,
+        "gap_interval": [
+          -1.785,
+          2.726
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "Nc1ccc(C(=O)OC2OC(=O)c3ccccc32)c(Nc2cccc(C(F)(F)F)c2)n1",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.159,
+          "interval": [
+            6.103,
+            8.214
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.593,
+          "interval": [
+            5.392,
+            7.793
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 5.968,
+          "interval": [
+            4.759,
+            7.177
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.566,
+        "gap_interval": [
+          -1.69,
+          2.822
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "N#Cc1ccc(C(=O)OC2OC(=O)c3ccccc32)c(Nc2cccc(C(F)(F)F)c2)n1",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 7.24,
+          "interval": [
+            6.185,
+            8.296
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.603,
+          "interval": [
+            5.402,
+            7.803
+          ],
+          "in_domain": true
+        },
+        "JAK3": {
+          "pred_pchembl": 6.206,
+          "interval": [
+            4.997,
+            7.414
+          ],
+          "in_domain": true
+        }
+      },
+      "selectivity": {
+        "gap": 0.638,
+        "gap_interval": [
+          -1.618,
+          2.893
+        ],
+        "meets_potency_floor": true,
+        "verdict": "in_domain"
+      },
+      "deep_dive": null
+    },
+    {
+      "smiles": "O=C1OC(OC(=O)c2ccc(C(F)(F)F)nc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "origin": "generated",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "per_isoform": {
+        "JAK1": {
+          "pred_pchembl": 6.89,
+          "interval": [
+            5.835,
+            7.945
+          ],
+          "in_domain": true
+        },
+        "JAK2": {
+          "pred_pchembl": 6.443,
+          "interval": [
+            5.243,
+            7.643
+          ],
+          "in_domain": true
         },
         "JAK3": {
           "pred_pchembl": 6.255,
           "interval": [
-            5.046,
-            7.463
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.322,
-        "gap_interval": [
-          -1.933,
-          2.578
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2c(C)cccc2CCC2CCCCN2C)cc1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.993,
-          "interval": [
-            5.938,
-            8.048
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.148,
-          "interval": [
-            4.948,
-            7.348
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.363,
-          "interval": [
-            5.155,
-            7.572
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.63,
-        "gap_interval": [
-          -1.635,
-          2.894
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2c(CCC3CCCCN3C)cccc2OC)cc1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.656,
-          "interval": [
-            5.601,
-            7.711
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 6.308,
-          "interval": [
-            5.107,
-            7.508
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 5.957,
-          "interval": [
-            4.748,
-            7.165
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.348,
-        "gap_interval": [
-          -1.907,
-          2.604
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2c(O)cccc2CCC2CCCCN2C)cc1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.766,
-          "interval": [
-            5.71,
-            7.821
-          ],
-          "in_domain": false
-        },
-        "JAK2": {
-          "pred_pchembl": 6.181,
-          "interval": [
-            4.98,
-            7.381
-          ],
-          "in_domain": false
-        },
-        "JAK3": {
-          "pred_pchembl": 5.934,
-          "interval": [
-            4.725,
-            7.143
-          ],
-          "in_domain": false
-        }
-      },
-      "selectivity": {
-        "gap": 0.585,
-        "gap_interval": [
-          -1.671,
-          2.841
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2c(N)cccc2CCC2CCCCN2C)cc1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.226,
-          "interval": [
-            6.171,
-            8.282
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.329,
-          "interval": [
-            5.128,
-            7.529
-          ],
-          "in_domain": false
-        },
-        "JAK3": {
-          "pred_pchembl": 6.054,
-          "interval": [
-            4.845,
-            7.263
+            5.047,
+            7.464
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.898,
+        "gap": 0.447,
         "gap_interval": [
-          -1.358,
-          3.153
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2c(C#N)cccc2CCC2CCCCN2C)cc1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 6.926,
-          "interval": [
-            5.871,
-            7.982
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.231,
-          "interval": [
-            5.03,
-            7.431
-          ],
-          "in_domain": false
-        },
-        "JAK3": {
-          "pred_pchembl": 6.151,
-          "interval": [
-            4.942,
-            7.36
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 0.696,
-        "gap_interval": [
-          -1.56,
-          2.951
-        ],
-        "meets_potency_floor": true,
-        "verdict": "uncertain"
-      },
-      "deep_dive": null
-    },
-    {
-      "smiles": "COc1ccc(C(=O)Nc2c(CCC3CCCCN3C)cccc2C(F)(F)F)cc1",
-      "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
-      "per_isoform": {
-        "JAK1": {
-          "pred_pchembl": 7.067,
-          "interval": [
-            6.012,
-            8.123
-          ],
-          "in_domain": true
-        },
-        "JAK2": {
-          "pred_pchembl": 6.247,
-          "interval": [
-            5.046,
-            7.447
-          ],
-          "in_domain": true
-        },
-        "JAK3": {
-          "pred_pchembl": 6.26,
-          "interval": [
-            5.051,
-            7.469
-          ],
-          "in_domain": true
-        }
-      },
-      "selectivity": {
-        "gap": 0.807,
-        "gap_interval": [
-          -1.457,
-          3.071
+          -1.809,
+          2.703
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -3668,43 +3668,43 @@
       "deep_dive": null
     },
     {
-      "smiles": "COc1ccc(C(=O)Nc2c(CCC3CCCCN3C)cccc2S(C)(=O)=O)cc1",
+      "smiles": "CS(=O)(=O)c1ccc(C(=O)OC2OC(=O)c3ccccc32)c(Nc2cccc(C(F)(F)F)c2)n1",
       "origin": "generated",
-      "parent_smiles": "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1",
+      "parent_smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 7.078,
+          "pred_pchembl": 7.281,
           "interval": [
-            6.022,
-            8.133
+            6.226,
+            8.337
           ],
-          "in_domain": false
+          "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.395,
+          "pred_pchembl": 6.672,
           "interval": [
-            5.195,
-            7.595
+            5.472,
+            7.873
           ],
-          "in_domain": false
+          "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.052,
+          "pred_pchembl": 6.14,
           "interval": [
-            4.843,
-            7.261
+            4.931,
+            7.348
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.683,
+        "gap": 0.609,
         "gap_interval": [
-          -1.573,
-          2.938
+          -1.647,
+          2.865
         ],
         "meets_potency_floor": true,
-        "verdict": "uncertain"
+        "verdict": "in_domain"
       },
       "deep_dive": null
     }

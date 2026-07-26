@@ -257,19 +257,26 @@ artifacts in `examples/`):
    the current models, generated **90 analogues** (`src/generate.py`, CPU aromatic
    decoration), and **re-scored them through the same `src` funnel scoring**.
 
+> **Re-run 2026-07-26** after the binder gate (STEP 10) and the `model_id` fix
+> (STEP 12). The gate reshaped the shortlist, so the selected parents changed; the
+> numbers below are the current run and supersede the original ones.
+
 | set | n | median gap | max gap | % ≥10× selective | % in-domain |
 |-----|--:|:----------:|:-------:|:----------------:|:-----------:|
-| before (selected) | 3 | +1.29 | +1.39 | 100% | 100% |
-| after (generated) | 90 | +1.21 | +1.79 | 71% | 19% |
+| before (selected) | 3 | +0.65 | +0.78 | 0% | 100% |
+| after (generated) | 90 | +0.58 | +1.74 | 14% | 99% |
 
-The honest before/after story: generation reached a **higher max gap (+1.79 vs
-+1.39)** and produced an in-domain analogue that **improves on its parent** —
-`COc1cc(NC(=O)c2cc(Cl)ccc2O)c(Cl)cc1[N+](=O)[O-]`, gap **+1.74** (parent +1.39).
-But only **19%** of generated analogues stay in-domain: decorating a scaffold
-often pushes molecules out of the training domain, and AD flags them — the loop is
-honest, not triumphant. `figures/loop_before_after.png` shows the shift; the
-re-scored analogues are written back as `examples/loop_case_A_rescore.json`
-(`stage: A_rescore`), so they re-enter Stage B — the funnel is a cycle.
+The honest before/after story: generation reached a **higher max gap (+1.74 vs
++0.78)** and produced an in-domain analogue that **improves on its parent** —
+`CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(C(F)(F)F)c2)ccn1`, gap **+1.74**
+(parent +0.78). The selected parents now start lower — the gate removed the
+shrunk-to-mean artefacts that used to sit at the top of the shortlist — so the
+loop's *lift* is larger while its starting point is more honest. In-domain
+retention rose to **99%** (from 19%): the gate admits only chemistry close to the
+training distribution, so decorating those scaffolds mostly stays in-domain too.
+`figures/loop_before_after.png` shows the shift; the re-scored analogues are written
+back as `examples/loop_case_A_rescore.json` (`stage: A_rescore`), so they re-enter
+Stage B — the funnel is a cycle.
 
 **Gate 8 passed:** the loop runs end-to-end on one worked case, re-scoring uses the
 identical `src` (enforced by `assert_models_match`), and the report ends with
@@ -540,3 +547,68 @@ the funnel actually ranks. On the current library that is **23 molecules**, i.e.
 so it now reports the reference size alongside it and says plainly when the set is
 small. The underlying cause is the **Tox21 screening library**, which contains
 almost no JAK-like chemistry; replacing it is the fix, not loosening the gate.
+
+---
+
+## STEP 12 — `model_id` was not a stable identity (2026-07-26)
+
+**The failure.** The Colab deep dive refused to run:
+
+```
+ValueError: Model mismatch: contract pinned {'JAK1': 'CHEMBL2835@b1bfc32323', ...},
+current models {'JAK1': 'CHEMBL2835@fd9840028c', ...}
+```
+
+Only **JAK1** differed; JAK2 and JAK3 matched exactly. A code or dtype change would
+have moved all three, so this was not model drift.
+
+**The cause.** `model_id` hashed `pickle.dumps(model)`, which *looks*
+content-addressed but is **not idempotent**. Measured on the bundled JAK1 model:
+
+```
+dump -> load -> dump gives identical bytes: False
+  hash after 0 round-trips: fd9840028c     <- Colab, loading straight from disk
+  hash after 1 round-trip : b1bfc32323     <- the app, via a cache that re-serialises
+```
+
+Both digests are the *same model*. `assets/models/jak/JAK1_reg.pkl` is byte-identical
+in every commit that has ever contained it (blob `b800cb7c…`) — nothing about the
+model changed. The guard was rejecting the deep dive over **serialisation noise**.
+The committed example contracts carried the stale digest too, so the repo's own
+worked example could not be re-scored.
+
+The old test only asserted `model_id(m) == model_id(m)` on one object in one
+process, which never exercises a round-trip — which is why this passed CI while the
+real workflow failed.
+
+**The fix.** Model identity is now **behavioural**: the digest is over the model's
+predictions on a fixed, committed 16-molecule probe set (`PROBE_SMILES`), formatted
+at 6 decimal places so last-bit float noise cannot move it either. Two models that
+predict identically on the probe are interchangeable for re-scoring, which is
+exactly what `assert_models_match` needs to guarantee — and predictions are stable
+across round-trips, sklearn versions and platforms.
+
+| | pickle-hash (old) | prediction-hash (new) |
+|---|:---:|:---:|
+| stable across 0/1/2 pickle round-trips | ❌ | ✅ |
+| distinguishes genuinely different fits | ✅ | ✅ |
+
+**Verified end-to-end**, simulating the exact Colab failure — a contract whose ids
+come from cache-round-tripped models, validated against models loaded fresh from
+disk as a fresh clone does:
+
+```
+app-side ids == colab-side ids: True
+assert_models_match(committed contract, fresh clone): PASS
+```
+
+**Gate 12 passed:** `python scripts/run_loop.py` runs B→SELECT→A→re-score
+end-to-end, the regenerated example contracts validate from a fresh clone, and
+three tests pin the property — idempotence, round-trip stability, and that a
+genuinely different fit still produces a different id (so stability did not come
+from the id going blind).
+
+**Cost of the fix.** Every model id changes, so contracts exported before this
+commit will not validate. `examples/*.json` are regenerated; the STEP 8 loop table
+above is re-run and superseded. `PROBE_SMILES` must never be edited for the same
+reason — it would silently invalidate every contract ever exported.

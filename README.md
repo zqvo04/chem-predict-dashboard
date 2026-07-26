@@ -216,7 +216,7 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 | **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but see the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
 | Uncertainty | conformal 90% intervals | empirical coverage **0.89–0.91** |
 | Applicability domain | error out- vs in-domain | error rises **~2×** as molecules leave the domain |
-| **The loop** | one worked case B→SELECT→A→re-score | best in-domain analogue **+1.74** gap (parent +1.39) |
+| **The loop** | one worked case B→SELECT→A→re-score | best in-domain analogue **+1.74** gap (parent +0.78) |
 
 ### The headline selectivity number has a measured caveat
 
