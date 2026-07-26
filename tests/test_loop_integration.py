@@ -51,6 +51,15 @@ def tiny_world(tmp_path, monkeypatch):
     lib = pd.DataFrame({"smi": ["c1ccccc1C(=O)O", "c1ccc(O)cc1", "c1ccncc1C(=O)N",
                                 "c1ccc2ccccc2c1", "Cc1ccc(cc1)C(=O)O"]})
     monkeypatch.setattr("src.funnel.load_library", lambda use_cache=True: lib)
+
+    # The binder gate (Tier 0.5) is trained on real JAK actives and would reject
+    # this synthetic library outright; the gate has its own tests, so here it is a
+    # pass-all stub, keeping the synthetic world self-consistent.
+    class _AllPass:
+        threshold = 0.5
+        def predict_proba(self, smiles):
+            return np.ones(len(list(smiles)))
+    monkeypatch.setattr(funnel, "_gate", lambda use_cache=True: _AllPass())
     return tmp_path
 
 

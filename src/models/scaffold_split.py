@@ -19,7 +19,14 @@ def _scaffold(smiles: str) -> str:
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return ""
-    return MurckoScaffold.MurckoScaffoldSmiles(mol=mol)
+    # A few molecules parse but crash MurckoScaffoldSmiles (e.g. "bad bond stereo"
+    # on certain double-bond configurations). Treat those like an unparseable
+    # scaffold — grouped together, never crossing train/test — rather than letting
+    # one molecule abort the whole split.
+    try:
+        return MurckoScaffold.MurckoScaffoldSmiles(mol=mol)
+    except Exception:      # noqa: BLE001 — RDKit raises bare RuntimeError here
+        return ""
 
 
 def scaffold_split(smiles: list[str], test_frac: float = 0.2,

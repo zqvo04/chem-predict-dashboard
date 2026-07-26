@@ -391,3 +391,97 @@ can reliably reproduce an assay-correlated pattern that itself persists across
 years. The follow-up that would separate them is a larger ATP-independent set
 (ChEMBL alone will not supply it) or explicit ATP-concentration normalisation of
 the IC50 records.
+
+---
+
+## STEP 10 — the binder gate (Tier 0.5) (2026-07-26)
+
+**Why this was needed — a measured failure of the deployed screen.** The
+per-isoform regressors are trained only on quantified JAK pchembl, so they never
+see a non-binder. On an off-domain molecule a tree ensemble reverts to its training
+mean (~6.3 pchembl), which is above the potency floor. Measured on the deployed
+models:
+
+| Probe | predicted JAK1 pchembl (before the gate) |
+|-------|:----------------------------------------:|
+| ethanol (`CCO`) | **6.12** (a 760 nM "inhibitor") |
+| benzene | 5.77 |
+| aspirin | 6.14 |
+
+Of the 6 882 drug-like library molecules, **83.4 %** cleared the potency floor
+(`pred JAK1 ≥ 6`), so Tier 1's most important gate removed almost nothing, and the
+shortlist was topped by a neonicotinoid insecticide and 4-chlorothioanisole — the
+selectivity gap between three shrunk-to-mean predictions is a model artefact.
+Applicability domain flagged these *uncertain*, but only *after* the gap had ranked
+them. DESIGN_DECISIONS §1 had reserved the fix ("a DUD-E-style decoy class … kept
+in reserve"); this activates it.
+
+**The gate.** A binary "is this a plausible JAK binder?" classifier
+(`src/models/binder_gate.py`) that runs before Tier 1. Positives are JAK actives
+(pchembl ≥ 6, any isoform); negatives are real drug-like molecules measured active
+on ten *other* targets with no JAK record (`src/data/negatives.py`), **physchem-
+matched** to the JAK actives' (MW, logP) distribution so the classifier cannot
+separate the classes on molecular size or lipophilicity alone. ECFP4 +
+HistGradientBoosting, scaffold-split over 5 seeds.
+
+| Quantity | Value |
+|----------|:-----:|
+| positives / negatives | 15 446 / 12 144 |
+| ROC-AUC (scaffold split, 5 seeds) | **0.998 ± 0.001** |
+| Average precision | 0.999 ± 0.001 |
+| operating point (Youden's J) | **0.544** |
+| held-out actives kept | 98.2 % |
+| held-out negatives rejected | 98.4 % |
+
+**On the probe molecules** (threshold 0.544): ethanol **0.007**, benzene 0.008,
+aspirin 0.001, caffeine 0.061, the neonicotinoid insecticide **0.001** — all gated
+out; ruxolitinib **0.999** and tofacitinib **1.000** — pass. The gate rejects the
+junk and keeps the real inhibitors.
+
+**On the wide library.** Of 6 882 drug-like molecules, **23 pass the gate** (0.33 %),
+and the resulting shortlist (20 molecules, **4 in-domain**, up from 3) is dominated
+by purine / pyrrolopyrimidine / kinase-hinge chemotypes rather than pesticides and
+thioanisoles. The potency floor is now downstream of a filter that actually
+removes non-binders.
+
+**Gate 10 passed:** the trivial-molecule failure is closed (ethanol/benzene/aspirin
+gated out, known JAK inhibitors retained), and the wide screen ranks plausible
+binders instead of shrunk-to-mean artefacts.
+
+**Honest reading of the 0.998 AUC.** JAK inhibitors are a distinctive chemotype, so
+JAK actives and other-target actives are nearly separable in ECFP4 — the gate
+learns a coarse "JAK-like vs not" boundary, which is exactly what rejects ethanol
+but is *not* subtle SAR. Two consequences follow. **(1)** The Youden's-J operating
+point (0.544) is used deliberately rather than a high positive-recall cut: a
+recall-set threshold sits at ~0.93 (known actives score ~1.0) and would admit only
+molecules that already look like a *known* JAK chemotype — rejecting the novel
+scaffolds a discovery screen exists to find (it collapses the library to 2). **(2)**
+The gate partly overlaps the Tanimoto AD signal (both read fingerprint
+resemblance to JAK actives); it is a stronger, learned version of "unlike the
+training set", not a fully orthogonal second opinion. **(3)** The 23/6 882 pass rate
+is low mainly because the wide library is the Tox21 collection — a tox-screening
+set with little JAK-like chemistry. A JAK-oriented discovery library would pass
+many more; replacing the library is the natural follow-up.
+
+**Residual limit — presumed-negative label noise.** A promiscuous other-kinase
+inhibitor that would in fact hit JAK but carries no JAK record is a mislabelled
+negative. Known cross-actives are removed by the JAK exclusion, and the two kinase
+targets (EGFR, CDK2) are a minority of the ten-target basket, but the noise is real
+and bounds how sharp the boundary should be trusted to be.
+
+**The regression numbers are untouched.** The gate filters what reaches Tier 1; it
+does not change the regressors, the gap, the conformal intervals or AD. The one
+shared-code change — a `try/except` in `_scaffold` for a negative molecule that
+crashes `MurckoScaffoldSmiles` ("bad bond stereo") — was verified inert on the
+existing data: **0** of the JAK1 / JAK2 / JAK3 / ESOL / Tox21 training molecules hit
+the fallback, so every metric in STEP 3–8 stands as measured.
+
+### Reproduce
+
+```bash
+python -m src.data.negatives          # build + cache the physchem-matched negatives
+python -m src.models.binder_gate      # evaluate (5 seeds) + cache the deployed gate
+cp data/jak/negatives.parquet assets/jak/
+cp data/models/jak/binder_gate.pkl assets/models/jak/
+python -m src.funnel                  # screen the library through Tier 0.5 + 1 + 2
+```

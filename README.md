@@ -98,13 +98,20 @@ the library and models are pre-loaded.
   ─ precomputed into library cache (property of library + rules only)
   ─ columns druglike/ro5_pass/pains_pass already in the parquet
           │
-  Tier 1  per-isoform regressors → gap S   ms/molecule     6,882 → 300
+  Tier 0.5  binder gate → P(JAK binder)   ms/molecule       6,882 → 23
+  ─ HistGB classifier: JAK actives vs physchem-matched presumed-inactives
+  ─ drops molecules the regressors would only score at their training mean
+  ─   (ethanol scored a "760 nM" JAK1 pchembl before this existed)
+  ─ Youden's-J operating point; ROC-AUC 0.998, keeps 98 % of known actives
+  src/models/binder_gate.py   src/data/negatives.py
+          │
+  Tier 1  per-isoform regressors → gap S   ms/molecule     23 → 20
   ─ one HistGB pchembl regressor per isoform on ECFP4
   ─ gap S = pred(JAK1) − max(pred(JAK2), pred(JAK3))
   ─ ranked by S, above a target-potency floor (pred JAK1 ≥ 6)
   src/models/isoform_regressor.py   src/selectivity.py   src/funnel.py
           │
-  Tier 2  conformal interval + applicability domain + MPO  ~300 → ~60
+  Tier 2  conformal interval + applicability domain + MPO  20 → 20 (4 in-domain)
   ─ split-conformal 90 % prediction interval per isoform, propagated to gap
   ─ AD: Tanimoto NN to training set  AND  descriptor leverage (hat value)
   ─   both must pass; flagged "uncertain" if either isoform is OOD
@@ -162,8 +169,14 @@ the library and models are pre-loaded.
   full library — that is what makes its per-molecule cost economically real.
 - "Re-scored through the same models" is a code fact: Stage A imports `src/funnel`
   directly; `assert_models_match()` rejects any drift.
-- Out-of-domain molecules are flagged, not silently extrapolated — AD carries the
-  non-binder burden that regression alone cannot.
+- **A binder gate (Tier 0.5) carries the non-binder burden**, before the gap is ever
+  computed. The regressors are trained only on quantified pchembl, so on an
+  off-domain molecule they revert to their training mean (~6.3) — ethanol scored a
+  "760 nM" JAK1 pchembl and 83 % of the library cleared the potency floor. A binary
+  classifier (JAK actives vs physchem-matched presumed-inactives, ROC-AUC 0.998)
+  now drops those first; AD still flags residual out-of-domain survivors, but it no
+  longer has to stand in for a non-binder class the regression never saw. See
+  [VALIDATION.md STEP 10](VALIDATION.md#step-10--the-binder-gate-tier-05-2026-07-26).
 - **Selectivity is not the only thing that disqualifies a molecule.** Tier 2
   annotates each survivor with QED, predicted solubility and a Tox21 alert,
   combined as a **geometric mean** rather than a weighted sum, so one unacceptable
@@ -199,6 +212,7 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 | Stage | Claim | Result (5-seed scaffold split) |
 |------|-------|--------|
 | Per-isoform QSAR | pchembl regression, JAK1/2/3 | R² 0.71–0.77, Spearman 0.82–0.88 |
+| **Binder gate** | JAK binder vs presumed-inactive | **ROC-AUC 0.998**; ethanol/pesticide gated out, JAK inhibitors kept ([STEP 10](VALIDATION.md#step-10--the-binder-gate-tier-05-2026-07-26)) |
 | **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but see the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
 | Uncertainty | conformal 90% intervals | empirical coverage **0.89–0.91** |
 | Applicability domain | error out- vs in-domain | error rises **~2×** as molecules leave the domain |
@@ -281,7 +295,9 @@ reference (~6.6 MB total):
 | Path | What |
 |------|------|
 | `assets/models/jak/*_reg.pkl` | the three deployed isoform regressors |
+| `assets/models/jak/binder_gate.pkl` | the Tier-0.5 binder gate + its Youden's-J threshold |
 | `assets/jak/*.parquet` | per-isoform datasets + the cross-measured join |
+| `assets/jak/negatives.parquet` | the physchem-matched presumed-inactives (binder-gate negatives) |
 | `assets/library/library.parquet` | the wide screening library, with its Tier-0 verdict |
 | `assets/conformal_quantiles.json` | calibrated 90 % half-widths per isoform |
 | `assets/ad_reference/*.npz` | per-isoform applicability reference (training fingerprints + leverage constants) |
@@ -346,11 +362,18 @@ Regenerating the bundle after a data or model change:
 python -m src.data.jak                 # refresh datasets  -> data/jak/
 python -m src.data.library             # refresh library   -> data/library/  (incl. Tier 0)
 python -m src.models.isoform_regressor # retrain isoforms  -> data/models/jak/
+python -m src.data.negatives           # rebuild the binder-gate negatives -> data/jak/negatives.parquet
+python -m src.models.binder_gate       # retrain the gate  -> data/models/jak/binder_gate.pkl
 python -c "from src.applicability import load_reference as r; \
            [r(i, use_cache=False) for i in ('JAK1','JAK2','JAK3')]"   # -> data/ad_reference/
 cp data/jak/*.parquet assets/jak/ && cp data/library/*.parquet assets/library/
 cp data/models/jak/*.pkl assets/models/jak/ && cp data/ad_reference/*.npz assets/ad_reference/
 ```
+
+The binder gate must be retrained whenever `assets/jak/*.parquet` or the negative
+set changes — its positives are the JAK actives and its negatives are
+`negatives.parquet`. The negative build needs network (it pulls ten other targets
+from ChEMBL); the gate train is offline once the negatives are cached.
 
 Then refresh `assets/conformal_quantiles.json` — calibration is deterministic given
 the pinned dataset and seed, so `src.conformal.halfwidth(iso)` reproduces each value

@@ -24,7 +24,10 @@ dive* — is the whole point, and it dictates the tier order below.
         │
   Tier 0  rule filters (Ro5 + PAINS)              near-free       10^5 → ~10^5-
         │
-  Tier 1  per-isoform regressors → gap S           ms/molecule    10^5 → 10^3
+  Tier 0.5 binder gate → P(JAK binder)            ms/molecule    ~10^5- → 10^3
+        │   (drop non-binders the regressors would score at their mean)
+        │
+  Tier 1  per-isoform regressors → gap S           ms/molecule    10^3 → 10^2
         │   (ligand-based; S = pchembl(tgt) − max_off pchembl(off))
         │
   Tier 2  conformal interval + applicability domain pricier/mol    10^3 → 10^2
@@ -316,6 +319,7 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/data/cache.py` | reuse | parquet cache |
 | `src/data/pubchem_client.py` | reuse + extend | similarity expansion, and `resolve_name` (name → structure) |
 | `src/data/jak.py` | **new** | per-isoform regression datasets + cross-measured join (STEP 2) |
+| `src/data/negatives.py` | **new** | physchem-matched presumed-inactives for the binder gate (STEP 10) |
 | `src/data/library.py` | **new** | load/cache the wide screening library |
 | `src/models/features.py` | reuse | ECFP4 featurization (shared) |
 | `src/models/scaffold_split.py` | reuse + seed arg | scaffold split |
@@ -326,6 +330,7 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/funnel.py` | **new** | tiered wide screen (Tier 0-2) + SELECT-to-contract |
 | `src/pipeline.py` | reuse | v1 single-target screen (unchanged) |
 | `src/models/isoform_regressor.py` | **new** | per-isoform pchembl regressor |
+| `src/models/binder_gate.py` | **new** | Tier-0.5 binder gate (JAK binder vs presumed-inactive) (STEP 10) |
 | `src/selectivity.py` | **new** | hybrid gap `S`; shared |
 | `src/conformal.py` | **new** | conformal prediction intervals; shared |
 | `src/applicability.py` | **new** | Tanimoto + leverage AD; shared |

@@ -26,6 +26,7 @@ from .data import jak
 from .data.library import load_library
 from .filters.druglikeness import apply_druglikeness
 from .loop_contract import build_contract, model_id
+from .models.binder_gate import train_and_cache as train_gate
 from .models.features import morgan_matrix
 from .models.isoform_regressor import train_and_cache
 from .mpo import annotate as mpo_annotate
@@ -34,6 +35,12 @@ from .selectivity import OFFS, POTENCY_FLOOR, TARGET
 
 def _quiet(_message: str) -> None:
     """Default progress sink — the CLI and tests don't report steps."""
+
+
+@lru_cache(maxsize=2)
+def _gate(use_cache: bool = True):
+    """The deployed binder gate (Tier 0.5), loaded once per process."""
+    return train_gate(use_cache=use_cache)
 
 
 def _context(target: str, offs: tuple[str, ...], use_cache: bool, step=_quiet):
@@ -54,6 +61,16 @@ def _predict(df: pd.DataFrame, models, isoforms, target, offs) -> pd.DataFrame:
     """Tier 1 (cheap): per-isoform predictions, gap S, potency floor."""
     X, mask = morgan_matrix(df["smi"].tolist())
     df = df[mask].reset_index(drop=True)
+    if df.empty:
+        # Nothing survived an upstream filter (e.g. the binder gate rejected the
+        # whole set): sklearn.predict rejects a 0-row matrix, so return the empty
+        # frame with the Tier-1 columns rather than crash. Callers already handle
+        # an empty shortlist.
+        for iso in isoforms:
+            df[f"pred_{iso}"] = pd.Series(dtype=float)
+        df["gap"] = pd.Series(dtype=float)
+        df["meets_floor"] = pd.Series(dtype=bool)
+        return df
     for iso in isoforms:
         df[f"pred_{iso}"] = models[iso].predict(X)
     df["gap"] = df[f"pred_{target}"] - df[[f"pred_{o}" for o in offs]].max(axis=1)
@@ -86,12 +103,28 @@ def _trust(df: pd.DataFrame, q, refs, isoforms, target, offs) -> pd.DataFrame:
     return df
 
 
+def _annotate_binder(df: pd.DataFrame, use_cache: bool) -> pd.DataFrame:
+    """Attach the Tier-0.5 binder-gate probability and verdict (no filtering here)."""
+    if df.empty:
+        return df
+    gate = _gate(use_cache)
+    df["binder_prob"] = gate.predict_proba(df["smi"].tolist())
+    df["is_binder"] = df["binder_prob"] >= gate.threshold
+    return df
+
+
 def score_molecules(smiles: list[str], target: str = TARGET, offs: tuple[str, ...] = OFFS,
                     use_cache: bool = True) -> pd.DataFrame:
-    """Full Tier-1+Tier-2 scoring of a given (small) set — used for Stage-A re-scoring."""
+    """Full Tier-0.5+Tier-1+Tier-2 scoring of a given (small) set — used for Stage-A re-scoring.
+
+    The binder gate is reported as a column, not applied as a filter: a caller scoring
+    one molecule (or a handful of analogues) wants the non-binder verdict shown, not the
+    row silently dropped. `screen_library` is where the gate prunes.
+    """
     isoforms, models, q, refs = _context(target, offs, use_cache)
     df = _predict(pd.DataFrame({"smi": list(smiles)}), models, isoforms, target, offs)
-    return _trust(df, q, refs, isoforms, target, offs)
+    df = _trust(df, q, refs, isoforms, target, offs)
+    return _annotate_binder(df, use_cache)
 
 
 @lru_cache(maxsize=4)
@@ -108,6 +141,10 @@ def library_gap_distribution(target: str = TARGET, offs: tuple[str, ...] = OFFS,
     isoforms, models, _, _ = _context(target, offs, use_cache)
     lib = load_library(use_cache=use_cache)
     lib = lib[lib["druglike"]].reset_index(drop=True) if "druglike" in lib.columns else lib
+    # Percentile is against the population the funnel actually ranks — plausible
+    # binders — so a molecule the gate would reject is not part of the reference.
+    gate = _gate(use_cache)
+    lib = lib[gate.predict_proba(lib["smi"].tolist()) >= gate.threshold].reset_index(drop=True)
     scored = _predict(lib, models, isoforms, target, offs)
     return np.sort(scored["gap"].to_numpy())
 
@@ -140,7 +177,15 @@ def screen_library(target: str = TARGET, offs: tuple[str, ...] = OFFS,
     df = lib if precomputed else apply_druglikeness(lib, smiles_col="smi")
     df = df[df["druglike"]].reset_index(drop=True)
 
-    step(f"Tier 1 — per-isoform prediction + gap S over {len(df)} drug-like molecules")
+    # Tier 0.5 — the binder gate prunes molecules the regressors would only score at
+    # their training mean (ethanol, off-target junk), before the gap is ever computed.
+    gate = _gate(use_cache)
+    step(f"Tier 0.5 — binder gate over {len(df)} drug-like molecules "
+         f"(pass P(binder) ≥ {gate.threshold:.2f})")
+    df["binder_prob"] = gate.predict_proba(df["smi"].tolist())
+    df = df[df["binder_prob"] >= gate.threshold].reset_index(drop=True)
+
+    step(f"Tier 1 — per-isoform prediction + gap S over {len(df)} plausible binders")
     df = _predict(df, models, isoforms, target, offs)          # Tier 1
     df = df[df["meets_floor"]].sort_values("gap", ascending=False).head(tier1_keep).reset_index(drop=True)
 
@@ -167,7 +212,7 @@ def screen_to_contract(picks: pd.DataFrame, target: str = TARGET,
 
 def _main() -> None:
     sl = screen_library()
-    cols = ["smi", f"pred_{TARGET}", "gap", "gap_lo", "gap_hi", "in_domain", "verdict", "mpo"]
+    cols = ["smi", f"pred_{TARGET}", "gap", "gap_lo", "gap_hi", "binder_prob", "in_domain", "verdict", "mpo"]
     print(f"Shortlist: {len(sl)} selective + drug-like candidates "
           f"({int(sl['in_domain'].sum())} in-domain)")
     print(sl[cols].head(12).to_string(index=False))
