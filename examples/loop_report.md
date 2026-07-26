@@ -2,9 +2,9 @@
 
 | set | n | median gap | max gap | % ≥10× selective | % in-domain |
 |-----|--:|:----------:|:-------:|:----------------:|:-----------:|
-| before (selected) | 3 | +0.65 | +0.78 | 0% | 100% |
-| after (generated) | 90 | +0.58 | +1.74 | 14% | 99% |
+| before (selected) | 3 | +1.62 | +1.68 | 100% | 100% |
+| after (generated) | 90 | +1.45 | +2.38 | 93% | 100% |
 
-Best in-domain analogue: `CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)c(C(F)(F)F)c2)ccn1` (gap +1.74, parent `CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1`).
+Best in-domain analogue: `Cc1cc(Nc2nc(N)c(Cl)c(Nc3cn(C)nc3S(=O)(=O)C(C)C)n2)c(OC2CC2)cc1C1COC1` (gap +2.38, parent `Cc1cc(Nc2ncc(Cl)c(Nc3cn(C)nc3S(=O)(=O)C(C)C)n2)c(OC2CC2)cc1C1COC1`).
 
 _In-silico hypothesis — requires wet-lab validation._

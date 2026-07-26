@@ -1,13 +1,13 @@
 {
   "schema_version": "1.0",
-  "case_id": "JAK1-selective-019a7e9",
+  "case_id": "JAK1-selective-6c85add",
   "target_isoform": "JAK1",
   "off_isoforms": [
     "JAK2",
     "JAK3"
   ],
   "provenance": {
-    "created": "2026-07-26T14:14:07.817051+00:00",
+    "created": "2026-07-26T14:42:04.395205+00:00",
     "stage": "B_export",
     "model_ids": {
       "JAK1": "CHEMBL2835@61edd879da",
@@ -15,44 +15,44 @@
       "JAK3": "CHEMBL2148@0772985d8c"
     },
     "conformal_alpha": 0.1,
-    "code_version": "019a7e9"
+    "code_version": "6c85add"
   },
   "molecules": [
     {
-      "smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+      "smiles": "Cc1cc(Nc2ncc(Cl)c(Nc3cn(C)nc3S(=O)(=O)C(C)C)n2)c(OC2CC2)cc1C1COC1",
       "origin": "screen",
       "parent_smiles": null,
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 6.222,
+          "pred_pchembl": 7.464,
           "interval": [
-            5.167,
-            7.278
+            6.409,
+            8.52
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 5.338,
+          "pred_pchembl": 5.751,
           "interval": [
-            4.138,
-            6.538
+            4.551,
+            6.952
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.44,
+          "pred_pchembl": 5.784,
           "interval": [
-            4.231,
-            6.649
+            4.575,
+            6.993
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.782,
+        "gap": 1.68,
         "gap_interval": [
-          -1.482,
-          3.046
+          -0.584,
+          3.944
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -60,40 +60,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+      "smiles": "Nc1nc(Nc2ccc(S(N)(=O)=O)cc2)nn1C(=S)Nc1c(F)cccc1F",
       "origin": "screen",
       "parent_smiles": null,
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 6.777,
+          "pred_pchembl": 7.528,
           "interval": [
-            5.721,
-            7.832
+            6.473,
+            8.584
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.127,
+          "pred_pchembl": 5.911,
           "interval": [
-            4.927,
-            7.327
+            4.711,
+            7.111
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 5.877,
+          "pred_pchembl": 5.564,
           "interval": [
-            4.669,
-            7.086
+            4.355,
+            6.772
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.65,
+        "gap": 1.617,
         "gap_interval": [
-          -1.606,
-          2.905
+          -0.639,
+          3.873
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"
@@ -101,40 +101,40 @@
       "deep_dive": null
     },
     {
-      "smiles": "O=C1OC(OC(=O)c2cccnc2Nc2cccc(C(F)(F)F)c2)c2ccccc21",
+      "smiles": "Cc1cc(Nc2ncc(C)c(Nc3cn(C)nc3S(=O)(=O)C(C)C)n2)c(OC2CC2)cc1C1CCN(C)CC1",
       "origin": "screen",
       "parent_smiles": null,
       "per_isoform": {
         "JAK1": {
-          "pred_pchembl": 6.764,
+          "pred_pchembl": 7.525,
           "interval": [
-            5.709,
-            7.82
+            6.469,
+            8.58
           ],
           "in_domain": true
         },
         "JAK2": {
-          "pred_pchembl": 6.718,
+          "pred_pchembl": 5.935,
           "interval": [
-            5.518,
-            7.918
+            4.734,
+            7.135
           ],
           "in_domain": true
         },
         "JAK3": {
-          "pred_pchembl": 6.125,
+          "pred_pchembl": 5.393,
           "interval": [
-            4.916,
-            7.334
+            4.184,
+            6.601
           ],
           "in_domain": true
         }
       },
       "selectivity": {
-        "gap": 0.046,
+        "gap": 1.59,
         "gap_interval": [
-          -2.209,
-          2.302
+          -0.665,
+          3.846
         ],
         "meets_potency_floor": true,
         "verdict": "in_domain"

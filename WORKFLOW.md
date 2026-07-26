@@ -66,11 +66,18 @@ running them on Tier-1 survivors keeps their cost bounded.
 
 ### 1.1 Wide screening library  `[new: src/data/library.py]`
 The thing that makes the screen *wide*: a large, diverse, **target-agnostic** set
-of purchasable/enumerated drug-like molecules — distinct from the target's own
-ChEMBL actives. Default: a cached ~10^5 diverse drug-like subset (ZINC20 lead-like
-or a PubChem random sample), source pluggable and demo-scale; the pipeline scales
-to larger libraries in principle, bounded only by Tier-1 throughput. This is the
-funnel's top — the "haystack" the cheap tiers search.
+of drug-like molecules — distinct from the target's own ChEMBL actives. Current
+source: **38 594 bioactive molecules from 20 diverse ChEMBL targets** (ten kinases,
+ten non-kinases), deliberately **disjoint from the binder gate's training classes**
+— no JAK isoform, none of `negatives.NEGATIVE_TARGETS`, and any molecule in either
+class dropped by SMILES — so the gate's verdict on a library molecule is a
+prediction rather than recall. Source pluggable and demo-scale; the pipeline scales
+to larger libraries, bounded only by Tier-1 throughput. This is the funnel's top —
+the "haystack" the cheap tiers search.
+
+> Superseded the original Tox21 collection (STEP 13): it was a toxicology panel
+> rather than discovery chemistry, and it was 100 % identical to the toxicity
+> model's training set, which made the MPO tox column recall rather than prediction.
 
 **Honest scope.** The library is unlabelled: the selectivity gap `S` on it is pure
 prediction, and most of a diverse library sits **outside** the model's
