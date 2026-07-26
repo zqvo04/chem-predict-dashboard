@@ -78,6 +78,28 @@ def _enrichment(y_true_gap: np.ndarray, y_pred_gap: np.ndarray, frac: float = 0.
     return float(hit[top].mean() / base)
 
 
+def evaluate_split(X: np.ndarray, cross: pd.DataFrame, measured_gap: np.ndarray,
+                   tr: np.ndarray, te: np.ndarray, target: str = TARGET,
+                   offs: tuple[str, ...] = OFFS) -> tuple[float, float, float]:
+    """One train/test split -> (Spearman difference-of-regressors, Spearman direct, enrichment).
+
+    Split-agnostic on purpose: Gate 4 feeds it a scaffold split, and the assay /
+    time audit feeds it a Ki-Kd subset and a year cut, so all three report the
+    identical metric and stay comparable.
+    """
+    # difference-of-regressors: one regressor per isoform on the train split
+    pred_te = {iso: _fit(X[tr], cross[iso].to_numpy()[tr]).predict(X[te])
+               for iso in [target, *offs]}
+    pred_gap = pred_te[target] - np.maximum.reduce([pred_te[o] for o in offs])
+    # direct gap regressor
+    direct_gap = _fit(X[tr], measured_gap[tr]).predict(X[te])
+
+    gap_te = measured_gap[te]
+    return (float(spearmanr(gap_te, pred_gap).statistic),
+            float(spearmanr(gap_te, direct_gap).statistic),
+            _enrichment(gap_te, pred_gap))
+
+
 def evaluate_gap(target: str = TARGET, offs: tuple[str, ...] = OFFS,
                  seeds: tuple[int, ...] = SEEDS, use_cache: bool = True) -> SelectivityMetrics:
     """Gate 4: predicted vs measured gap on a scaffold split of the cross-measured set.
@@ -93,24 +115,16 @@ def evaluate_gap(target: str = TARGET, offs: tuple[str, ...] = OFFS,
     X, mask = morgan_matrix(smiles)
     cross = cross[mask].reset_index(drop=True)
     kept = [s for s, keep in zip(smiles, mask) if keep]
-    isoforms = [target, *offs]
     measured_gap = (cross[target].to_numpy()
                     - cross[list(offs)].max(axis=1).to_numpy())
 
     sp_diff, sp_direct, enrich = [], [], []
     for seed in seeds:
         tr, te = scaffold_split(kept, test_frac=0.2, seed=seed)
-        # difference-of-regressors: one regressor per isoform on the train split
-        pred_te = {iso: _fit(X[tr], cross[iso].to_numpy()[tr]).predict(X[te])
-                   for iso in isoforms}
-        pred_gap = pred_te[target] - np.maximum.reduce([pred_te[o] for o in offs])
-        # direct gap regressor
-        direct_gap = _fit(X[tr], measured_gap[tr]).predict(X[te])
-
-        gap_te = measured_gap[te]
-        sp_diff.append(spearmanr(gap_te, pred_gap).statistic)
-        sp_direct.append(spearmanr(gap_te, direct_gap).statistic)
-        enrich.append(_enrichment(gap_te, pred_gap))
+        d, dr, e = evaluate_split(X, cross, measured_gap, tr, te, target, offs)
+        sp_diff.append(d)
+        sp_direct.append(dr)
+        enrich.append(e)
 
     return SelectivityMetrics(
         target=target, n_cross=len(kept), n_seeds=len(seeds),

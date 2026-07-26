@@ -77,3 +77,46 @@ def test_live_summary_smoke():
     assert set(tbl["isoform"]) == {"JAK1", "JAK2", "JAK3"}
     assert (tbl["n_molecules"] > 1000).all()               # thousands per isoform
     assert tbl.attrs["n_cross_measured"] > 500
+
+
+# --- assay provenance (assay/time audit) ---------------------------------- #
+
+def _acts_full(rows):
+    return pd.DataFrame(rows, columns=["canonical_smiles", "pchembl_value",
+                                       "standard_type", "assay_type", "document_year"])
+
+
+def test_collapse_separates_the_atp_independent_subset():
+    """An IC50 for an ATP-competitive kinase inhibitor moves with the assay's ATP
+    level; a Ki/Kd does not. Keeping them separable is what lets the audit ask
+    whether the selectivity gap is real or an artefact of pooled assay types."""
+    acts = _acts_full([("CCO", 6.0, "IC50", "B", 2010),
+                       ("CCO", 8.0, "Ki", "B", 2012),
+                       ("CCO", 9.0, "Kd", "B", 2014),
+                       ("c1ccccc1", 7.0, "EC50", "F", 2020)])
+    out = jak._collapse(acts).set_index("smi")
+    assert out.loc["CCO", "pchembl"] == 8.0           # median over all four types
+    assert out.loc["CCO", "pchembl_kikd"] == 8.5      # median over Ki/Kd only
+    assert out.loc["CCO", "n_kikd"] == 2
+    assert out.loc["c1ccccc1", "n_kikd"] == 0
+    assert pd.isna(out.loc["c1ccccc1", "pchembl_kikd"])
+
+
+def test_collapse_records_arrival_year_and_assay_mix():
+    """year_first is the molecule's arrival date — the only cut a time split can
+    make honestly, since a later re-measurement does not make it new chemistry."""
+    acts = _acts_full([("CCO", 6.0, "IC50", "B", 2018),
+                       ("CCO", 7.0, "IC50", "F", 2012),
+                       ("CCO", 8.0, "IC50", "B", 2020)])
+    row = jak._collapse(acts).iloc[0]
+    assert row["year_first"] == 2012                   # earliest, not latest or median
+    assert row["frac_binding"] == pytest.approx(2 / 3)
+
+
+def test_collapse_tolerates_activities_cached_without_provenance():
+    """An activities frame cached before these fields were requested must still
+    build — the provenance columns come back NaN rather than failing the build."""
+    out = jak._collapse(_acts([("CCO", 7.0)]))
+    assert out.iloc[0]["pchembl"] == 7.0
+    assert out.iloc[0]["n_kikd"] == 0
+    assert pd.isna(out.iloc[0]["year_first"])

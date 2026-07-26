@@ -28,7 +28,13 @@ BASE_URL = "https://www.ebi.ac.uk/chembl/api/data"
 DEFAULT_ACTIVITY_TYPES = ("IC50", "Ki", "Kd", "EC50")
 _ONLY_FIELDS = (
     "molecule_chembl_id,canonical_smiles,standard_type,"
-    "standard_value,standard_units,pchembl_value"
+    "standard_value,standard_units,pchembl_value,"
+    # Assay provenance. `standard_type` alone is not enough to know what a pchembl
+    # means: an IC50 for an ATP-competitive kinase inhibitor depends on the assay's
+    # ATP concentration while a Ki/Kd does not, and a functional (cellular) readout
+    # answers a different question from a binding one. `document_year` supports a
+    # time split — the closest free proxy for prospective validation.
+    "assay_type,document_year"
 )
 _HEADERS = {"User-Agent": "chem-predict-dashboard/0.1 (portfolio project)"}
 
