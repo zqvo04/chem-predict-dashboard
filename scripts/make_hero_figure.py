@@ -26,18 +26,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.models.features import morgan_matrix          # noqa: E402
 from src.models.isoform_regressor import train_and_cache  # noqa: E402
 from src.selectivity import OFFS, TARGET               # noqa: E402
-from src.data import jak                                # noqa: E402
+from src.data import panel_data                        # noqa: E402
+from src.panels import DEFAULT_PANEL                   # noqa: E402
 
 FIG = Path(__file__).resolve().parents[1] / "figures" / "selectivity_ranking_flip.png"
 
 
 def main() -> None:
-    cross = jak.build_cross_measured()
+    cross = panel_data.build_cross_measured(DEFAULT_PANEL)
     smiles = cross["smi"].tolist()
     X, mask = morgan_matrix(smiles)
     cross = cross[mask].reset_index(drop=True)
 
-    models = {iso: train_and_cache(iso, use_cache=True).model for iso in (TARGET, *OFFS)}
+    models = {iso: train_and_cache(DEFAULT_PANEL, iso, use_cache=True).model
+              for iso in (TARGET, *OFFS)}
     pred = {iso: models[iso].predict(X) for iso in (TARGET, *OFFS)}
     potency = pred[TARGET]
     gap = potency - np.maximum.reduce([pred[o] for o in OFFS])

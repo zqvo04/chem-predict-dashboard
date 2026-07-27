@@ -24,18 +24,27 @@ from pathlib import Path
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 
-from .data import jak
+from .data import panel_data
+from .panels import DEFAULT_PANEL, PanelSpec, get_panel
 from .models.features import morgan_matrix
 from .models.scaffold_split import scaffold_split
 
-TARGET_ISOFORMS = ("JAK1", "JAK2", "JAK3")
 SEEDS = (0, 1, 2, 3, 4)
 DEFAULT_ALPHA = 0.10          # 90% nominal coverage
 
-# Deploy-time half-widths for the bundled models. Calibration is deterministic
-# given the pinned dataset + seed, so these are exactly what halfwidth() would
-# recompute — committed only so a fresh deploy skips three model fits.
-BUNDLED_QUANTILES = Path(__file__).resolve().parents[1] / "assets" / "conformal_quantiles.json"
+QUANTILES_FILE = "conformal_quantiles.json"
+
+
+def bundled_quantiles(panel: PanelSpec) -> Path:
+    """Deploy-time half-widths for one panel's bundled models.
+
+    Calibration is deterministic given the pinned dataset + seed, so the committed
+    table is exactly what `halfwidth`/`calibrate_gap` would recompute — it is
+    committed only so a fresh deploy skips the model fits. Namespaced per panel
+    (STEP 15); the JAK table moved from `assets/` to `assets/jak/` unchanged, keys
+    and values included.
+    """
+    return panel.data_bundled / QUANTILES_FILE
 
 
 def conformal_quantile(cal_residuals: np.ndarray, alpha: float = DEFAULT_ALPHA) -> float:
@@ -68,9 +77,9 @@ SIGMA_KNOTS = 21          # piecewise-linear sigma curve, on nn-similarity in [0
 _SIGMA_FLOOR = 0.15       # keeps sigma away from zero where calibration data is thin
 
 
-def _gap_predict(models: dict, X: np.ndarray, target: str, offs: tuple[str, ...]) -> np.ndarray:
-    p = {i: models[i].predict(X) for i in [target, *offs]}
-    return p[target] - np.maximum.reduce([p[o] for o in offs])
+def _gap_predict(models: dict, X: np.ndarray, panel: PanelSpec) -> np.ndarray:
+    p = {i: models[i].predict(X) for i in panel.isoforms}
+    return p[panel.target] - np.maximum.reduce([p[o] for o in panel.offs])
 
 
 def _fit_sigma(nn_sim: np.ndarray, residual: np.ndarray) -> dict:
@@ -94,8 +103,8 @@ def sigma_at(nn_sim, knots: dict) -> np.ndarray:
     return np.interp(np.asarray(nn_sim, dtype=float), knots["x"], knots["y"])
 
 
-def calibrate_gap(alpha: float = DEFAULT_ALPHA, seed: int = 0,
-                  use_cache: bool = True) -> dict:
+def calibrate_gap(panel: PanelSpec = DEFAULT_PANEL, alpha: float = DEFAULT_ALPHA,
+                  seed: int = 0, use_cache: bool = True) -> dict:
     """Calibrate the gap interval directly, scaled by distance from training.
 
     Split-conformal on the **gap residual itself** rather than on each isoform
@@ -108,26 +117,25 @@ def calibrate_gap(alpha: float = DEFAULT_ALPHA, seed: int = 0,
     molecule is `q * sigma(nn_similarity)`.
     """
     from .applicability import tanimoto_nn_similarity
-    from .selectivity import OFFS, TARGET
 
-    cross = jak.build_cross_measured(use_cache=use_cache)
+    cross = panel_data.build_cross_measured(panel, use_cache=use_cache)
     smiles = cross["smi"].tolist()
     X, mask = morgan_matrix(smiles)
     cross = cross[mask].reset_index(drop=True)
     kept = [s for s, k in zip(smiles, mask) if k]
-    meas = {i: cross[i].to_numpy() for i in [TARGET, *OFFS]}
-    meas_gap = meas[TARGET] - np.maximum.reduce([meas[o] for o in OFFS])
+    meas = {i: cross[i].to_numpy() for i in panel.isoforms}
+    meas_gap = meas[panel.target] - np.maximum.reduce([meas[o] for o in panel.offs])
 
     trpool, _ = scaffold_split(kept, test_frac=0.2, seed=seed)
     ptr_rel, cal_rel = scaffold_split([kept[i] for i in trpool], test_frac=0.25, seed=seed)
     ptr, cal = trpool[ptr_rel], trpool[cal_rel]
 
-    models = {i: _fit(X[ptr], meas[i][ptr]) for i in [TARGET, *OFFS]}
+    models = {i: _fit(X[ptr], meas[i][ptr]) for i in panel.isoforms}
     train_smi = [kept[i] for i in ptr]
     fit_idx, quant_idx = cal[::2], cal[1::2]
 
     def resid_and_sim(idx):
-        r = np.abs(meas_gap[idx] - _gap_predict(models, X[idx], TARGET, OFFS))
+        r = np.abs(meas_gap[idx] - _gap_predict(models, X[idx], panel))
         s = tanimoto_nn_similarity([kept[i] for i in idx], train_smi)
         return r, s
 
@@ -138,26 +146,27 @@ def calibrate_gap(alpha: float = DEFAULT_ALPHA, seed: int = 0,
     return {"q": float(q), "sigma": knots}
 
 
-def _bundled_gap(alpha: float, seed: int) -> dict | None:
-    if not BUNDLED_QUANTILES.exists():
+def _bundled_gap(panel: PanelSpec, alpha: float, seed: int) -> dict | None:
+    path = bundled_quantiles(panel)
+    if not path.exists():
         return None
-    table = json.loads(BUNDLED_QUANTILES.read_text(encoding="utf-8"))
+    table = json.loads(path.read_text(encoding="utf-8"))
     return table.get(f"gap|alpha={alpha}|seed={seed}")
 
 
-@lru_cache(maxsize=4)
-def gap_calibration(alpha: float = DEFAULT_ALPHA, seed: int = 0,
-                    use_cache: bool = True) -> dict:
+@lru_cache(maxsize=8)
+def gap_calibration(panel: PanelSpec = DEFAULT_PANEL, alpha: float = DEFAULT_ALPHA,
+                    seed: int = 0, use_cache: bool = True) -> dict:
     """The deployed gap calibration — committed table first, else computed."""
     if use_cache:
-        cached = _bundled_gap(alpha, seed)
+        cached = _bundled_gap(panel, alpha, seed)
         if cached is not None:
             return cached
-    return calibrate_gap(alpha, seed, use_cache=use_cache)
+    return calibrate_gap(panel, alpha, seed, use_cache=use_cache)
 
 
-def gap_halfwidth(nn_sim, alpha: float = DEFAULT_ALPHA, seed: int = 0,
-                  use_cache: bool = True) -> np.ndarray:
+def gap_halfwidth(nn_sim, panel: PanelSpec = DEFAULT_PANEL, alpha: float = DEFAULT_ALPHA,
+                  seed: int = 0, use_cache: bool = True) -> np.ndarray:
     """Per-molecule gap half-width, widening as a molecule leaves the training set.
 
     `nn_sim` is the nearest-neighbour Tanimoto similarity to training, taken as the
@@ -165,7 +174,7 @@ def gap_halfwidth(nn_sim, alpha: float = DEFAULT_ALPHA, seed: int = 0,
     the most-extrapolating model behind it, the same worst-case rule the
     applicability-domain verdict already uses.
     """
-    cal = gap_calibration(alpha, seed, use_cache)
+    cal = gap_calibration(panel, alpha, seed, use_cache)
     return cal["q"] * sigma_at(nn_sim, cal["sigma"])
 
 
@@ -174,10 +183,10 @@ def _fit(X: np.ndarray, y: np.ndarray) -> HistGradientBoostingRegressor:
                                          random_state=0).fit(X, y)
 
 
-def _seed_errors(isoform: str, seed: int, use_cache: bool = True
+def _seed_errors(panel: PanelSpec, isoform: str, seed: int, use_cache: bool = True
                  ) -> tuple[np.ndarray, np.ndarray]:
     """One seed's (test |residuals|, calibration |residuals|) with disjoint scaffolds."""
-    data = jak.build_isoform_dataset(isoform, use_cache=use_cache)
+    data = panel_data.build_isoform_dataset(panel, isoform, use_cache=use_cache)
     smiles = data["smi"].tolist()
     X, mask = morgan_matrix(smiles)
     y = data["pchembl"].to_numpy()[mask]
@@ -193,27 +202,29 @@ def _seed_errors(isoform: str, seed: int, use_cache: bool = True
     return test_err, cal_res
 
 
-def _bundled_quantile(isoform: str, alpha: float, seed: int) -> float | None:
+def _bundled_quantile(panel: PanelSpec, isoform: str, alpha: float,
+                      seed: int) -> float | None:
     """The committed half-width for this exact (isoform, alpha, seed), if present."""
-    if not BUNDLED_QUANTILES.exists():
+    path = bundled_quantiles(panel)
+    if not path.exists():
         return None
-    table = json.loads(BUNDLED_QUANTILES.read_text(encoding="utf-8"))
+    table = json.loads(path.read_text(encoding="utf-8"))
     value = table.get(f"{isoform}|alpha={alpha}|seed={seed}")
     return float(value) if value is not None else None
 
 
-def halfwidth(isoform: str, alpha: float = DEFAULT_ALPHA, seed: int = 0,
-              use_cache: bool = True) -> float:
+def halfwidth(panel: PanelSpec, isoform: str, alpha: float = DEFAULT_ALPHA,
+              seed: int = 0, use_cache: bool = True) -> float:
     """A calibrated interval half-width q for the deployed screen (one split).
 
     Calibration means fitting a model on the proper-train split, so the committed
     table is consulted first; any (alpha, seed) it does not cover is computed.
     """
     if use_cache:
-        cached = _bundled_quantile(isoform, alpha, seed)
+        cached = _bundled_quantile(panel, isoform, alpha, seed)
         if cached is not None:
             return cached
-    _, cal_res = _seed_errors(isoform, seed, use_cache=use_cache)
+    _, cal_res = _seed_errors(panel, isoform, seed, use_cache=use_cache)
     return conformal_quantile(cal_res, alpha)
 
 
@@ -228,12 +239,12 @@ class CoverageMetrics:
     n_seeds: int
 
 
-def evaluate_coverage(isoform: str, alpha: float = DEFAULT_ALPHA,
+def evaluate_coverage(panel: PanelSpec, isoform: str, alpha: float = DEFAULT_ALPHA,
                       seeds: tuple[int, ...] = SEEDS, use_cache: bool = True) -> CoverageMetrics:
     """Empirical coverage + mean interval width at a nominal level, over several seeds."""
     covs, widths = [], []
     for seed in seeds:
-        test_err, cal_res = _seed_errors(isoform, seed, use_cache=use_cache)
+        test_err, cal_res = _seed_errors(panel, isoform, seed, use_cache=use_cache)
         q = conformal_quantile(cal_res, alpha)
         covs.append(float((test_err <= q).mean()))
         widths.append(2 * q)
@@ -248,8 +259,8 @@ def evaluate_coverage(isoform: str, alpha: float = DEFAULT_ALPHA,
 SIM_BUCKETS = ((0.0, 0.35), (0.35, 0.45), (0.45, 0.60), (0.60, 1.01))
 
 
-def evaluate_gap_coverage(alpha: float = DEFAULT_ALPHA, seeds: tuple[int, ...] = SEEDS,
-                          use_cache: bool = True) -> dict:
+def evaluate_gap_coverage(panel: PanelSpec = DEFAULT_PANEL, alpha: float = DEFAULT_ALPHA,
+                          seeds: tuple[int, ...] = SEEDS, use_cache: bool = True) -> dict:
     """Marginal *and* per-difficulty coverage of the gap interval, old vs new.
 
     Marginal coverage alone hides the failure this replaced: a single constant
@@ -258,15 +269,14 @@ def evaluate_gap_coverage(alpha: float = DEFAULT_ALPHA, seeds: tuple[int, ...] =
     therefore reported per nearest-neighbour-similarity bucket.
     """
     from .applicability import tanimoto_nn_similarity
-    from .selectivity import OFFS, TARGET
 
-    cross = jak.build_cross_measured(use_cache=use_cache)
+    cross = panel_data.build_cross_measured(panel, use_cache=use_cache)
     smiles = cross["smi"].tolist()
     X, mask = morgan_matrix(smiles)
     cross = cross[mask].reset_index(drop=True)
     kept = [s for s, k in zip(smiles, mask) if k]
-    meas = {i: cross[i].to_numpy() for i in [TARGET, *OFFS]}
-    meas_gap = meas[TARGET] - np.maximum.reduce([meas[o] for o in OFFS])
+    meas = {i: cross[i].to_numpy() for i in panel.isoforms}
+    meas_gap = meas[panel.target] - np.maximum.reduce([meas[o] for o in panel.offs])
 
     # Three arms, because the middle one is the trap: "old" (summed half-widths) is
     # what shipped, "flat" is the obvious fix (calibrate on the gap, one width for
@@ -281,19 +291,19 @@ def evaluate_gap_coverage(alpha: float = DEFAULT_ALPHA, seeds: tuple[int, ...] =
         trpool, test = scaffold_split(kept, test_frac=0.2, seed=seed)
         ptr_rel, cal_rel = scaffold_split([kept[i] for i in trpool], test_frac=0.25, seed=seed)
         ptr, cal = trpool[ptr_rel], trpool[cal_rel]
-        models = {i: _fit(X[ptr], meas[i][ptr]) for i in [TARGET, *OFFS]}
+        models = {i: _fit(X[ptr], meas[i][ptr]) for i in panel.isoforms}
         train_smi = [kept[i] for i in ptr]
 
-        g_te = _gap_predict(models, X[test], TARGET, OFFS)
+        g_te = _gap_predict(models, X[test], panel)
         r_te = np.abs(meas_gap[test] - g_te)
         s_te = tanimoto_nn_similarity([kept[i] for i in test], train_smi)
 
-        cal_gap = calibrate_gap(alpha, seed, use_cache=use_cache)
+        cal_gap = calibrate_gap(panel, alpha, seed, use_cache=use_cache)
         w_new = cal_gap["q"] * sigma_at(s_te, cal_gap["sigma"])
         q_iso = {i: conformal_quantile(
-            np.abs(meas[i][cal] - models[i].predict(X[cal])), alpha) for i in [TARGET, *OFFS]}
-        w_old = np.full(len(test), q_iso[TARGET] + max(q_iso[o] for o in OFFS))
-        r_cal = np.abs(meas_gap[cal] - _gap_predict(models, X[cal], TARGET, OFFS))
+            np.abs(meas[i][cal] - models[i].predict(X[cal])), alpha) for i in panel.isoforms}
+        w_old = np.full(len(test), q_iso[panel.target] + max(q_iso[o] for o in panel.offs))
+        r_cal = np.abs(meas_gap[cal] - _gap_predict(models, X[cal], panel))
         w_flat = np.full(len(test), conformal_quantile(r_cal, alpha))
 
         for tag, w in (("new", w_new), ("old", w_old), ("flat", w_flat)):
@@ -309,26 +319,31 @@ def evaluate_gap_coverage(alpha: float = DEFAULT_ALPHA, seeds: tuple[int, ...] =
 
 
 def _main() -> None:
-    print(f"Split-conformal coverage at {int((1-DEFAULT_ALPHA)*100)}% nominal "
-          f"({len(SEEDS)} seeds, scaffold-disjoint):")
+    import sys
+
+    panel = get_panel(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PANEL
+    print(f"Split-conformal coverage at {int((1-DEFAULT_ALPHA)*100)}% nominal, "
+          f"panel {panel.name} ({len(SEEDS)} seeds, scaffold-disjoint):")
     print(f"  {'isoform':7} {'coverage':>16} {'interval width (pchembl)':>26}")
-    for iso in TARGET_ISOFORMS:
-        m = evaluate_coverage(iso)
+    for iso in panel.isoforms:
+        m = evaluate_coverage(panel, iso)
         print(f"  {iso:7} {m.coverage_mean:6.3f} ± {m.coverage_std:.3f}     "
               f"{m.width_mean:6.2f} ± {m.width_std:.2f}")
 
-    g = evaluate_gap_coverage()
+    g = evaluate_gap_coverage(panel)
     mean = lambda v: float(np.mean(v)) if len(v) else float("nan")
     print(f"\nGap interval — summed half-widths (old) vs directly calibrated (new):")
     print(f"  {'':22} {'marginal':>10} {'width':>8} {'crosses 0':>11}")
-    for tag, label in (("old", "summed (old)"), ("new", "calibrated (new)")):
+    for tag, label in (("old", "summed (old)"), ("flat", "flat calibrated"),
+                       ("new", "calibrated (new)")):
         print(f"  {label:22} {mean(g[f'marginal_{tag}']):10.3f} "
               f"{mean(g[f'width_{tag}']):8.2f} {mean(g[f'crosses_zero_{tag}']):10.0%}")
     print(f"\n  coverage by nearest-neighbour similarity to training:")
-    print(f"  {'bucket':22} {'old':>10} {'new':>10}")
+    print(f"  {'bucket':22} {'old':>10} {'flat':>10} {'new':>10}")
     for b in SIM_BUCKETS:
         print(f"  [{b[0]:.2f}, {b[1]:.2f})".ljust(24)
-              + f"{mean(g['bucket_old'][b]):10.3f} {mean(g['bucket_new'][b]):10.3f}")
+              + f"{mean(g['bucket_old'][b]):10.3f} {mean(g['bucket_flat'][b]):10.3f} "
+              f"{mean(g['bucket_new'][b]):10.3f}")
 
 
 if __name__ == "__main__":

@@ -31,16 +31,15 @@ CLI (build + cache + bundle-ready parquet):
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from rdkit import Chem, RDLogger
 from rdkit.Chem import Descriptors
 
+from ..panels import DEFAULT_PANEL, PanelSpec, usable_negative_targets
 from ..standardize import standardize
 from . import chembl_client as cc
-from . import jak
+from . import panel_data
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -65,16 +64,12 @@ MAX_RECORDS = 4000        # per other-target active pull
 MATCH_BINS = 12           # quantile bins per axis for the (MW, logP) match
 MATCH_SEED = 0
 
-_ROOT = Path(__file__).resolve().parents[2]
-CACHE_DIR = _ROOT / "data" / "jak"          # runtime cache, gitignored
-BUNDLED_DIR = _ROOT / "assets" / "jak"      # committed, so a fresh deploy skips retrieval
 
-
-def jak_positive_smiles(use_cache: bool = True) -> set[str]:
-    """Standardised SMILES of every JAK molecule measured at pchembl >= 6 (any isoform)."""
+def positive_smiles(panel: PanelSpec = DEFAULT_PANEL, use_cache: bool = True) -> set[str]:
+    """Standardised SMILES of every panel molecule measured at pchembl >= 6 (any member)."""
     mols: set[str] = set()
-    for iso in jak.TARGETS:
-        d = jak.build_isoform_dataset(iso, use_cache=use_cache)
+    for iso in panel.isoforms:
+        d = panel_data.build_isoform_dataset(panel, iso, use_cache=use_cache)
         mols |= set(d.loc[d["pchembl"] >= POSITIVE_PCHEMBL, "smi"])
     return mols
 
@@ -122,22 +117,28 @@ def _matched_indices(pos_desc: np.ndarray, neg_desc: np.ndarray,
     return np.array(sorted(kept), dtype=int)
 
 
-def build_negatives(use_cache: bool = True) -> pd.DataFrame:
+def build_negatives(panel: PanelSpec = DEFAULT_PANEL,
+                    use_cache: bool = True) -> pd.DataFrame:
     """Physchem-matched presumed-inactive negatives (columns: smi, source_target).
 
     Fetches the other-target actives, standardises to neutral parents, drops any
-    molecule present in a JAK dataset, deduplicates, then matches the survivors to
-    the JAK actives' (MW, logP) distribution.
+    molecule present in the panel's own datasets, deduplicates, then matches the
+    survivors to the panel actives' (MW, logP) distribution.
+
+    The basket is filtered through `usable_negative_targets` first: a panel member
+    sitting in `NEGATIVE_TARGETS` would otherwise be labelled a presumed non-binder
+    while also supplying positives, training the gate to reject its own actives.
     """
     if use_cache:
-        for directory in (CACHE_DIR, BUNDLED_DIR):
+        for directory in (panel.data_cache, panel.data_bundled):
             path = directory / "negatives.parquet"
             if path.exists():
                 return pd.read_parquet(path)
 
-    jak_pos = jak_positive_smiles(use_cache=use_cache)
+    basket = usable_negative_targets(panel)
+    panel_pos = positive_smiles(panel, use_cache=use_cache)
     frames, skipped = [], []
-    for name, cid in NEGATIVE_TARGETS.items():
+    for name, cid in basket.items():
         # One target's transient API failure must not discard the other nine fetches;
         # the basket is deliberately larger than it needs to be for exactly this.
         try:
@@ -154,15 +155,15 @@ def build_negatives(use_cache: bool = True) -> pd.DataFrame:
 
     if len(frames) < 3:
         raise RuntimeError(
-            f"Only {len(frames)} of {len(NEGATIVE_TARGETS)} negative targets fetched "
+            f"Only {len(frames)} of {len(basket)} negative targets fetched "
             f"(skipped {skipped}); too few for a physchem-matched negative set.")
     pool = pd.concat(frames, ignore_index=True)
-    pool = pool[~pool["smi"].isin(jak_pos)]
+    pool = pool[~pool["smi"].isin(panel_pos)]
     # First occurrence keeps one source label per molecule; a molecule active on
     # several other targets is still one presumed-inactive example.
     pool = pool.drop_duplicates(subset="smi").reset_index(drop=True)
 
-    pos_desc = _mw_logp(sorted(jak_pos))
+    pos_desc = _mw_logp(sorted(panel_pos))
     pos_desc = pos_desc[~np.isnan(pos_desc).any(axis=1)]
     neg_desc = _mw_logp(pool["smi"].tolist())
     valid = ~np.isnan(neg_desc).any(axis=1)
@@ -171,18 +172,24 @@ def build_negatives(use_cache: bool = True) -> pd.DataFrame:
     kept = _matched_indices(pos_desc, neg_desc)
     negatives = pool.iloc[kept].reset_index(drop=True)
 
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    negatives.to_parquet(CACHE_DIR / "negatives.parquet", index=False)
+    panel.data_cache.mkdir(parents=True, exist_ok=True)
+    negatives.to_parquet(panel.data_cache / "negatives.parquet", index=False)
     return negatives
 
 
 def _main() -> None:
-    neg = build_negatives(use_cache=False)
-    pos = jak_positive_smiles()
-    print(f"JAK positives (pchembl >= {POSITIVE_PCHEMBL}): {len(pos)}")
-    print(f"Matched negatives: {len(neg)}  (from {len(NEGATIVE_TARGETS)} other targets)")
+    import sys
+
+    from ..panels import get_panel
+
+    panel = get_panel(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PANEL
+    neg = build_negatives(panel, use_cache=False)
+    pos = positive_smiles(panel)
+    basket = usable_negative_targets(panel)
+    print(f"{panel.name} positives (pchembl >= {POSITIVE_PCHEMBL}): {len(pos)}")
+    print(f"Matched negatives: {len(neg)}  (from {len(basket)} other targets)")
     print(neg["source_target"].value_counts().to_string())
-    print(f"Cached -> {CACHE_DIR / 'negatives.parquet'}")
+    print(f"Cached -> {panel.data_cache / 'negatives.parquet'}")
 
 
 if __name__ == "__main__":

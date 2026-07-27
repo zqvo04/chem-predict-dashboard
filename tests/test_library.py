@@ -96,8 +96,10 @@ def test_gap_distribution_cache_is_provenance_guarded(tmp_path, monkeypatch):
     import numpy as np
     from src import funnel
 
-    monkeypatch.setattr(funnel, "GAP_DIST_CACHE", tmp_path / "gap.npz")
-    monkeypatch.setattr(funnel, "GAP_DIST_BUNDLED", tmp_path / "none.npz")
+    # Paths are panel-derived since STEP 15: point the panel at tmp_path so the
+    # cache lands there and no committed bundle is in reach.
+    monkeypatch.setattr(funnel, "_gap_dist_paths",
+                        lambda panel: (tmp_path / "gap.npz", tmp_path / "none.npz"))
     monkeypatch.setattr(funnel, "_gap_distribution_provenance",
                         lambda *a, **k: "PROV-A")
     calls = []

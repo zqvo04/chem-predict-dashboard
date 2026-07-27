@@ -11,7 +11,7 @@ import pytest
 from rdkit import Chem
 
 from src import deep_dive, funnel
-from src.data import jak
+from src.data import panel_data
 from src.models import isoform_regressor as ir
 
 # ~25 scaffolds x 3 substituent variants -> enough for the nested scaffold splits.
@@ -26,7 +26,7 @@ _SCAFFOLDS = [
 _SUBS = ["", "C", "CC"]
 
 
-def _synthetic(name, use_cache=True):
+def _synthetic(panel, name, use_cache=True):
     rng = np.random.default_rng(abs(hash(name)) % 1000)
     smis, pch = [], []
     for i, sc in enumerate(_SCAFFOLDS):
@@ -42,12 +42,9 @@ def _synthetic(name, use_cache=True):
 
 @pytest.fixture
 def tiny_world(tmp_path, monkeypatch):
-    monkeypatch.setattr(ir, "MODEL_DIR", tmp_path / "models")
-    monkeypatch.setattr(ir.jak, "build_isoform_dataset", _synthetic)
-    monkeypatch.setattr(jak, "build_isoform_dataset", _synthetic)
-    # patch the copy imported into conformal's namespace too
-    import src.conformal as cf
-    monkeypatch.setattr(cf.jak, "build_isoform_dataset", _synthetic)
+    # One patch now covers every consumer: since STEP 15 the regressor, conformal
+    # and AD layers all reach the data through this single module object.
+    monkeypatch.setattr(panel_data, "build_isoform_dataset", _synthetic)
     lib = pd.DataFrame({"smi": ["c1ccccc1C(=O)O", "c1ccc(O)cc1", "c1ccncc1C(=O)N",
                                 "c1ccc2ccccc2c1", "Cc1ccc(cc1)C(=O)O"]})
     monkeypatch.setattr("src.funnel.load_library", lambda use_cache=True: lib)
@@ -59,7 +56,7 @@ def tiny_world(tmp_path, monkeypatch):
         threshold = 0.5
         def predict_proba(self, smiles):
             return np.ones(len(list(smiles)))
-    monkeypatch.setattr(funnel, "_gate", lambda use_cache=True: _AllPass())
+    monkeypatch.setattr(funnel, "_gate", lambda panel=None, use_cache=True: _AllPass())
     return tmp_path
 
 

@@ -235,31 +235,80 @@ def mol_grid(df: pd.DataFrame, value_col: str, value_label: str,
 # Cached compute
 # --------------------------------------------------------------------------- #
 @st.cache_data(show_spinner=False)
-def run_funnel():
-    """Screen the wide library down the JAK-selectivity funnel (cached).
+def run_funnel(panel_name: str):
+    """Screen the wide library down one panel's selectivity funnel (cached).
 
     The status container is created *inside* the cached function on purpose: a
     cached function may only drive Streamlit elements it owns, so that its
     replayed output has somewhere to land on a cache hit.
-    """
-    from src.funnel import screen_library
 
+    Each completed screen is recorded as a round in the campaign registry, which is
+    what makes a rerun a *second round* rather than an indistinguishable repeat —
+    the state Phase 3's active learning will read.
+    """
+    from src import registry
+    from src.funnel import current_model_ids, screen_library
+    from src.panels import get_panel
+
+    panel = get_panel(panel_name)
     status = st.status("Screening the wide library…", expanded=True)
     try:
-        shortlist = screen_library(on_step=status.write)
+        shortlist = screen_library(panel, on_step=status.write)
     except Exception:
         status.update(label="Screening failed", state="error")
         raise
     status.update(label="Screen complete", state="complete", expanded=False)
+
+    try:
+        registry.append_round(
+            campaign_id(panel_name), kind="screen",
+            model_ids=current_model_ids(panel), n_molecules=len(shortlist),
+            metrics={"in_domain": int(shortlist["in_domain"].sum()) if not shortlist.empty else 0,
+                     "best_gap": float(shortlist["gap"].max()) if not shortlist.empty else None},
+            scores=shortlist)
+    except OSError:
+        # A read-only deployment must still be able to screen; losing the audit
+        # trail is worse than nothing but far better than losing the result.
+        pass
     return shortlist
 
 
-@st.cache_data(show_spinner=False)
-def run_screen(target: str, expand: bool, max_records: int):
-    from src.pipeline import screen
+def campaign_id(panel_name: str) -> str:
+    return f"{panel_name}-default"
 
-    tgt, model, scored = screen(target, expand=expand, max_records=max_records, use_cache=True)
-    return tgt, model.metrics, scored
+
+@st.cache_resource(show_spinner=False)
+def get_campaign(panel_name: str):
+    """The campaign for a panel — built and persisted on first use.
+
+    `cache_resource` rather than `cache_data`: a Campaign is a live object with a
+    PanelSpec behind it, not a picklable frame.
+    """
+    from src import campaign as camp
+    from src.panels import get_panel
+
+    built = camp.build(get_panel(panel_name), campaign_id=campaign_id(panel_name))
+    try:
+        camp.save(built)
+    except OSError:
+        pass
+    return built
+
+
+_TIER_CHIP = {"validated": ("is-in", "validated"),
+              "bootstrap": ("is-lead", "bootstrap"),
+              "insufficient_data": ("is-out", "insufficient data")}
+
+
+def tier_badge(campaign) -> None:
+    """Show a campaign's validation tier and, always, why it has that tier.
+
+    A badge with no reason beside it is just a different flavour of the unearned
+    confidence the funnel replaced, so the sentence is not optional.
+    """
+    css, label = _TIER_CHIP.get(campaign.validation.tier, ("is-out", campaign.validation.tier))
+    st.html(f"<div class='cp-tier'><span class='cp-chip {css}'>{label}</span>"
+            f"<span class='cp-tier-why'>{campaign.validation.reason}</span></div>")
 
 
 @st.cache_data(show_spinner=False)
@@ -302,20 +351,19 @@ def resolve_input(text: str) -> tuple[str, str]:
 
 def funnel_cache_state() -> tuple[bool, str]:
     """(models + library available without training?, honest one-line cost estimate)."""
-    from src import applicability as ad
-    from src.conformal import BUNDLED_QUANTILES
+    from src.conformal import bundled_quantiles
     from src.data import library
-    from src.models import isoform_regressor as ir
-    from src.selectivity import OFFS, TARGET
+    from src.panels import DEFAULT_PANEL as PANEL
 
+    isoforms = PANEL.isoforms
     models = all(any((d / f"{iso}_reg.pkl").exists()
-                     for d in (ir.MODEL_DIR, ir.BUNDLED_MODEL_DIR))
-                 for iso in (TARGET, *OFFS))
+                     for d in (PANEL.model_cache, PANEL.model_bundled))
+                 for iso in isoforms)
     domain = all(any((d / f"{iso}.npz").exists()
-                     for d in (ad.AD_CACHE_DIR, ad.BUNDLED_AD_DIR))
-                 for iso in (TARGET, *OFFS))
+                     for d in (PANEL.ad_cache, PANEL.ad_bundled))
+                 for iso in isoforms)
     ready = models and any(p.exists() for p in (library.CACHE, library.BUNDLED))
-    if ready and domain and BUNDLED_QUANTILES.exists():
+    if ready and domain and bundled_quantiles(PANEL).exists():
         return True, ("Models, library, conformal calibration and the applicability "
                       "reference all ship with the repo. This run screens the library "
                       "end to end — a few seconds.")
@@ -330,9 +378,14 @@ def funnel_cache_state() -> tuple[bool, str]:
 # --------------------------------------------------------------------------- #
 # Modes
 # --------------------------------------------------------------------------- #
-def render_funnel() -> None:
+def render_funnel(panel_name: str = "jak") -> None:
     from src.funnel import screen_to_contract
-    from src.selectivity import OFFS, POTENCY_FLOOR, TARGET
+    from src.panels import get_panel
+    from src.selectivity import POTENCY_FLOOR
+
+    panel = get_panel(panel_name)
+    TARGET, OFFS = panel.target, panel.offs
+    campaign = get_campaign(panel_name)
 
     section_head(
         f"{TARGET} selectivity funnel",
@@ -341,20 +394,22 @@ def render_funnel() -> None:
         f"then conformal intervals and applicability domain on the survivors only — "
         f"to a shortlist that is both selective and in-domain."
     )
+    tier_badge(campaign)
 
+    started_key = f"funnel_started_{panel_name}"
     _, cost_line = funnel_cache_state()
-    if not st.session_state.get("funnel_started"):
+    if not st.session_state.get(started_key):
         note(f"<strong>Before you start.</strong> {cost_line}")
-        if st.button("Run the funnel", type="primary", key="start_funnel"):
-            st.session_state["funnel_started"] = True
+        if st.button("Run the funnel", type="primary", key=f"start_funnel_{panel_name}"):
+            st.session_state[started_key] = True
             st.rerun()
         return
 
     try:
-        sl = run_funnel()
+        sl = run_funnel(panel_name)
     except Exception as err:                      # surface, don't swallow
         st.error(f"{type(err).__name__}: {err}")
-        st.session_state["funnel_started"] = False
+        st.session_state[started_key] = False
         return
 
     if sl.empty:
@@ -398,7 +453,7 @@ def render_funnel() -> None:
     )
     event = st.dataframe(
         styled, width="stretch", hide_index=True, on_select="rerun",
-        selection_mode="multi-row", key="funnel_table",
+        selection_mode="multi-row", key=f"funnel_table_{panel_name}",
         column_config={
             "SMILES": st.column_config.TextColumn("SMILES", width="large"),
             f"pred {TARGET}": st.column_config.NumberColumn(
@@ -407,11 +462,12 @@ def render_funnel() -> None:
                 "gap S", format="%+.2f",
                 help="Selectivity gap in log-units; +1 ≈ 10× selective"),
             "gap 90% CI": st.column_config.TextColumn(
-                "gap 90% CI", help="Split-conformal interval, propagated from both isoforms"),
+                "gap 90% CI", help="Split-conformal interval, calibrated on the "
+                                   "measured gap and widened by distance from training"),
             "binder": st.column_config.NumberColumn(
                 "binder", format="%.2f",
-                help="Tier-0.5 binder-gate probability P(JAK binder). Every shortlisted "
-                     "molecule cleared the gate; the value is its margin above the cutoff."),
+                help=f"Tier-0.5 binder-gate probability P({TARGET} binder). Every shortlisted "
+                     f"molecule cleared the gate; the value is its margin above the cutoff."),
             "domain": st.column_config.TextColumn(
                 "domain", help="Tanimoto-distance and descriptor-leverage signals combined"),
             "MPO": st.column_config.NumberColumn(
@@ -435,7 +491,8 @@ def render_funnel() -> None:
         img = mol_grid(chosen, "gap", "gap S", smiles_col="smi", id_col="", signed=True)
         if img is not None:
             st.image(img, width="stretch")
-        colab_handoff(screen_to_contract(chosen),
+        colab_handoff(screen_to_contract(chosen, panel,
+                                        campaign_id=campaign.campaign_id),
                       f"Export contract — {len(picked)} molecule"
                       f"{'s' if len(picked) != 1 else ''}")
 
@@ -580,82 +637,94 @@ def render_single(query: str) -> None:
     section_head("Hand this molecule to the deep dive",
                  "The contract pins the models, the conformal level and the code version; "
                  "the Colab link opens the notebook at that same commit.")
-    colab_handoff(screen_to_contract(pd.DataFrame([row])), "Export contract — 1 molecule")
+    # The single-molecule view scores through the default (validated JAK) campaign,
+    # so its export is tagged with that campaign rather than left unattributed.
+    colab_handoff(screen_to_contract(pd.DataFrame([row]),
+                                     campaign_id=get_campaign("jak").campaign_id),
+                  "Export contract — 1 molecule")
 
 
-def render_target_screen(target: str, top_n: int, expand: bool, max_records: int) -> None:
+def render_campaign(panel_name: str) -> None:
+    """Mode 1: campaigns — pick a panel, see what backs it, then screen it.
+
+    This replaces the v1 single-target screen, which ranked molecules by a composite
+    score validated against nothing and carried none of the trust layer the funnel
+    was built to add (standardisation, the binder gate, applicability domain,
+    conformal intervals). Re-framing it as "start a campaign on a panel" keeps the
+    thing it was actually for — pointing the tool at chemistry other than JAK — while
+    routing it through the validated cascade instead of around it.
+
+    The v1 pipeline itself (`src/pipeline.py`) is untouched and still runs from its
+    CLI; it is no longer wired into the dashboard.
+    """
+    from src import registry
+    from src.panels import disjointness_report
+
+    campaign = get_campaign(panel_name)
+    panel = campaign.panel
+
     section_head(
-        "Target screen",
-        "The v1 single-target pipeline — ChEMBL retrieval, drug-likeness filter, "
-        "per-target QSAR, composite ranking — with the known actives kept alongside "
-        "as a positive control."
+        "Campaigns",
+        "A campaign is a panel, a library and the models screening it, carrying the "
+        "evidence that says how far to trust its output. The JAK campaign is the "
+        "validated one; anything else is a bootstrap until its gates have been re-run."
     )
-    if not target:
-        st.info("Enter a target name or ChEMBL id in the sidebar to run a screen.")
-        return
-
-    try:
-        with st.spinner(f"Screening {target}…"):
-            tgt, metrics, scored = run_screen(target.strip(), expand, max_records)
-    except (ValueError, RuntimeError) as err:
-        st.error(str(err))
-        return
-
-    known = scored[scored["source"] == "chembl_known"]
-    novel = scored[scored["source"] == "pubchem_novel"]
+    tier_badge(campaign)
 
     stat_row([
-        ("Model R²", f"{metrics.r2:.3f}", "scaffold split — novel chemotypes"),
-        ("RMSE", f"{metrics.rmse:.2f}", "pChEMBL units"),
-        ("Known actives", f"{len(known)}", "drug-like, from ChEMBL"),
-        ("Novel candidates", f"{len(novel)}", "PubChem analogues, not in training"),
+        ("Panel", panel.label or panel.name, f"{panel.target} vs {', '.join(panel.offs)}"),
+        ("Cross-measured", f"{campaign.validation.n_cross_measured}",
+         "molecules with a measured gap — what calibration is built from"),
+        ("Library", campaign.library, "target-agnostic ChEMBL panel, shared by campaigns"),
+        ("Conformal", f"{1 - campaign.conformal_alpha:.0%}", "nominal interval coverage"),
     ], accent_first=True)
 
-    from src.models.property_models import load_property_models
+    report = disjointness_report(panel)
+    clashes = report["gate_negative_conflicts"] + report["library_conflicts"]
+    if clashes:
+        st.warning(
+            f"**Leakage risk.** {', '.join(clashes)} appears both in this panel and in "
+            "the binder gate's negative basket or the screening library, so the gate "
+            "would be scoring molecules it was trained on. Results are not trustworthy "
+            "until the panel or those sets are changed.")
+    else:
+        note("<strong>Leakage check passed.</strong> No panel member appears in the "
+             "binder gate's negative basket or in the wide library's target list, so "
+             "the gate's verdict on a library molecule is a prediction, not recall.")
 
-    prop = load_property_models()
-    scoring = (
-        f"<strong>{tgt.chembl_id} — {tgt.pref_name}.</strong> Activity model: "
-        f"scaffold-split R² {metrics.r2:.3f}, RMSE {metrics.rmse:.2f} pChEMBL, "
-        f"n = {metrics.n_molecules}."
-    )
-    if prop:
-        scoring += (f" Solubility (ESOL) R² {prop.metrics['solubility']['r2']:.3f}; "
-                    f"toxicity (Tox21 any-hit) ROC-AUC {prop.metrics['toxicity']['roc_auc']:.3f}.")
-    scoring += (" Composite <code>= 0.5·activity + 0.2·QED + 0.15·solubility "
-                "+ 0.15·(1 − tox risk)</code>.")
-    note(scoring)
+    if not campaign.validation.supports_selectivity_claim:
+        st.error(
+            "This campaign cannot make a selectivity claim: there is not enough "
+            "cross-measured data to calibrate a gap interval. Screening it would "
+            "produce a ranking with no honest uncertainty attached, which is exactly "
+            "the failure mode the funnel exists to prevent.")
+        return
 
-    display_cols = {
-        "id": "ID", "pred_pchembl": "Predicted pChEMBL", "measured_pchembl": "Measured pChEMBL",
-        "qed": "QED", "logS_pred": "logS (sol.)", "tox_prob": "Tox risk", "composite": "Score",
-    }
+    rounds = registry.rounds(campaign.campaign_id)
+    if rounds:
+        st.caption(f"Round history — {len(rounds)} recorded for this campaign.")
+        st.dataframe(
+            pd.DataFrame([{"round": r.index, "kind": r.kind, "when": r.created[:19],
+                           "molecules": r.n_molecules, "code": r.code_version}
+                          for r in reversed(rounds)]),
+            width="stretch", hide_index=True)
+    else:
+        st.caption("No rounds recorded yet — running the funnel below logs the first.")
 
-    def track(df: pd.DataFrame, potency_col: str, potency_label: str, caption: str) -> None:
-        if df.empty:
-            st.info("No molecules in this track.")
-            return
-        top = df.head(top_n)
-        st.caption(caption)
-        img = mol_grid(top, potency_col, potency_label)
-        if img is not None:
-            st.image(img, width="stretch")
-        st.dataframe(top[list(display_cols)].rename(columns=display_cols).round(3),
-                     width="stretch", hide_index=True)
+    if not campaign.model_ids:
+        st.info(
+            f"**Models are not built on this machine for {panel.name}.** Its ChEMBL "
+            f"datasets ship with the repo, so the evidence above is real, but the "
+            f"{len(panel.isoforms)} regressors, the applicability reference and this "
+            "panel's own binder gate are trained on first run — several minutes, "
+            "then cached. Only the validated JAK panel ships pre-trained.")
 
-    tab_novel, tab_known = st.tabs(["Novel candidates", "Known actives (control)"])
-    with tab_novel:
-        track(novel, "pred_pchembl", "pred pChEMBL",
-              "Molecules outside the model's training set, ranked by predicted potency "
-              "× drug-likeness. This is the screening output.")
-    with tab_known:
-        track(known, "measured_pchembl", "measured pChEMBL",
-              "Known ChEMBL actives scored on their measured potency — a positive "
-              "control that the pipeline surfaces real binders.")
+    provenance([("campaign", campaign.campaign_id), ("panel", panel.name),
+                ("code version", campaign.code_version),
+                ("models", ", ".join(sorted(campaign.model_ids.values())) or "not built here")])
 
-    provenance([("target", tgt.chembl_id), ("records", f"≤ {max_records}"),
-                ("training molecules", f"{metrics.n_molecules}"),
-                ("expansion", "PubChem analogues" if expand else "off")])
+    st.divider()
+    render_funnel(panel_name)
 
 
 # --------------------------------------------------------------------------- #
@@ -664,7 +733,7 @@ apply_theme()
 with st.sidebar:
     st.markdown("### Mode")
     # segmented_control returns None when the active chip is clicked again.
-    mode = st.segmented_control("Mode", ["Selectivity funnel", "Single molecule", "Target screen"],
+    mode = st.segmented_control("Mode", ["Selectivity funnel", "Single molecule", "Campaigns"],
                                 default="Selectivity funnel",
                                 label_visibility="collapsed") or "Selectivity funnel"
     st.divider()
@@ -681,16 +750,19 @@ with st.sidebar:
         st.caption("A SMILES string is parsed locally. Anything else is looked up by "
                    "name on PubChem and reduced to its neutral parent, so a salt form "
                    "scores as the drug it is.")
-    elif mode == "Target screen":
-        st.markdown("### Screen a target")
-        with st.form("target_form"):
-            target = st.text_input("Target name or ChEMBL id", value="EGFR")
-            top_n = st.slider("Top N per track", 4, 24, 8)
-            expand = st.checkbox("Expand with novel PubChem analogues", value=True)
-            max_records = st.select_slider("Max ChEMBL records", [1000, 2000, 4000], value=4000)
-            target_go = st.form_submit_button("Run screen", type="primary")
-        st.caption("EGFR ships with a pre-baked model and returns immediately. Other "
-                   "targets train on first run (~30–40 s), then cache.")
+    elif mode == "Campaigns":
+        from src.panels import PANELS
+
+        st.markdown("### Choose a campaign")
+        with st.form("campaign_form"):
+            panel_choice = st.selectbox(
+                "Selectivity panel", sorted(PANELS),
+                format_func=lambda n: PANELS[n].label or n)
+            campaign_go = st.form_submit_button("Open campaign", type="primary")
+        st.caption("A panel is a target plus the off-targets it must be selective "
+                   "against — the gap S is undefined without them. JAK is validated; "
+                   "other panels build their models on first open and stay bootstrap "
+                   "until their gates are re-run.")
     else:
         st.markdown("### Funnel")
         _, cost_line = funnel_cache_state()
@@ -700,7 +772,7 @@ with st.sidebar:
             run_funnel.clear()
             st.rerun()
 
-masthead(["CPU-only", "ChEMBL + PubChem"] if mode == "Target screen"
+masthead(["CPU-only", "campaign registry"] if mode == "Campaigns"
          else ["CPU-only", "JAK1 / JAK2 / JAK3", "conformal 90%"])
 
 if mode == "Selectivity funnel":
@@ -719,14 +791,14 @@ elif mode == "Single molecule":
                     "<strong>Score molecule</strong>. Scoring one structure takes about "
                     "0.3&nbsp;s; the library percentile it is ranked against is precomputed.")
 else:
-    if target_go:
-        st.session_state["target_submitted"] = True
-        st.session_state["target_args"] = (target, top_n, expand, max_records)
-    if st.session_state.get("target_submitted"):
-        render_target_screen(*st.session_state.get(
-            "target_args", (target, top_n, expand, max_records)))
+    if campaign_go:
+        st.session_state["campaign_submitted"] = True
+        st.session_state["campaign_panel"] = panel_choice
+    if st.session_state.get("campaign_submitted"):
+        render_campaign(st.session_state.get("campaign_panel", panel_choice))
     else:
-        idle_prompt("Target screen",
-                    "Pick a target in the sidebar and press <strong>Run screen</strong>. "
-                    "EGFR is pre-baked and returns immediately; any other target does a "
-                    "one-off ChEMBL fetch and train (~30–40&nbsp;s) before it caches.")
+        idle_prompt("Campaigns",
+                    "Pick a selectivity panel in the sidebar and press "
+                    "<strong>Open campaign</strong>. The campaign card shows what backs "
+                    "the panel — cross-measured data, models, leakage check and its "
+                    "validation tier — before anything is screened.")

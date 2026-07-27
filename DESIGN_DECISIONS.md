@@ -186,6 +186,31 @@ between calibration and test data. A scaffold split deliberately breaks that
 (test scaffolds are novel), so coverage on genuinely new chemotypes is expected to
 be the *stress case* — which is exactly why AD (below) runs alongside it.
 
+**Update (2026-07-27) — the gap gets its own calibration, and it is difficulty-scaled.**
+"Propagated from the two isoform intervals" above meant *summed*, which assumes the
+two errors are independent and adverse. They are not: measured on the cross-measured
+set they correlate at **+0.65**, so they largely cancel in a difference. The summed
+interval therefore ran at 99.7 % coverage for a 90 % nominal level and crossed zero
+for **every** shortlisted molecule — an uncertainty statement so conservative it
+deleted the funnel's only output. `S` is now calibrated by split conformal against
+the *measured* gap directly.
+
+That fix alone is not enough, and the reason is the decision worth recording.
+A single directly-calibrated width lands marginal coverage at 0.897 — apparently
+finished — while covering only **0.460** of the molecules furthest from training and
+0.921 of the closest. Marginal coverage averaged the two into a right-looking number.
+Since a wide, target-agnostic screen lives almost entirely in the low-similarity
+band, the honest interval has to be a *function of the molecule*, so the width is
+scaled by a fitted curve σ(nn-similarity). **The general principle: an interval is
+validated per-difficulty or not at all** — the same reason AD exists rather than a
+single global error bar. Measured alternatives: Mondrian per-bucket quantiles reached
+0.738 worst-bucket coverage, the difficulty-scaled form 0.889.
+
+**Rejected alternative.** *Keep summing but shrink by the measured correlation.* It
+would fix the width and not the shape, landing exactly on the flat arm above — and it
+would bake a JAK-specific correlation into a formula meant to generalise to other
+panels, where the correlation is unknown until measured.
+
 ---
 
 ## 5. Applicability domain: two definitions, propagated
@@ -345,3 +370,61 @@ fatal — the screen would return mostly "uncertain". It is not fatal; it is the
 So AD-vs-wide is not a bug to hide but the exact mechanism that makes a broad cheap
 screen honest. The size is demo-scale on the zero-cost budget; the design scales to
 larger libraries bounded only by Tier-1 throughput.
+
+---
+
+## 12. Campaign, panel and registry: making the funnel a workflow
+
+**Decision.** The funnel is parameterised by a **`PanelSpec`** (target +
+off-targets + ChEMBL ids + asset namespace), wrapped in a **`Campaign`** (panel +
+library + models + a validation tier), whose history is persisted by a **run
+registry**. See [VALIDATION.md STEP 15](VALIDATION.md).
+
+**Why a panel and not a target.** `S = pred(target) − max_off pred(off)` does not
+exist without off-targets. "Generalise to any target" would have meant either
+inventing an off-target set or dropping the gap, and dropping the gap is v1's
+potency-only ranking, which this project exists to have replaced. An arbitrary
+single-target screen is a legitimate thing to want — it is Mode 1's job, not the
+funnel's — so `PanelSpec` refuses construction without off-targets rather than
+quietly returning zero.
+
+**Why the campaign is separate from the loop contract.** The contract was already
+a partial campaign: it pins model ids, the conformal level and the code version.
+But it is a *snapshot of one case*, carrying molecules, and it crosses machines by
+hand. A campaign spans rounds and outlives every export. Merging them would have
+put a molecule list inside a campaign definition and invalidated every contract
+already in the wild; instead the contract gains `campaign_id` at schema 1.1 and the
+major-version compatibility rule keeps 1.0 contracts valid.
+
+**Why per-panel namespacing rather than per-panel prefixes inside shared files.**
+Every artifact — datasets, regressors, AD references, conformal table, gap
+distribution, binder gate — is a function of one panel's training data. Sharing a
+file and keying by prefix invites exactly the class of bug STEP 12 and STEP 13 were:
+something silently reading the wrong panel's artifact and reporting recall as
+prediction. Separate directories make that failure impossible rather than unlikely.
+The wide library is deliberately outside the namespace: it is target-agnostic and
+shared, which is the property that makes it a fair haystack.
+
+**Why validation tiers, and why the tier is derived.** This is the decision with the
+most at stake. v1 was replaced for ranking molecules by an unvalidated composite
+score; a UI where anyone can spin up a panel re-creates that failure with better
+typography, because a bootstrap campaign renders the same tables as the validated
+one. So the tier is computed from measured facts — is this panel written up in
+VALIDATION.md, and does it have enough cross-measured data to calibrate a gap
+interval — and never set by whoever created the campaign. Below the calibration
+floor the campaign is refused a selectivity claim outright rather than shown with a
+caveat: a gap with no honest interval is the pre-STEP-14 mistake, a number that
+reads as a finding and is not one.
+
+**Rejected alternatives.**
+- *SQLite for the registry.* The needed operations are "append a round" and "read
+  them in order". JSONL does both with no dependency, stays greppable and diffable,
+  and degrades to one lost round on a torn write. Schema migrations for a table this
+  young would be cost with no benefit. Revisit if cross-round queries get real.
+- *Let data volume promote a panel to `validated`.* Tempting and wrong: volume is
+  not evidence about whether the gap ranking works. Only re-running the gates is,
+  and that is a hand-maintained list for exactly that reason.
+- *Keep Mode 1 as the v1 composite-score screen.* It was the only entry point for
+  non-JAK chemistry, which is worth keeping — but through the validated cascade,
+  not around it. The v1 pipeline itself is left intact behind its CLI.
+

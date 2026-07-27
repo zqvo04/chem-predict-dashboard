@@ -173,9 +173,19 @@ Runs **only on Tier-1 survivors**, so its higher per-molecule cost is bounded.
 
 ### B3. Conformal prediction intervals  `[new: src/conformal.py]`
 Split/inductive conformal regression → a prediction interval per molecule per
-isoform at **90 %** nominal coverage; the gap `S` interval is propagated from the
-two isoform intervals.
+isoform at **90 %** nominal coverage.
 **[gate: Gate 5]** empirical coverage 88–92 % on the scaffold-split test set.
+
+The gap `S` gets its **own** calibration rather than a propagated one (STEP 14).
+Summing the two isoform half-widths assumes their errors are independent and
+adverse; measured, they correlate at **+0.65**, so the sum over-paid (99.7 %
+coverage at a 90 % nominal level) and crossed zero for the whole shortlist. `S` is
+now calibrated directly against the *measured* gap on the cross-measured set and
+scaled by a difficulty curve σ(nn-similarity), because a single constant width —
+correct on average — covers only **46 %** of the low-similarity molecules a wide
+screen is mostly made of.
+**[gate: Gate 14]** marginal coverage on nominal *and* every similarity bucket
+holding; a marginal-only check passes the flat width that fails the hard molecules.
 
 ### B4. Applicability domain  `[new: src/applicability.py]`
 Two orthogonal flags: **Tanimoto distance** to nearest training molecule +
@@ -325,7 +335,10 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/data/chembl_client.py` | reuse | resolve target, fetch activities |
 | `src/data/cache.py` | reuse | parquet cache |
 | `src/data/pubchem_client.py` | reuse + extend | similarity expansion, and `resolve_name` (name → structure) |
-| `src/data/jak.py` | **new** | per-isoform regression datasets + cross-measured join (STEP 2) |
+| `src/data/panel_data.py` | **new** | per-isoform regression datasets + cross-measured join, per panel (STEP 2, generalised STEP 15) |
+| `src/panels.py` | **new** | `PanelSpec` — target + off-targets + ChEMBL ids + asset namespace; the leakage check (STEP 15) |
+| `src/campaign.py` | **new** | `Campaign` + the validation tier that grades it (STEP 15) |
+| `src/registry.py` | **new** | append-only round history under `data/registry/` (STEP 15) |
 | `src/data/negatives.py` | **new** | physchem-matched presumed-inactives for the binder gate (STEP 10) |
 | `src/data/library.py` | **new** | load/cache the wide screening library |
 | `src/models/features.py` | reuse | ECFP4 featurization (shared) |

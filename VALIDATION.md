@@ -681,3 +681,221 @@ cp data/library/library.parquet assets/library/
 python -m src.funnel            # screen it
 python scripts/run_loop.py      # regenerate the worked case
 ```
+
+---
+
+## STEP 14 — the gap interval was calibrated on the wrong thing (2026-07-27)
+
+**The defect.** The funnel's selectivity gap `S` came with a 90 % interval whose
+half-width was the **sum of the two contributing isoform half-widths**
+(`conformal.gap_interval`). Summing is the correct worst case only if the two
+isoform errors are independent and adverse. Measured on the cross-measured set they
+are neither: the JAK1 and JAK2 residuals correlate at **+0.65**, so they largely
+cancel in a difference and the sum over-pays for an error that does not occur.
+
+The cost is not academic. At a 90 % nominal level the summed interval delivered
+**99.7 % empirical coverage** at a mean width of **4.86** pchembl units, and on the
+deployed shortlist it **crossed zero for 60 of 60 molecules** — meaning the funnel
+could not call a single molecule selective, which is the one thing it exists to do.
+
+**Three arms, because the obvious fix is a trap.** The fix is to calibrate on the
+gap residual directly, over the cross-measured set (the only place a *measured* gap
+exists). But a single directly-calibrated width passes the headline check while
+failing the molecules the screen is actually made of, so it is measured as its own
+arm rather than skipped:
+
+| arm | what it is | marginal coverage | mean width | crosses zero |
+|---|---|---:|---:|---:|
+| **summed** (shipped before) | q(target) + max q(off) | 0.997 ± 0.003 | 4.86 | 99.6 % |
+| **flat** (the trap) | split-conformal on the gap residual, one width for all | 0.897 ± 0.015 | 1.97 | 74.6 % |
+| **scaled** (shipped now) | that width × a difficulty curve σ(nn-similarity) | 0.896 ± 0.020 | 2.17 | 69.9 % |
+
+Marginal coverage alone would call the flat arm finished — 0.897 against a 0.90
+nominal is as close as this gets. Split by how far a molecule sits from training, it
+is not:
+
+| nn-similarity to training | summed | flat | scaled |
+|---|---:|---:|---:|
+| **[0.00, 0.35)** | 0.921 | **0.460** | **0.921** |
+| **[0.35, 0.45)** | 0.976 | 0.546 | 1.000 |
+| [0.45, 0.60) | 0.998 | 0.837 | 0.938 |
+| [0.60, 1.00] | 0.998 | 0.921 | 0.889 |
+
+**A constant width is mis-sized per molecule, and it is mis-sized in the direction
+that matters.** The flat arm's advertised "90 % CI" is a 46 % CI on the
+lowest-similarity band — and a wide, target-agnostic screen operates almost entirely
+in that band (**88.5 %** of gate survivors and **52 of 60** shortlisted molecules sit
+in the bottom two rows). Scaling the width by a fitted difficulty curve lifts the
+worst bucket from **0.460 to 0.889** while keeping marginal coverage on nominal.
+
+> **Correcting the record.** The commit that introduced this change
+> (`5c37da0`) presented the `0.460` bucket table as a property of the **summed**
+> interval. It is not: the summed interval over-covers *everywhere* (worst bucket
+> 0.921) — its failure is being uniformly too wide, not too narrow on hard
+> molecules. `0.460` belongs to the **flat** arm. The three-arm comparison above is
+> the measurement that separates them, and this table supersedes the one in that
+> commit message.
+
+**What shipped.** `calibrate_gap` splits the cross-measured set scaffold-wise, and
+splits the calibration half again — one part fits the difficulty curve
+σ(nn-similarity), the other supplies the conformal quantile — so the curve is never
+fitted and scored on the same molecules. The half-width for a molecule is
+`q · σ(nn_sim)` with **q = 3.003** and σ running **0.15 → 0.467**. σ is stored as 21
+interpolation knots in `assets/jak/conformal_quantiles.json` rather than a pickled
+model: it is a 1-D curve, and knots are inspectable, tiny and version-proof.
+`nn_sim` is the **minimum across the contributing isoforms** — the gap is only as
+trustworthy as the most-extrapolating model behind it, the same worst-case rule the
+AD verdict already uses.
+
+**Effect on the deployed screen** (60-molecule shortlist, 33 in-domain — unchanged):
+
+| | summed (before) | scaled (after) |
+|---|---:|---:|
+| gap interval width | flat **4.53** | **1.78 – 2.80** (adaptive) |
+| shortlist crossing zero | **60 / 60 (100 %)** | **32 / 60 (53 %)** |
+| molecules with a directional 90 % claim | **0** | **28** |
+
+In the single-molecule view the width now tracks how much the model actually knows
+about the molecule: tofacitinib (nn 1.00) gets **1.23**, ruxolitinib (0.66) **1.78**,
+ethanol (0.11) **2.80**.
+
+**Gate 14 passed:** the gap interval is calibrated against the measured gap rather
+than assembled from two unrelated ones, marginal coverage sits on nominal
+(0.896 vs 0.90), the worst-similarity bucket holds at 0.889 instead of 0.460, and
+the funnel can state a directional selectivity result for 28 molecules where before
+it could state none. Per-isoform coverage is untouched — JAK1 **0.904 ± 0.010**,
+JAK2 **0.905 ± 0.007**, JAK3 **0.888 ± 0.023**, all inside the 88–92 % gate.
+
+**Honest limits.** The two low-similarity buckets clear the 15-molecule reporting
+floor in only **2 of 5 seeds**, so those two rows rest on fewer samples than the two
+above them. `gap_interval()` is kept in the codebase but marked superseded, because
+it documents what the funnel used to do. And the calibration inherits STEP 4's
+caveat unchanged: it is fitted on pooled assay types, so it carries the same
+ATP-competition confound the headline Spearman does.
+
+### Reproduce
+
+```bash
+python -m src.conformal          # per-isoform coverage + the 3-arm gap table
+```
+
+---
+
+## STEP 15 — the funnel was a case study, not a workflow (2026-07-27)
+
+**The defect is structural, not numerical.** Every number STEP 2–14 reports is
+correct and every one of them is about JAK, because the target was not a parameter.
+`selectivity.TARGET`/`OFFS` were module constants, the datasets lived at
+`assets/jak/`, the models at `assets/models/jak/`, and the AD references were keyed
+on bare isoform names. Nothing could be pointed at other chemistry, the three modes
+shared no state, and — the reason this blocks everything downstream — there was no
+record of what had been screened, when, through which models. Active learning is by
+definition a loop where round *N* changes round *N+1*; that cannot exist over pure
+function calls.
+
+**The unit of generalisation is a panel, not a target.** `S = pred(target) −
+max_off pred(off)` is undefined without off-targets, so `PanelSpec`
+(`src/panels.py`) carries a target, its off-targets, their ChEMBL ids and the asset
+namespace derived from its name. A single-target screen is Mode 1's job and the
+spec now refuses to be constructed without off-targets rather than silently
+returning a meaningless zero.
+
+### The JAK screen did not move
+
+The constraint on this refactor was that the validated panel keep producing
+*exactly* what it produced before. Model ids are behavioural digests (STEP 12), so
+they are the sharpest available check — if any JAK model had shifted, every contract
+ever exported would stop validating:
+
+| check | before | after |
+|---|---|---|
+| JAK model ids | `61edd879da` / `5649ee4718` / `0772985d8c` | **identical** |
+| shortlist | 60 (33 in-domain) | **60 (33 in-domain)** |
+| per-isoform coverage | 0.904 / 0.905 / 0.888 | **unchanged** |
+
+Committed assets moved but did not change: `assets/conformal_quantiles.json` →
+`assets/jak/`, `assets/library/gap_distribution.npz` → `assets/jak/`,
+`assets/ad_reference/JAK*.npz` → `assets/ad_reference/jak/`. Byte-identical, keys
+included — the gap-distribution provenance guard still matches, so nothing rebuilt.
+A test pins the model ids against the values in `examples/*.json`.
+
+### A second panel, built end to end through the same code
+
+Nominal generalisation is easy to claim and cheap to fake, so a second panel was
+actually built: **PI3K δ vs α/β/γ** — a real selectivity problem (idelalisib is the
+δ-selective drug). It was chosen because it is **disjoint from the binder gate's
+negative basket and from the wide library's 20 targets**, so it inherits the STEP 10
+and STEP 13 leakage discipline instead of renegotiating it. That is checked by
+`disjointness_report`, not assumed.
+
+| | JAK (validated) | PI3K (bootstrap) |
+|---|---|---|
+| members | JAK1 / JAK2 / JAK3 | PIK3CD / PIK3CA / PIK3CB / PIK3CG |
+| molecules per member | 6.3k – 11k | 2 777 – 7 723 |
+| **cross-measured (all members)** | **3 624** | **1 500** |
+| regressor R² (5-seed scaffold) | 0.71 – 0.77 | **0.582 – 0.710** |
+| regressor Spearman | 0.82 – 0.88 | **0.736 – 0.834** |
+| binder gate ROC-AUC | 0.998 | **0.999 ± 0.001** |
+| gate threshold (Youden's J) | 0.544 | **0.481** (keeps 98.7 % of actives, rejects 99.0 % of negatives) |
+| gate conflicts with library/negatives | none | **none** |
+
+No code path is special-cased for either panel. PI3K's regressors are weaker than
+JAK's, which is the expected consequence of less data on PIK3CB/PIK3CG rather than a
+bug — and it is exactly why it is not labelled validated.
+
+**Cost:** 230 s to fetch the four datasets, 469 s to train the regressors, 565 s to
+build the negatives and the gate. Its datasets are bundled (492 kB) so the campaign
+card is honest offline; its **models are deliberately not bundled** (5.8 MB), since
+shipping pre-trained artifacts for an unvalidated panel would put it on the same
+footing as the validated one.
+
+### Validation tiers — the guard against re-opening v1's hole
+
+v1 was replaced because it ranked molecules by a composite score validated against
+nothing. Letting anyone create a campaign re-opens precisely that hole: a bootstrap
+campaign renders the same tables as the JAK one. So every campaign carries a tier,
+**derived from what has been measured rather than asserted**:
+
+| tier | when | what it permits |
+|---|---|---|
+| `validated` | the panel's gates are re-run and written up here | the full claim |
+| `bootstrap` | models + AD + conformal built, gates not re-run | ranking shown as a hypothesis, badged |
+| `insufficient_data` | < 200 cross-measured molecules | **no selectivity claim at all** |
+
+The 200 floor is arithmetic, not taste: `calibrate_gap` puts roughly 10 % of the
+cross-measured set into the conformal quantile, and the finite-sample level
+`ceil((n+1)(1−α))/n` only drops below 1.0 — becoming a real quantile rather than the
+largest residual seen — at n ≥ 19. A test pins that **data volume alone never
+promotes a panel**: PI3K with a hypothetical 5 000 cross-measured molecules is still
+`bootstrap`.
+
+### Registry
+
+`data/registry/<campaign>/` holds the campaign definition, an append-only
+`rounds.jsonl`, and one parquet per round's scored table. Append-only JSONL rather
+than a database because the operations needed are "add a round" and "read them in
+order": no dependency, greppable, and a torn final line costs one round instead of
+the file (pinned by a test). The loop contract gains `campaign_id` at **schema 1.1**
+— a minor bump, since the validator keys compatibility on the major version, so
+contracts exported at 1.0 still validate.
+
+**Gate 15 passed:** the JAK panel is bit-identical, a second panel builds end to end
+through the same code with no special-casing and a clean leakage report, tiers
+prevent an unvalidated campaign from presenting as a validated one, and rounds
+persist across processes. **151 tests green** (132 before).
+
+**What this does not do.** PI3K is *not* validated — its gap-vs-measured-gap Spearman,
+conformal coverage and AD separation have not been measured, so its ranking is a
+hypothesis. The registry records rounds but nothing yet *reads* round N to choose
+round N+1; that is the acquisition function, and it is Phase 3. The v1 pipeline
+(`src/pipeline.py`) is unchanged and still runs from its CLI — it is simply no
+longer wired into the dashboard.
+
+### Reproduce
+
+```bash
+python -m src.panels                       # registered panels + leakage report
+python -m src.data.panel_data pi3k         # build the second panel (needs network)
+python -m src.models.isoform_regressor pi3k
+python -m src.data.negatives pi3k && python -m src.models.binder_gate pi3k
+```

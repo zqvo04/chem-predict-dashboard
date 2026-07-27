@@ -29,19 +29,15 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import Descriptors, Lipinski
 from rdkit.Chem import rdFingerprintGenerator
 
-from .data import jak
+from .data import panel_data
+from .panels import DEFAULT_PANEL, PanelSpec, get_panel
 from .models.features import morgan_matrix
 from .models.scaffold_split import scaffold_split
 from .conformal import _fit
 
-TARGET_ISOFORMS = ("JAK1", "JAK2", "JAK3")
 SEEDS = (0, 1, 2, 3, 4)
 TANIMOTO_IN_DOMAIN = 0.30       # nearest-neighbour similarity below this = out-of-domain
 _GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
-
-_ROOT = Path(__file__).resolve().parents[1]
-AD_CACHE_DIR = _ROOT / "data" / "ad_reference"          # runtime cache, gitignored
-BUNDLED_AD_DIR = _ROOT / "assets" / "ad_reference"      # committed for deploys
 
 
 def _bitvects(smiles: list[str]) -> list:
@@ -138,21 +134,24 @@ def _load_reference(path: Path) -> ADReference:
 
 
 @lru_cache(maxsize=None)
-def load_reference(isoform: str, use_cache: bool = True) -> ADReference:
-    """The cached AD reference for one isoform's full training set.
+def load_reference(panel: PanelSpec, isoform: str, use_cache: bool = True) -> ADReference:
+    """The cached AD reference for one panel member's full training set.
 
     Runtime cache first, then the committed copy, then build-and-cache — the same
-    order every other artifact in the repo uses.
+    order every other artifact in the repo uses. Keyed by panel as well as isoform:
+    the reference *is* a training set, so two panels sharing an isoform name but
+    not a dataset must not share this cache entry.
     """
     if use_cache:
-        for directory in (AD_CACHE_DIR, BUNDLED_AD_DIR):
+        for directory in (panel.ad_cache, panel.ad_bundled):
             path = directory / f"{isoform}.npz"
             if path.exists():
                 return _load_reference(path)
 
-    train = jak.build_isoform_dataset(isoform, use_cache=use_cache)["smi"].tolist()
+    train = panel_data.build_isoform_dataset(panel, isoform,
+                                             use_cache=use_cache)["smi"].tolist()
     ref = build_reference(train)
-    _save_reference(ref, AD_CACHE_DIR / f"{isoform}.npz")
+    _save_reference(ref, panel.ad_cache / f"{isoform}.npz")
     return ref
 
 
@@ -182,9 +181,10 @@ class ADMetrics:
     frac_out_mean: float
 
 
-def evaluate_ad(isoform: str, seeds: tuple[int, ...] = SEEDS, use_cache: bool = True) -> ADMetrics:
+def evaluate_ad(panel: PanelSpec, isoform: str, seeds: tuple[int, ...] = SEEDS,
+                use_cache: bool = True) -> ADMetrics:
     """Mean |error| for in- vs out-of-domain test molecules (the money-plot claim)."""
-    data = jak.build_isoform_dataset(isoform, use_cache=use_cache)
+    data = panel_data.build_isoform_dataset(panel, isoform, use_cache=use_cache)
     smiles = data["smi"].tolist()
     X, mask = morgan_matrix(smiles)
     y = data["pchembl"].to_numpy()[mask]
@@ -210,10 +210,14 @@ def evaluate_ad(isoform: str, seeds: tuple[int, ...] = SEEDS, use_cache: bool = 
 
 
 def _main() -> None:
-    print(f"In- vs out-of-domain test error ({len(SEEDS)} seeds, scaffold split):")
+    import sys
+
+    panel = get_panel(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PANEL
+    print(f"In- vs out-of-domain test error, panel {panel.name} "
+          f"({len(SEEDS)} seeds, scaffold split):")
     print(f"  {'isoform':7} {'|err| in':>10} {'|err| out':>11} {'ratio':>7} {'% out':>7}")
-    for iso in TARGET_ISOFORMS:
-        m = evaluate_ad(iso)
+    for iso in panel.isoforms:
+        m = evaluate_ad(panel, iso)
         ratio = m.err_out_mean / m.err_in_mean
         print(f"  {iso:7} {m.err_in_mean:10.3f} {m.err_out_mean:11.3f} "
               f"{ratio:6.2f}x {m.frac_out_mean:6.1%}")

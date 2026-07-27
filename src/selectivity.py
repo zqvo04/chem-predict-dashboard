@@ -31,12 +31,16 @@ from scipy.stats import spearmanr
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error
 
-from .data import jak
+from .data import panel_data
+from .panels import DEFAULT_PANEL, PanelSpec, get_panel
 from .models.features import morgan_matrix
 from .models.scaffold_split import scaffold_split
 
-TARGET = "JAK1"
-OFFS = ("JAK2", "JAK3")
+# The JAK panel remains the default everywhere, so these keep their meaning as
+# "the deployed, validated screen" — they are now derived from the panel spec
+# rather than being the place the target is defined.
+TARGET = DEFAULT_PANEL.target
+OFFS = DEFAULT_PANEL.offs
 POTENCY_FLOOR = 6.0          # pchembl_pred(target) floor for the selective ranking
 SELECTIVE_GAP = 1.0          # >= 10x = "selective" for enrichment
 SEEDS = (0, 1, 2, 3, 4)
@@ -100,8 +104,8 @@ def evaluate_split(X: np.ndarray, cross: pd.DataFrame, measured_gap: np.ndarray,
             _enrichment(gap_te, pred_gap))
 
 
-def evaluate_gap(target: str = TARGET, offs: tuple[str, ...] = OFFS,
-                 seeds: tuple[int, ...] = SEEDS, use_cache: bool = True) -> SelectivityMetrics:
+def evaluate_gap(panel: PanelSpec = DEFAULT_PANEL, seeds: tuple[int, ...] = SEEDS,
+                 use_cache: bool = True) -> SelectivityMetrics:
     """Gate 4: predicted vs measured gap on a scaffold split of the cross-measured set.
 
     Self-contained and leak-free: per-isoform regressors are trained only on the
@@ -110,7 +114,8 @@ def evaluate_gap(target: str = TARGET, offs: tuple[str, ...] = OFFS,
     models (which train on each isoform's full set), so it is a conservative
     estimate of deployed selectivity performance.
     """
-    cross = jak.build_cross_measured(use_cache=use_cache)
+    target, offs = panel.target, panel.offs
+    cross = panel_data.build_cross_measured(panel, use_cache=use_cache)
     smiles = cross["smi"].tolist()
     X, mask = morgan_matrix(smiles)
     cross = cross[mask].reset_index(drop=True)
@@ -136,8 +141,11 @@ def evaluate_gap(target: str = TARGET, offs: tuple[str, ...] = OFFS,
 
 
 def _main() -> None:
-    m = evaluate_gap()
-    print(f"Selectivity for {m.target} over {'/'.join(OFFS)}  "
+    import sys
+
+    panel = get_panel(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PANEL
+    m = evaluate_gap(panel)
+    print(f"Selectivity for {m.target} over {'/'.join(panel.offs)}  "
           f"(cross-measured n={m.n_cross}, {m.n_seeds} seeds)")
     print(f"  Spearman (difference-of-regressors): {m.spearman_diff_mean:.3f} ± {m.spearman_diff_std:.3f}")
     print(f"  Spearman (direct gap regressor)    : {m.spearman_direct_mean:.3f} ± {m.spearman_direct_std:.3f}")

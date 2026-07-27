@@ -18,6 +18,7 @@ import pandas as pd
 
 from . import funnel
 from .generate import generate_analogues
+from .panels import panel_for
 from .loop_contract import (assert_models_match, build_contract, read_contract,
                             validate_contract)
 
@@ -29,6 +30,7 @@ class LoopResult:
     before: pd.DataFrame       # the selected cases, re-scored
     after: pd.DataFrame        # generated analogues, re-scored
     model_ids: dict
+    campaign_id: str | None = None   # carried through from the Stage-B contract
 
 
 def run_deep_dive(contract: dict, max_analogues_per_case: int = 30,
@@ -36,9 +38,12 @@ def run_deep_dive(contract: dict, max_analogues_per_case: int = 30,
     validate_contract(contract)
     target = contract["target_isoform"]
     offs = tuple(contract["off_isoforms"])
+    # The contract names isoforms, not a panel (schema 1.0 predates panels), so
+    # resolve them back to the panel whose models Stage B scored through.
+    panel = panel_for(target, offs)
 
     # Loop integrity: re-score only if the models are identical to the export.
-    current = funnel.current_model_ids(target, offs, use_cache=use_cache)
+    current = funnel.current_model_ids(panel, use_cache=use_cache)
     assert_models_match(contract, current)
 
     seeds = [m["smiles"] for m in contract["molecules"]]
@@ -49,22 +54,24 @@ def run_deep_dive(contract: dict, max_analogues_per_case: int = 30,
                 parent_of[a] = smi
                 generated.append(a)
 
-    before = funnel.score_molecules(seeds, target, offs, use_cache=use_cache)
+    before = funnel.score_molecules(seeds, panel, use_cache=use_cache)
     before["origin"] = "screen"
     before["parent_smiles"] = None
 
-    after = funnel.score_molecules(generated, target, offs, use_cache=use_cache)
+    after = funnel.score_molecules(generated, panel, use_cache=use_cache)
     after["origin"] = "generated"
     after["parent_smiles"] = after["smi"].map(parent_of)
 
     return LoopResult(target=target, offs=list(offs), before=before, after=after,
-                      model_ids=current)
+                      model_ids=current,
+                      campaign_id=contract["provenance"].get("campaign_id"))
 
 
 def rescore_contract(result: LoopResult, alpha: float = 0.10) -> dict:
     """A_rescore contract from the generated, re-scored analogues."""
     return build_contract(result.after, result.target, result.offs,
-                          result.model_ids, alpha, stage="A_rescore")
+                          result.model_ids, alpha, stage="A_rescore",
+                          campaign_id=result.campaign_id)
 
 
 def _stats(df: pd.DataFrame) -> dict:

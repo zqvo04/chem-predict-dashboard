@@ -9,5 +9,9 @@ data/cache/
 data/models/
 data/moleculenet/
 data/jak/
+data/pi3k/
 data/library/
 data/ad_reference/
+
+# campaign definitions + round history (runtime state, per machine)
+data/registry/
