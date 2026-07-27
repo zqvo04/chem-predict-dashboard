@@ -3,10 +3,13 @@
 Uses a small synthetic dataset (no network, fast) to exercise the eval/predict
 paths; the real 5-seed metrics live in VALIDATION.md.
 """
+import dataclasses
+
 import numpy as np
 import pytest
 
 from src.models import isoform_regressor as ir
+from src.panels import JAK
 from src.models.scaffold_split import _scaffold, scaffold_split
 
 # A handful of scaffolds with substituent variants -> several groups to split.
@@ -37,7 +40,7 @@ def test_scaffold_split_seeds_differ_but_stay_leak_free():
     assert len(seen) > 1                                  # seeds explore >1 split
 
 
-def _synthetic(name, use_cache=True):
+def _synthetic(panel, name, use_cache=True):
     import pandas as pd
     rng = np.random.default_rng(0)
     smis, pch = [], []
@@ -49,8 +52,8 @@ def _synthetic(name, use_cache=True):
 
 
 def test_evaluate_returns_finite_metrics(monkeypatch):
-    monkeypatch.setattr(ir.jak, "build_isoform_dataset", _synthetic)
-    m = ir.evaluate("JAK1", seeds=(0, 1, 2))
+    monkeypatch.setattr(ir.panel_data, "build_isoform_dataset", _synthetic)
+    m = ir.evaluate(JAK, "JAK1", seeds=(0, 1, 2))
     assert m.n_seeds == 3
     for v in (m.mae_mean, m.rmse_mean, m.r2_mean, m.spearman_mean,
               m.mae_std, m.rmse_std):
@@ -59,20 +62,20 @@ def test_evaluate_returns_finite_metrics(monkeypatch):
 
 
 def test_train_and_cache_predicts_and_aligns(tmp_path, monkeypatch):
-    monkeypatch.setattr(ir, "MODEL_DIR", tmp_path)
-    monkeypatch.setattr(ir.jak, "build_isoform_dataset", _synthetic)
-    bundle = ir.train_and_cache("JAK1", use_cache=False)
-    assert (tmp_path / "JAK1_reg.pkl").exists()
+    panel = dataclasses.replace(JAK, root=tmp_path)
+    monkeypatch.setattr(ir.panel_data, "build_isoform_dataset", _synthetic)
+    bundle = ir.train_and_cache(panel, "JAK1", use_cache=False)
+    assert (panel.model_cache / "JAK1_reg.pkl").exists()
     preds = bundle.predict(["c1ccccc1", "not_a_smiles"])
     assert np.isfinite(preds[0]) and np.isnan(preds[1])   # aligned, NaN on bad SMILES
 
 
 def test_cache_roundtrips_via_plain_dict(tmp_path, monkeypatch):
     # The cache must load regardless of __main__/import context (plain-dict pickle).
-    monkeypatch.setattr(ir, "MODEL_DIR", tmp_path)
-    monkeypatch.setattr(ir.jak, "build_isoform_dataset", _synthetic)
-    written = ir.train_and_cache("JAK1", use_cache=False)
-    loaded = ir._load(tmp_path / "JAK1_reg.pkl")
+    panel = dataclasses.replace(JAK, root=tmp_path)
+    monkeypatch.setattr(ir.panel_data, "build_isoform_dataset", _synthetic)
+    written = ir.train_and_cache(panel, "JAK1", use_cache=False)
+    loaded = ir._load(panel.model_cache / "JAK1_reg.pkl")
     assert loaded.isoform == "JAK1"
     assert loaded.metrics.r2_mean == written.metrics.r2_mean
     assert np.isfinite(loaded.predict(["c1ccccc1"])[0])

@@ -1,6 +1,6 @@
-"""JAK per-isoform datasets for selectivity modelling (STEP 2).
+"""Per-isoform datasets for selectivity modelling (STEP 2, generalised in STEP 15).
 
-Builds one clean, cached **pchembl-regression** dataset per JAK isoform, plus the
+Builds one clean, cached **pchembl-regression** dataset per panel member, plus the
 cross-measured join that grounds selectivity validation. Reuses the Phase-1 ChEMBL
 client; one **median pchembl per (molecule, isoform)**; unparseable SMILES dropped;
 canonicalised so molecules join across isoforms.
@@ -9,35 +9,36 @@ There is no active/inactive labelling: the Gate 0 audit showed the inactive clas
 is nearly empty, so the task is regression and selectivity is a pchembl *gap*
 (see VALIDATION.md and DESIGN_DECISIONS.md sections 1-2).
 
-CLI (build + cache all three + print the summary table):
-    python -m src.data.jak
+Every function takes a `PanelSpec` (`src/panels.py`), which supplies both the
+ChEMBL ids and the cache/bundle directories. This module was `src/data/jak.py`
+until STEP 15; the JAK panel resolves to the same `assets/jak/` files it always
+did, so the generalisation changed no data.
+
+CLI (build + cache one panel + print the summary table):
+    python -m src.data.panel_data [panel]
 """
 from __future__ import annotations
 
 import json
+import sys
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
 from rdkit import RDLogger
 
+from ..panels import DEFAULT_PANEL, PanelSpec, get_panel
 from ..standardize import standardize
 from . import chembl_client as cc
 
 RDLogger.DisableLog("rdApp.*")
 
-# Canonical human single-protein ChEMBL targets (confirmed in Gate 0).
-TARGETS = {"JAK1": "CHEMBL2835", "JAK2": "CHEMBL2971", "JAK3": "CHEMBL2148"}
 MAX_RECORDS = 40000  # full coverage; pagination does not truncate at this size
 
-_ROOT = Path(__file__).resolve().parents[2]
-CACHE_DIR = _ROOT / "data" / "jak"          # runtime cache, gitignored
-BUNDLED_DIR = _ROOT / "assets" / "jak"      # committed, so a fresh deploy skips retrieval
 
-
-def _cached(filename: str) -> Path | None:
+def _cached(panel: PanelSpec, filename: str) -> Path | None:
     """Runtime cache first, then the committed copy; None if neither exists."""
-    for directory in (CACHE_DIR, BUNDLED_DIR):
+    for directory in (panel.data_cache, panel.data_bundled):
         path = directory / filename
         if path.exists():
             return path
@@ -108,65 +109,78 @@ def _collapse(activities: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def build_isoform_dataset(name: str, use_cache: bool = True) -> pd.DataFrame:
-    """Clean, cached median-pchembl dataset for one isoform (smi, pchembl, n_meas)."""
-    if name not in TARGETS:
-        raise ValueError(f"Unknown isoform {name!r}; expected one of {list(TARGETS)}")
+def build_isoform_dataset(panel: PanelSpec, name: str,
+                          use_cache: bool = True) -> pd.DataFrame:
+    """Clean, cached median-pchembl dataset for one panel member (smi, pchembl, n_meas)."""
+    if name not in panel.chembl_ids:
+        raise ValueError(f"Unknown isoform {name!r} for panel {panel.name!r}; "
+                         f"expected one of {list(panel.isoforms)}")
     if use_cache:
-        cached = _cached(f"{name}.parquet")
+        cached = _cached(panel, f"{name}.parquet")
         if cached is not None:
             return pd.read_parquet(cached)
 
-    acts = cc.fetch_activities(TARGETS[name], pchembl_gte=None, max_records=MAX_RECORDS)
+    acts = cc.fetch_activities(panel.chembl_ids[name], pchembl_gte=None,
+                               max_records=MAX_RECORDS)
     data = _collapse(acts)
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    data.to_parquet(CACHE_DIR / f"{name}.parquet", index=False)
+    panel.data_cache.mkdir(parents=True, exist_ok=True)
+    data.to_parquet(panel.data_cache / f"{name}.parquet", index=False)
     return data
 
 
-def build_cross_measured(use_cache: bool = True) -> pd.DataFrame:
-    """Molecules measured on all three isoforms (smi, JAK1, JAK2, JAK3 pchembl)."""
+def build_cross_measured(panel: PanelSpec, use_cache: bool = True) -> pd.DataFrame:
+    """Molecules measured on *every* panel member (smi + one pchembl column each).
+
+    The inner join is what makes a *measured* gap exist, so it is also what bounds
+    how much of the panel can be validated: a panel whose members are rarely
+    co-assayed yields a small cross-measured set and, with it, a weak calibration.
+    `Campaign` reads the size of this frame to decide a panel's validation tier.
+    """
     if use_cache:
-        cached = _cached("cross_measured.parquet")
+        cached = _cached(panel, "cross_measured.parquet")
         if cached is not None:
             return pd.read_parquet(cached)
 
-    frames = [build_isoform_dataset(n, use_cache=use_cache)
-                  .set_index("smi")["pchembl"].rename(n) for n in TARGETS]
+    frames = [build_isoform_dataset(panel, n, use_cache=use_cache)
+                  .set_index("smi")["pchembl"].rename(n) for n in panel.isoforms]
     cross = pd.concat(frames, axis=1, join="inner").reset_index()
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cross.to_parquet(CACHE_DIR / "cross_measured.parquet", index=False)
+    panel.data_cache.mkdir(parents=True, exist_ok=True)
+    cross.to_parquet(panel.data_cache / "cross_measured.parquet", index=False)
     return cross
 
 
-def summary(use_cache: bool = True) -> pd.DataFrame:
+def summary(panel: PanelSpec, use_cache: bool = True) -> pd.DataFrame:
     """Per-isoform count + pchembl distribution table."""
     rows = []
-    for name in TARGETS:
-        d = build_isoform_dataset(name, use_cache=use_cache)["pchembl"]
+    for name in panel.isoforms:
+        d = build_isoform_dataset(panel, name, use_cache=use_cache)["pchembl"]
         rows.append({"isoform": name, "n_molecules": len(d),
                      "pchembl_min": round(float(d.min()), 2),
                      "pchembl_median": round(float(d.median()), 2),
                      "pchembl_max": round(float(d.max()), 2)})
     tbl = pd.DataFrame(rows)
-    tbl.attrs["n_cross_measured"] = len(build_cross_measured(use_cache=use_cache))
+    tbl.attrs["n_cross_measured"] = len(build_cross_measured(panel, use_cache=use_cache))
     return tbl
 
 
-def _write_provenance() -> None:
-    prov = {"built": date.today().isoformat(),
-            "targets": TARGETS, "max_records": MAX_RECORDS,
-            "n_molecules": {n: int(len(build_isoform_dataset(n))) for n in TARGETS},
-            "n_cross_measured": int(len(build_cross_measured()))}
-    (CACHE_DIR / "provenance.json").write_text(json.dumps(prov, indent=2))
+def _write_provenance(panel: PanelSpec) -> None:
+    prov = {"built": date.today().isoformat(), "panel": panel.name,
+            "targets": panel.chembl_ids, "max_records": MAX_RECORDS,
+            "n_molecules": {n: int(len(build_isoform_dataset(panel, n)))
+                            for n in panel.isoforms},
+            "n_cross_measured": int(len(build_cross_measured(panel)))}
+    panel.data_cache.mkdir(parents=True, exist_ok=True)
+    (panel.data_cache / "provenance.json").write_text(json.dumps(prov, indent=2))
 
 
 def _main() -> None:
-    tbl = summary()
+    panel = get_panel(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PANEL
+    tbl = summary(panel)
+    print(f"Panel {panel.name}: {panel.target} vs {'/'.join(panel.offs)}")
     print(tbl.to_string(index=False))
-    print(f"\n3-way cross-measured: {tbl.attrs['n_cross_measured']}")
-    _write_provenance()
-    print(f"Cached -> {CACHE_DIR}")
+    print(f"\n{len(panel.isoforms)}-way cross-measured: {tbl.attrs['n_cross_measured']}")
+    _write_provenance(panel)
+    print(f"Cached -> {panel.data_cache}")
 
 
 if __name__ == "__main__":

@@ -26,6 +26,15 @@ def test_predict_interval_is_symmetric():
     assert np.allclose(lo, [6.2, 4.2]) and np.allclose(hi, [7.8, 5.8])
 
 
+def test_bundled_quantiles_are_panel_namespaced():
+    """STEP 15: each panel reads its own calibration table, never another's."""
+    from src.panels import JAK, PI3K
+
+    assert cf.bundled_quantiles(JAK) != cf.bundled_quantiles(PI3K)
+    assert cf.bundled_quantiles(JAK).name == cf.QUANTILES_FILE
+    assert cf.bundled_quantiles(JAK).parent.name == "jak"
+
+
 def test_gap_interval_adds_halfwidths():
     assert cf.gap_interval(0.6, 0.7) == pytest.approx(1.3)
 

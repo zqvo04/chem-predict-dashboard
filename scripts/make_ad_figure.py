@@ -19,9 +19,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src.applicability import (SEEDS, TANIMOTO_IN_DOMAIN, TARGET_ISOFORMS,  # noqa: E402
+from src.applicability import (SEEDS, TANIMOTO_IN_DOMAIN,  # noqa: E402
                                _fit, in_domain)
-from src.data import jak                             # noqa: E402
+from src.data import panel_data                      # noqa: E402
+from src.panels import DEFAULT_PANEL                 # noqa: E402
 from src.models.features import morgan_matrix        # noqa: E402
 from src.models.scaffold_split import scaffold_split  # noqa: E402
 
@@ -31,8 +32,8 @@ BINS = np.array([0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0])
 
 def main() -> None:
     errs, sims, dom = [], [], []
-    for iso in TARGET_ISOFORMS:
-        data = jak.build_isoform_dataset(iso)
+    for iso in DEFAULT_PANEL.isoforms:
+        data = panel_data.build_isoform_dataset(DEFAULT_PANEL, iso)
         smiles = data["smi"].tolist()
         X, mask = morgan_matrix(smiles)
         y = data["pchembl"].to_numpy()[mask]

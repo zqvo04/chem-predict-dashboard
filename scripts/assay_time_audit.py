@@ -37,7 +37,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.data import jak                                          # noqa: E402
+from src.data import panel_data                                   # noqa: E402
+from src.panels import DEFAULT_PANEL                              # noqa: E402
 from src.models.features import morgan_matrix                     # noqa: E402
 from src.models.scaffold_split import scaffold_split              # noqa: E402
 from src.selectivity import OFFS, SEEDS, TARGET, evaluate_split   # noqa: E402
@@ -61,8 +62,8 @@ def enrichment_ceiling(base_rate: float, frac: float = TOP_FRAC) -> float:
 def _cross(column: str) -> pd.DataFrame:
     """Cross-measured frame built from one pchembl column, carrying year_first."""
     frames, years = [], []
-    for iso in jak.TARGETS:
-        d = jak.build_isoform_dataset(iso).set_index("smi")
+    for iso in DEFAULT_PANEL.isoforms:
+        d = panel_data.build_isoform_dataset(DEFAULT_PANEL, iso).set_index("smi")
         frames.append(d[column].rename(iso).dropna())
         years.append(d["year_first"].rename(iso))
     cross = pd.concat(frames, axis=1, join="inner")

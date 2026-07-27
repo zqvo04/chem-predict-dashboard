@@ -778,3 +778,124 @@ ATP-competition confound the headline Spearman does.
 ```bash
 python -m src.conformal          # per-isoform coverage + the 3-arm gap table
 ```
+
+---
+
+## STEP 15 — the funnel was a case study, not a workflow (2026-07-27)
+
+**The defect is structural, not numerical.** Every number STEP 2–14 reports is
+correct and every one of them is about JAK, because the target was not a parameter.
+`selectivity.TARGET`/`OFFS` were module constants, the datasets lived at
+`assets/jak/`, the models at `assets/models/jak/`, and the AD references were keyed
+on bare isoform names. Nothing could be pointed at other chemistry, the three modes
+shared no state, and — the reason this blocks everything downstream — there was no
+record of what had been screened, when, through which models. Active learning is by
+definition a loop where round *N* changes round *N+1*; that cannot exist over pure
+function calls.
+
+**The unit of generalisation is a panel, not a target.** `S = pred(target) −
+max_off pred(off)` is undefined without off-targets, so `PanelSpec`
+(`src/panels.py`) carries a target, its off-targets, their ChEMBL ids and the asset
+namespace derived from its name. A single-target screen is Mode 1's job and the
+spec now refuses to be constructed without off-targets rather than silently
+returning a meaningless zero.
+
+### The JAK screen did not move
+
+The constraint on this refactor was that the validated panel keep producing
+*exactly* what it produced before. Model ids are behavioural digests (STEP 12), so
+they are the sharpest available check — if any JAK model had shifted, every contract
+ever exported would stop validating:
+
+| check | before | after |
+|---|---|---|
+| JAK model ids | `61edd879da` / `5649ee4718` / `0772985d8c` | **identical** |
+| shortlist | 60 (33 in-domain) | **60 (33 in-domain)** |
+| per-isoform coverage | 0.904 / 0.905 / 0.888 | **unchanged** |
+
+Committed assets moved but did not change: `assets/conformal_quantiles.json` →
+`assets/jak/`, `assets/library/gap_distribution.npz` → `assets/jak/`,
+`assets/ad_reference/JAK*.npz` → `assets/ad_reference/jak/`. Byte-identical, keys
+included — the gap-distribution provenance guard still matches, so nothing rebuilt.
+A test pins the model ids against the values in `examples/*.json`.
+
+### A second panel, built end to end through the same code
+
+Nominal generalisation is easy to claim and cheap to fake, so a second panel was
+actually built: **PI3K δ vs α/β/γ** — a real selectivity problem (idelalisib is the
+δ-selective drug). It was chosen because it is **disjoint from the binder gate's
+negative basket and from the wide library's 20 targets**, so it inherits the STEP 10
+and STEP 13 leakage discipline instead of renegotiating it. That is checked by
+`disjointness_report`, not assumed.
+
+| | JAK (validated) | PI3K (bootstrap) |
+|---|---|---|
+| members | JAK1 / JAK2 / JAK3 | PIK3CD / PIK3CA / PIK3CB / PIK3CG |
+| molecules per member | 6.3k – 11k | 2 777 – 7 723 |
+| **cross-measured (all members)** | **3 624** | **1 500** |
+| regressor R² (5-seed scaffold) | 0.71 – 0.77 | **0.582 – 0.710** |
+| regressor Spearman | 0.82 – 0.88 | **0.736 – 0.834** |
+| binder gate ROC-AUC | 0.998 | **0.999 ± 0.001** |
+| gate threshold (Youden's J) | 0.544 | **0.481** (keeps 98.7 % of actives, rejects 99.0 % of negatives) |
+| gate conflicts with library/negatives | none | **none** |
+
+No code path is special-cased for either panel. PI3K's regressors are weaker than
+JAK's, which is the expected consequence of less data on PIK3CB/PIK3CG rather than a
+bug — and it is exactly why it is not labelled validated.
+
+**Cost:** 230 s to fetch the four datasets, 469 s to train the regressors, 565 s to
+build the negatives and the gate. Its datasets are bundled (492 kB) so the campaign
+card is honest offline; its **models are deliberately not bundled** (5.8 MB), since
+shipping pre-trained artifacts for an unvalidated panel would put it on the same
+footing as the validated one.
+
+### Validation tiers — the guard against re-opening v1's hole
+
+v1 was replaced because it ranked molecules by a composite score validated against
+nothing. Letting anyone create a campaign re-opens precisely that hole: a bootstrap
+campaign renders the same tables as the JAK one. So every campaign carries a tier,
+**derived from what has been measured rather than asserted**:
+
+| tier | when | what it permits |
+|---|---|---|
+| `validated` | the panel's gates are re-run and written up here | the full claim |
+| `bootstrap` | models + AD + conformal built, gates not re-run | ranking shown as a hypothesis, badged |
+| `insufficient_data` | < 200 cross-measured molecules | **no selectivity claim at all** |
+
+The 200 floor is arithmetic, not taste: `calibrate_gap` puts roughly 10 % of the
+cross-measured set into the conformal quantile, and the finite-sample level
+`ceil((n+1)(1−α))/n` only drops below 1.0 — becoming a real quantile rather than the
+largest residual seen — at n ≥ 19. A test pins that **data volume alone never
+promotes a panel**: PI3K with a hypothetical 5 000 cross-measured molecules is still
+`bootstrap`.
+
+### Registry
+
+`data/registry/<campaign>/` holds the campaign definition, an append-only
+`rounds.jsonl`, and one parquet per round's scored table. Append-only JSONL rather
+than a database because the operations needed are "add a round" and "read them in
+order": no dependency, greppable, and a torn final line costs one round instead of
+the file (pinned by a test). The loop contract gains `campaign_id` at **schema 1.1**
+— a minor bump, since the validator keys compatibility on the major version, so
+contracts exported at 1.0 still validate.
+
+**Gate 15 passed:** the JAK panel is bit-identical, a second panel builds end to end
+through the same code with no special-casing and a clean leakage report, tiers
+prevent an unvalidated campaign from presenting as a validated one, and rounds
+persist across processes. **151 tests green** (132 before).
+
+**What this does not do.** PI3K is *not* validated — its gap-vs-measured-gap Spearman,
+conformal coverage and AD separation have not been measured, so its ranking is a
+hypothesis. The registry records rounds but nothing yet *reads* round N to choose
+round N+1; that is the acquisition function, and it is Phase 3. The v1 pipeline
+(`src/pipeline.py`) is unchanged and still runs from its CLI — it is simply no
+longer wired into the dashboard.
+
+### Reproduce
+
+```bash
+python -m src.panels                       # registered panels + leakage report
+python -m src.data.panel_data pi3k         # build the second panel (needs network)
+python -m src.models.isoform_regressor pi3k
+python -m src.data.negatives pi3k && python -m src.models.binder_gate pi3k
+```

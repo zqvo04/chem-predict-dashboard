@@ -13,9 +13,9 @@ echo "== Test suite =="
 python -m pytest tests/ -q
 
 echo
-echo "== JAK data layer (STEP 2) =="
+echo "== Panel data layer (STEP 2 / 15) =="
 echo "Builds/caches the per-isoform regression datasets + cross-measured join."
-python -m src.data.jak
+python -m src.data.panel_data jak
 
 echo
 echo "== Per-isoform regressors (STEP 3) =="
@@ -30,7 +30,8 @@ python scripts/make_hero_figure.py
 
 echo
 echo "== Conformal coverage (STEP 5) =="
-echo "5-seed empirical coverage at 90% nominal + coverage-vs-nominal figure."
+echo "5-seed empirical coverage at 90% nominal, the 3-arm gap-interval comparison"
+echo "(summed / flat / difficulty-scaled, STEP 14) + coverage-vs-nominal figure."
 python -m src.conformal
 python scripts/make_coverage_figure.py
 
@@ -57,6 +58,12 @@ echo
 echo "== Funnel loop, one worked case (STEP 8) =="
 echo "B -> SELECT -> A (generate + re-score) -> before/after report + figure."
 python scripts/run_loop.py
+
+echo
+echo "== Panel registry + leakage check (STEP 15) =="
+echo "Lists the registered selectivity panels and checks each is disjoint from the"
+echo "binder gate's negative basket and the wide library's targets."
+python -m src.panels
 
 echo
 echo "== Gate 0 data audit (VALIDATION.md) =="

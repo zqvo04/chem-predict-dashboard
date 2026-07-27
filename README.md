@@ -13,11 +13,13 @@ The dashboard has **three independent modes**, selectable from the sidebar:
 |------|-------------|
 | **Selectivity funnel** | Screens a diverse ~38.6k-molecule library across JAK1/2/3, ranks by isoform selectivity with calibrated uncertainty, applicability-domain verdicts and property (MPO) annotations, lets you pick survivors, and hands them off to an offline deep dive. |
 | **Single molecule** | The same Tier-1+2 scoring for one compound entered as a SMILES **or by name**, reported against the library distribution (~1.7 s from a cold process). |
-| **Target screen** | Takes any protein target name, retrieves known actives from ChEMBL, optionally expands with PubChem analogues, trains a per-target QSAR model on the fly, and scores everything with a composite potency/drug-likeness score. |
+| **Campaigns** | Points the same cascade at a different **selectivity panel** (target + off-targets). Shows what backs the panel — cross-measured data, models, a leakage check — and a **validation tier** badge, then screens it and records the round. |
 
-All three run CPU-only. The funnel is the primary deliverable (JAK-specific,
-validated); the target screen is the underlying v1 foundation (any target, lower
-trust signals).
+All three run CPU-only, and all three now run through the same trust layer
+(standardisation, binder gate, applicability domain, conformal intervals). The JAK
+funnel is the primary deliverable and the only `validated` campaign; any other panel
+is `bootstrap` — same tables, explicitly badged as a hypothesis — until its gates
+have been re-run.
 
 **Every SMILES entering any mode is reduced to its neutral parent**
 (`src/standardize.py`): counterions are stripped and charges neutralised before
@@ -32,52 +34,61 @@ which is a retraining decision, not input cleaning.
 
 ## Three modes — workflow pipelines
 
-### Mode 1: Target screen
+### Mode 1: Campaigns
 
-**Entry point:** user types a target name (e.g. `EGFR`, `JAK1`) in the sidebar.
+**Entry point:** pick a registered **selectivity panel** in the sidebar and press
+*Open campaign*.
+
+A campaign is a panel (a target plus the off-targets it must be selective against),
+a library, the models screening it, and the evidence saying how far to trust the
+result. It is the entry point for pointing the funnel at chemistry other than JAK.
 
 ```
-  [user input: target name]
+  [user input: which panel]
           │
-  ChEMBL retrieval          src/data/chembl_client.py
-  ─ resolve name → ChEMBL target ID (prefers SINGLE_PROTEIN)
-  ─ fetch bioactivities (IC50/Ki/Kd/EC50, pchembl ≥ 6)
-  ─ collapse to one row/molecule (best potency)
-  ─ cache raw pages → data/cache/*.parquet
+  Campaign               src/campaign.py  build()
+  ─ panel spec (target + off-targets + ChEMBL ids)   src/panels.py
+  ─ cross-measured count → validation tier
+  ─ model ids, read only if the models already exist
           │
-  Optional: PubChem expansion   src/data/pubchem_client.py
-  ─ for each known active, find similar molecules not in ChEMBL
-  ─ returns structural near-analogues (not de-novo novel)
+  Leakage check          src/panels.py  disjointness_report()
+  ─ no panel member in the binder gate's negative basket
+  ─ no panel member in the wide library's target list
+    (STEP 10 / STEP 13's lesson, enforced rather than remembered)
           │
-  Drug-likeness filter      src/filters/druglikeness.py
-  ─ Lipinski Ro5 (mw ≤ 500, logp ≤ 5, hbd ≤ 5, hba ≤ 10; 1 violation ok)
-  ─ PAINS substructure screen
+  Validation tier        badge + the sentence explaining it
+  ─ validated          gates re-run and written up in VALIDATION.md
+  ─ bootstrap          models built, gates not re-run — ranking is a hypothesis
+  ─ insufficient_data  too little cross-measured data to calibrate a gap
+                       interval → the campaign is refused a selectivity claim
           │
-  Per-target QSAR model     src/models/target_model.py
-  ─ HistGradientBoosting on 2048-bit ECFP4 (Morgan r=2)
-  ─ scaffold split for evaluation (tests new chemotypes, not random split)
-  ─ model cached → data/models/<target>.pkl; re-loaded on repeat runs
+  Round history          src/registry.py — data/registry/<campaign>/rounds.jsonl
           │
-  Property models           assets/models/property_models.pkl
-  ─ Solubility (ESOL regression, R² 0.86 scaffold-split)
-  ─ Toxicity alert (Tox21 classification, AUC 0.75)
-          │
-  Composite score           src/pipeline.py  screen()
-  ─ 0.5·activity + 0.2·QED + 0.15·solubility + 0.15·(1 − tox risk)
-  ─ activity = predicted pchembl mapped to [0,1] on a fixed scale
-          │
-  Dashboard — two tabs      app.py  render_target_screen()
-  ─ "Novel candidates": PubChem molecules scored on prediction
-  ─ "Known actives":   ChEMBL molecules scored on measured potency
-     (kept separate so measured binders don't bury every prediction)
+  The same Tier 0 → 0.5 → 1 → 2 cascade as Mode 2, for this panel
 ```
+
+Registered panels: **JAK1 vs JAK2/JAK3** (`validated`) and **PI3Kδ vs α/β/γ**
+(`bootstrap`). The JAK panel ships pre-trained; PI3K ships its ChEMBL datasets so
+the campaign card is honest offline, but trains its models on first run.
 
 **Honest limits of this mode:**
-- "Novel" = PubChem 2D-similarity expansion → near-analogues of known actives,
-  not genuinely new scaffolds.
-- No uncertainty (point predictions only) and no applicability-domain flag.
-- Composite weights are not validated against any endpoint.
-- Cold train on a data-rich target (~2k molecules) takes 30–40 s.
+- A `bootstrap` campaign has *not* had its gap-vs-measured-gap ranking, conformal
+  coverage or AD separation measured. The badge says so and the ranking should be
+  read as a hypothesis.
+- Adding a panel means adding a `PanelSpec`; the app does not accept arbitrary
+  targets typed at runtime, because a panel needs a deliberate off-target choice
+  and a leakage check, not a text box.
+- Cold-building a new panel is minutes, not seconds (measured for PI3K: ~230 s
+  fetch, ~470 s regressors, ~565 s negatives + gate).
+
+> **This replaced the v1 target screen.** Mode 1 used to be a single-target ChEMBL
+> screen ranked by an unvalidated composite score (`0.5·activity + 0.2·QED +
+> 0.15·solubility + 0.15·(1 − tox)`), with no uncertainty and no applicability
+> domain — the four gaps [DESIGN_DECISIONS §0](DESIGN_DECISIONS.md) says the funnel
+> exists to close. It kept one thing worth keeping: it was the only way to point the
+> tool at other chemistry. Campaigns keep that and route it through the validated
+> cascade. The v1 pipeline itself is unchanged and still runs from its CLI
+> (`python -m src.pipeline EGFR --top 15`, [Phase 4](#phase-4--end-to-end-pipeline--composite-scoring)).
 
 ---
 
@@ -227,7 +238,8 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 | Per-isoform QSAR | pchembl regression, JAK1/2/3 | R² 0.71–0.77, Spearman 0.82–0.88 |
 | **Binder gate** | JAK binder vs presumed-inactive | **ROC-AUC 0.998**; ethanol/pesticide gated out, JAK inhibitors kept ([STEP 10](VALIDATION.md#step-10--the-binder-gate-tier-05-2026-07-26)) |
 | **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but see the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
-| Uncertainty | conformal 90% intervals | empirical coverage **0.89–0.91** |
+| Uncertainty | conformal 90% intervals, per isoform | empirical coverage **0.89–0.91** |
+| **Selectivity interval** | the gap's own 90% interval | marginal **0.896**, worst-similarity bucket **0.889** (was 0.460 flat / 4.86-wide summed) — [STEP 14](VALIDATION.md#step-14--the-gap-interval-was-calibrated-on-the-wrong-thing-2026-07-27) |
 | Applicability domain | error out- vs in-domain | error rises **~2×** as molecules leave the domain |
 | **The loop** | one worked case B→SELECT→A→re-score | best in-domain analogue **+2.38** gap (parent +1.68) |
 
@@ -312,8 +324,14 @@ reference (~6.6 MB total):
 | `assets/jak/*.parquet` | per-isoform datasets + the cross-measured join |
 | `assets/jak/negatives.parquet` | the physchem-matched presumed-inactives (binder-gate negatives) |
 | `assets/library/library.parquet` | the wide screening library, with its Tier-0 verdict |
-| `assets/conformal_quantiles.json` | calibrated 90 % half-widths per isoform |
-| `assets/ad_reference/*.npz` | per-isoform applicability reference (training fingerprints + leverage constants) |
+| `assets/jak/conformal_quantiles.json` | calibrated 90 % half-widths per isoform + the gap calibration (`q` and the σ knots) |
+| `assets/jak/gap_distribution.npz` | the gap-percentile reference, guarded by a model-id provenance string |
+| `assets/ad_reference/jak/*.npz` | per-isoform applicability reference (training fingerprints + leverage constants) |
+
+Everything a panel owns is namespaced under its name (`assets/<panel>/`,
+`assets/models/<panel>/`, `assets/ad_reference/<panel>/`), so a second panel cannot
+load or overwrite the first one's artifacts. The library is deliberately outside
+that namespace: it is target-agnostic and shared by every campaign.
 
 Every loader checks the runtime cache in `data/` first and falls back to `assets/`,
 so a local rebuild still wins while a fresh deploy retrains nothing. Measured on a
@@ -325,7 +343,7 @@ clean checkout with no `data/` directory at all:
 | **from bundled assets** | **~4.5 s** | **~417 MB** |
 | **one molecule, cold process** | **~1.7 s** | — |
 
-Same output either way (60-molecule shortlist, 3 in-domain, best gap +2.00).
+Same output either way (60-molecule shortlist, 33 in-domain).
 
 Two of those artifacts exist only to keep the screen cheap, and neither can change
 a result: **Tier 0** (Ro5 + PAINS) is a property of the library and the filter rules
@@ -371,16 +389,20 @@ notebook and the clone from there — and the app says so when it is not.
 
 Regenerating the bundle after a data or model change:
 
+Every command takes a panel name (default `jak`), so the same sequence bootstraps
+any registered panel:
+
 ```bash
-python -m src.data.jak                 # refresh datasets  -> data/jak/
+python -m src.data.panel_data jak      # refresh datasets  -> data/jak/
 python -m src.data.library             # refresh library   -> data/library/  (incl. Tier 0)
-python -m src.models.isoform_regressor # retrain isoforms  -> data/models/jak/
-python -m src.data.negatives           # rebuild the binder-gate negatives -> data/jak/negatives.parquet
-python -m src.models.binder_gate       # retrain the gate  -> data/models/jak/binder_gate.pkl
-python -c "from src.applicability import load_reference as r; \
-           [r(i, use_cache=False) for i in ('JAK1','JAK2','JAK3')]"   # -> data/ad_reference/
+python -m src.models.isoform_regressor jak # retrain isoforms -> data/models/jak/
+python -m src.data.negatives jak       # rebuild the binder-gate negatives -> data/jak/negatives.parquet
+python -m src.models.binder_gate jak   # retrain the gate  -> data/models/jak/binder_gate.pkl
+python -c "from src.applicability import load_reference as r; from src.panels import JAK; \
+           [r(JAK, i, use_cache=False) for i in JAK.isoforms]"        # -> data/ad_reference/jak/
 cp data/jak/*.parquet assets/jak/ && cp data/library/*.parquet assets/library/
-cp data/models/jak/*.pkl assets/models/jak/ && cp data/ad_reference/*.npz assets/ad_reference/
+cp data/models/jak/*.pkl assets/models/jak/
+cp data/ad_reference/jak/*.npz assets/ad_reference/jak/
 ```
 
 The binder gate must be retrained whenever `assets/jak/*.parquet` or the negative
@@ -388,9 +410,10 @@ set changes — its positives are the JAK actives and its negatives are
 `negatives.parquet`. The negative build needs network (it pulls ten other targets
 from ChEMBL); the gate train is offline once the negatives are cached.
 
-Then refresh `assets/conformal_quantiles.json` — calibration is deterministic given
-the pinned dataset and seed, so `src.conformal.halfwidth(iso)` reproduces each value
-exactly once the stale entry is removed.
+Then refresh `assets/jak/conformal_quantiles.json` — calibration is deterministic
+given the pinned dataset and seed, so `src.conformal.halfwidth(panel, iso)` and
+`src.conformal.calibrate_gap(panel)` reproduce each value exactly once the stale
+entry is removed.
 
 The applicability reference must be rebuilt whenever `assets/jak/*.parquet` changes,
 since it *is* the training set in precomputed form; run the line above after any data

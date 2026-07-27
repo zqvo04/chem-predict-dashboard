@@ -45,17 +45,21 @@ def _raw_acts(smiles):
 
 
 def test_build_excludes_jak_molecules_and_dedups(tmp_path, monkeypatch):
-    monkeypatch.setattr(neg, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(neg, "BUNDLED_DIR", tmp_path / "no-bundle")
-    monkeypatch.setattr(neg, "NEGATIVE_TARGETS",
-                        {"T1": "CHEMBLX", "T2": "CHEMBLY", "T3": "CHEMBLZ"})
+    import dataclasses
+
+    from src.panels import JAK
+
+    panel = dataclasses.replace(JAK, root=tmp_path)
+    monkeypatch.setattr(neg, "usable_negative_targets",
+                        lambda p: {"T1": "CHEMBLX", "T2": "CHEMBLY", "T3": "CHEMBLZ"})
     # Isolate the exclusion/dedup logic from the physchem match (matching has its
     # own tests above): keep every candidate that survives exclusion.
     monkeypatch.setattr(neg, "_matched_indices",
                         lambda pos, negd, **kw: np.arange(len(negd)))
     # A drug-like JAK positive that also appears in a negative pull must be dropped.
     jak_mol = "O=C(Nc1ccccc1)c1ccc(Cl)cc1"
-    monkeypatch.setattr(neg, "jak_positive_smiles", lambda use_cache=True: {jak_mol})
+    monkeypatch.setattr(neg, "positive_smiles",
+                        lambda p, use_cache=True: {jak_mol})
 
     pool = {
         "CHEMBLX": _raw_acts([jak_mol, "CCOc1ccc(C(=O)O)cc1", "CCOc1ccc(C(=O)O)cc1"]),
@@ -65,8 +69,8 @@ def test_build_excludes_jak_molecules_and_dedups(tmp_path, monkeypatch):
     monkeypatch.setattr(neg.cc, "fetch_activities",
                         lambda cid, **kw: pool[cid])
 
-    out = neg.build_negatives(use_cache=False)
-    assert (tmp_path / "negatives.parquet").exists()
+    out = neg.build_negatives(panel, use_cache=False)
+    assert (panel.data_cache / "negatives.parquet").exists()
     assert len(out) > 0
     assert jak_mol not in set(out["smi"])          # JAK molecule excluded
     assert out["smi"].is_unique                    # the duplicate collapsed
@@ -75,7 +79,7 @@ def test_build_excludes_jak_molecules_and_dedups(tmp_path, monkeypatch):
 
 def test_live_build_smoke():
     try:
-        out = neg.build_negatives(use_cache=True)
+        out = neg.build_negatives(use_cache=True)   # default panel = JAK
     except (RuntimeError, OSError) as err:
         pytest.skip(f"ChEMBL unreachable / negatives not built: {err}")
     assert len(out) > 500

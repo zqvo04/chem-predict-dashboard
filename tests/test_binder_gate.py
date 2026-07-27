@@ -5,11 +5,14 @@ evaluate/train/predict paths and the recall-set threshold; a live smoke test
 self-skips unless the bundled gate is present, where it checks a trivial molecule
 is rejected.
 """
+import dataclasses
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from src.models import binder_gate as bg
+from src.panels import JAK
 
 # Positives and negatives that SHARE Murcko scaffolds (polar vs nonpolar terminal
 # groups on the same ring system), so every scaffold group holds both classes and a
@@ -26,14 +29,15 @@ _NEG = [s + c for c in _CORES for s in _NEG_SUBS]
 
 
 def _patch(monkeypatch):
-    monkeypatch.setattr(bg, "jak_positive_smiles", lambda use_cache=True: set(_POS))
+    monkeypatch.setattr(bg, "positive_smiles",
+                        lambda panel, use_cache=True: set(_POS))
     monkeypatch.setattr(bg, "build_negatives",
-                        lambda use_cache=True: pd.DataFrame({"smi": _NEG}))
+                        lambda panel, use_cache=True: pd.DataFrame({"smi": _NEG}))
 
 
 def test_evaluate_is_finite_and_separable(monkeypatch):
     _patch(monkeypatch)
-    m = bg.evaluate(seeds=(0, 1, 2), use_cache=False)
+    m = bg.evaluate(JAK, seeds=(0, 1, 2), use_cache=False)
     assert m.n_pos == len(_POS) and m.n_neg == len(_NEG)
     assert np.isfinite(m.auc_mean) and np.isfinite(m.ap_mean)
     assert m.auc_mean > 0.6                          # separable families
@@ -42,10 +46,10 @@ def test_evaluate_is_finite_and_separable(monkeypatch):
 
 
 def test_train_and_cache_gates_and_aligns(tmp_path, monkeypatch):
-    monkeypatch.setattr(bg, "MODEL_DIR", tmp_path)
+    panel = dataclasses.replace(JAK, root=tmp_path)
     _patch(monkeypatch)
-    gate = bg.train_and_cache(use_cache=False)
-    assert (tmp_path / "binder_gate.pkl").exists()
+    gate = bg.train_and_cache(panel, use_cache=False)
+    assert (panel.model_cache / "binder_gate.pkl").exists()
 
     proba = gate.predict_proba(["O=C(N)c1ccccc1", "not_a_smiles"])
     assert np.isfinite(proba[0]) and np.isnan(proba[1])          # aligned, NaN on bad SMILES
@@ -57,21 +61,21 @@ def test_train_and_cache_gates_and_aligns(tmp_path, monkeypatch):
 
 
 def test_cache_roundtrips(tmp_path, monkeypatch):
-    monkeypatch.setattr(bg, "MODEL_DIR", tmp_path)
+    panel = dataclasses.replace(JAK, root=tmp_path)
     _patch(monkeypatch)
-    written = bg.train_and_cache(use_cache=False)
-    loaded = bg._load(tmp_path / "binder_gate.pkl")
+    written = bg.train_and_cache(panel, use_cache=False)
+    loaded = bg._load(panel.model_cache / "binder_gate.pkl")
     assert loaded.threshold == written.threshold
     assert loaded.metrics.auc_mean == written.metrics.auc_mean
 
 
 def test_live_bundled_gate_rejects_a_trivial_molecule():
     try:
-        gate = bg.train_and_cache(use_cache=True)
+        gate = bg.train_and_cache(JAK, use_cache=True)
     except Exception as err:                                       # noqa: BLE001
         pytest.skip(f"binder gate not built / data unavailable: {err}")
-    if not (bg.BUNDLED_MODEL_DIR / "binder_gate.pkl").exists() and \
-       not (bg.MODEL_DIR / "binder_gate.pkl").exists():
+    if not (JAK.model_bundled / "binder_gate.pkl").exists() and \
+       not (JAK.model_cache / "binder_gate.pkl").exists():
         pytest.skip("no bundled or cached binder gate to check")
     # Ethanol is not a JAK binder; the gate must not pass it.
     assert not gate.is_binder(["CCO"])[0]

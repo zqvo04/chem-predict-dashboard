@@ -231,6 +231,25 @@ body {
   border-color: var(--color-lead);
 }
 
+/* ---- campaign validation tier ---------------------------------------------
+ * A bootstrap campaign renders the same tables as the validated one, so the
+ * badge is the only thing standing between "measured result" and "plausible
+ * guess dressed as one". It reuses the verdict-chip colours deliberately:
+ * `validated` reads as the same green the in-domain verdict earns. */
+.cp-tier {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2xs);
+  margin-bottom: var(--space-xs);
+}
+
+.cp-tier .cp-tier-why {
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+  max-width: 68ch;
+}
+
 /* ---- lead-candidate card --------------------------------------------------
  * Rendered inside a native st.container(border=True) — the border/radius come
  * from the Streamlit theme tokens, this only styles the text/chip row above

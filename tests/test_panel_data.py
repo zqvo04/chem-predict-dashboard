@@ -1,12 +1,19 @@
-"""STEP 2 tests: JAK data layer — median dedup, SMILES hygiene, cross-measured join.
+"""STEP 2 tests: panel data layer — median dedup, SMILES hygiene, cross-measured join.
 
 Uses a synthetic activities frame (no network) to pin the collapse/join logic, plus
 a live smoke test that self-skips when ChEMBL is unreachable.
+
+Cache/bundle paths come from the panel spec since STEP 15, so the round-trip tests
+build a throwaway panel rooted at tmp_path instead of monkeypatching module-level
+directories — which exercises the real lookup order rather than bypassing it.
 """
+import dataclasses
+
 import pandas as pd
 import pytest
 
-from src.data import jak
+from src.data import panel_data as jak
+from src.panels import JAK
 
 
 def _acts(rows):
@@ -36,42 +43,62 @@ def test_collapse_empty():
     assert jak._collapse(_acts([])).empty
 
 
+def _tmp_panel(tmp_path):
+    """The JAK panel with its assets redirected into tmp_path (no bundle present)."""
+    return dataclasses.replace(JAK, root=tmp_path)
+
+
 def test_build_isoform_rejects_unknown():
     with pytest.raises(ValueError, match="Unknown isoform"):
-        jak.build_isoform_dataset("JAK9", use_cache=False)
+        jak.build_isoform_dataset(JAK, "JAK9", use_cache=False)
 
 
 def test_build_and_cache_roundtrip(tmp_path, monkeypatch):
-    monkeypatch.setattr(jak, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(jak, "BUNDLED_DIR", tmp_path / "no-bundle")  # force the fetch path
+    panel = _tmp_panel(tmp_path)                           # no bundle -> forces the fetch path
     monkeypatch.setattr(jak.cc, "fetch_activities",
                         lambda tid, **kw: _acts([("CCO", 7.0), ("c1ccccc1", 8.0)]))
-    first = jak.build_isoform_dataset("JAK1", use_cache=True)
-    assert (tmp_path / "JAK1.parquet").exists()
+    first = jak.build_isoform_dataset(panel, "JAK1", use_cache=True)
+    assert (panel.data_cache / "JAK1.parquet").exists()
     assert first["smi"].is_unique                          # no duplicate molecules
     # second call loads from cache (fetch would raise if called again)
     monkeypatch.setattr(jak.cc, "fetch_activities",
                         lambda *a, **k: (_ for _ in ()).throw(AssertionError("refetched")))
-    pd.testing.assert_frame_equal(first, jak.build_isoform_dataset("JAK1", use_cache=True))
+    pd.testing.assert_frame_equal(
+        first, jak.build_isoform_dataset(panel, "JAK1", use_cache=True))
+
+
+def test_panel_namespaces_its_cache(tmp_path, monkeypatch):
+    """Two panels must not read each other's datasets — the whole point of STEP 15."""
+    from src.panels import PI3K
+
+    monkeypatch.setattr(jak.cc, "fetch_activities",
+                        lambda tid, **kw: _acts([("CCO", 7.0)]))
+    jak_panel = dataclasses.replace(JAK, root=tmp_path)
+    pi3k_panel = dataclasses.replace(PI3K, root=tmp_path)
+    jak.build_isoform_dataset(jak_panel, "JAK1", use_cache=True)
+    jak.build_isoform_dataset(pi3k_panel, "PIK3CD", use_cache=True)
+    assert jak_panel.data_cache != pi3k_panel.data_cache
+    assert (jak_panel.data_cache / "JAK1.parquet").exists()
+    assert not (pi3k_panel.data_cache / "JAK1.parquet").exists()
 
 
 def test_cross_measured_is_intersection(tmp_path, monkeypatch):
-    monkeypatch.setattr(jak, "CACHE_DIR", tmp_path)
+    panel = _tmp_panel(tmp_path)
     per = {
         "JAK1": _acts([("CCO", 8.0), ("c1ccccc1", 7.0)]),          # CCO, benzene
         "JAK2": _acts([("CCO", 6.0), ("CCN", 7.0)]),               # CCO, ethylamine
         "JAK3": _acts([("CCO", 5.0), ("c1ccccc1", 6.0)]),          # CCO, benzene
     }
     monkeypatch.setattr(jak.cc, "fetch_activities",
-                        lambda tid, **kw: per[{v: k for k, v in jak.TARGETS.items()}[tid]])
-    cross = jak.build_cross_measured(use_cache=False)
+                        lambda tid, **kw: per[{v: k for k, v in JAK.chembl_ids.items()}[tid]])
+    cross = jak.build_cross_measured(panel, use_cache=False)
     assert list(cross["smi"]) == ["CCO"]                   # only molecule in all three
     assert set(cross.columns) == {"smi", "JAK1", "JAK2", "JAK3"}
 
 
 def test_live_summary_smoke():
     try:
-        tbl = jak.summary(use_cache=True)
+        tbl = jak.summary(JAK, use_cache=True)
     except (RuntimeError, OSError) as err:
         pytest.skip(f"ChEMBL unreachable: {err}")
     assert set(tbl["isoform"]) == {"JAK1", "JAK2", "JAK3"}

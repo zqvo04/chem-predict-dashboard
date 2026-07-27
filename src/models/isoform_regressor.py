@@ -1,17 +1,21 @@
 """STEP 3: per-isoform pchembl regressor (the Stage-B Tier-1 engine).
 
-One HistGradientBoosting regressor per JAK isoform, predicting pchembl from ECFP4
+One HistGradientBoosting regressor per panel member, predicting pchembl from ECFP4
 — the v1 QSAR approach, reused per isoform. Evaluated with a **scaffold split over
 several seeds** so the reported MAE / RMSE / R2 / Spearman come with mean +- std,
 not a single fragile draw. The deployed model is refit on all data; the seeded
 splits are only for honest metrics.
 
-CLI (evaluate + cache all three, print the metrics table):
-    python -m src.models.isoform_regressor
+Models are cached under the panel's own namespace (`assets/models/<panel>/`), so a
+second panel cannot load — or overwrite — the first one's regressors.
+
+CLI (evaluate + cache one panel, print the metrics table):
+    python -m src.models.isoform_regressor [panel]
 """
 from __future__ import annotations
 
 import pickle
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -20,14 +24,12 @@ from scipy.stats import spearmanr
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from ..data import jak
+from ..data import panel_data
+from ..panels import DEFAULT_PANEL, PanelSpec, get_panel
 from .features import morgan_matrix
 from .scaffold_split import scaffold_split
 
 SEEDS = (0, 1, 2, 3, 4)
-_ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = _ROOT / "data" / "models" / "jak"                    # runtime cache, gitignored
-BUNDLED_MODEL_DIR = _ROOT / "assets" / "models" / "jak"          # committed for deploys
 
 
 @dataclass
@@ -78,9 +80,10 @@ def _eval_one_seed(X: np.ndarray, y: np.ndarray, smiles: list[str], seed: int) -
     }
 
 
-def evaluate(name: str, seeds: tuple[int, ...] = SEEDS, use_cache: bool = True) -> IsoformMetrics:
+def evaluate(panel: PanelSpec, name: str, seeds: tuple[int, ...] = SEEDS,
+             use_cache: bool = True) -> IsoformMetrics:
     """Scaffold-split metrics over several seeds, as mean +- std."""
-    data = jak.build_isoform_dataset(name, use_cache=use_cache)
+    data = panel_data.build_isoform_dataset(panel, name, use_cache=use_cache)
     smiles = data["smi"].tolist()
     X, mask = morgan_matrix(smiles)
     y = data["pchembl"].to_numpy()[mask]
@@ -114,31 +117,34 @@ def _save(bundle: IsoformModel, path: Path) -> None:
                      "metrics": asdict(bundle.metrics)}, fh)
 
 
-def train_and_cache(name: str, use_cache: bool = True) -> IsoformModel:
+def train_and_cache(panel: PanelSpec, name: str, use_cache: bool = True) -> IsoformModel:
     """Evaluate (seeded splits), refit on all data, cache the deployed model.
 
     A committed model in assets/ is used when no runtime cache exists, so a fresh
     deploy loads in milliseconds instead of retraining on ~10k molecules.
     """
     if use_cache:
-        for directory in (MODEL_DIR, BUNDLED_MODEL_DIR):
+        for directory in (panel.model_cache, panel.model_bundled):
             path = directory / f"{name}_reg.pkl"
             if path.exists():
                 return _load(path)
 
-    metrics = evaluate(name, use_cache=use_cache)
-    data = jak.build_isoform_dataset(name, use_cache=use_cache)
+    metrics = evaluate(panel, name, use_cache=use_cache)
+    data = panel_data.build_isoform_dataset(panel, name, use_cache=use_cache)
     X, mask = morgan_matrix(data["smi"].tolist())
     y = data["pchembl"].to_numpy()[mask]
     bundle = IsoformModel(isoform=name, model=_fit(X, y), metrics=metrics)
-    _save(bundle, MODEL_DIR / f"{name}_reg.pkl")     # retrains land in the runtime cache
+    # retrains land in the runtime cache, never on top of a committed asset
+    _save(bundle, panel.model_cache / f"{name}_reg.pkl")
     return bundle
 
 
 def _main() -> None:
+    panel = get_panel(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PANEL
+    print(f"Panel {panel.name}")
     print(f"{'isoform':7} {'n':>6} {'MAE':>13} {'RMSE':>13} {'R2':>13} {'Spearman':>13}")
-    for name in jak.TARGETS:
-        m = train_and_cache(name, use_cache=False).metrics
+    for name in panel.isoforms:
+        m = train_and_cache(panel, name, use_cache=False).metrics
         print(f"{m.isoform:7} {m.n_molecules:6d} "
               f"{m.mae_mean:.3f}±{m.mae_std:.3f}  "
               f"{m.rmse_mean:.3f}±{m.rmse_std:.3f}  "

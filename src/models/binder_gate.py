@@ -1,14 +1,18 @@
-"""STEP 10: the JAK binder gate (Stage-B Tier 0.5).
+"""STEP 10: the binder gate (Stage-B Tier 0.5), generalised per panel in STEP 15.
 
-A binary "is this a plausible JAK binder?" classifier that runs *before* the
-per-isoform regressors. The regressors are trained only on quantified JAK pchembl,
-so on an off-domain molecule they revert to their training mean (~6.3) and the
-molecule sails over the potency floor with a meaningless selectivity gap. The gate
-drops those molecules first, so Tier 1 only ranks chemistry that plausibly engages
-JAK at all.
+A binary "is this a plausible binder of this panel?" classifier that runs *before*
+the per-isoform regressors. The regressors are trained only on quantified pchembl,
+so on an off-domain molecule they revert to their training mean (~6.3 for JAK) and
+the molecule sails over the potency floor with a meaningless selectivity gap. The
+gate drops those molecules first, so Tier 1 only ranks chemistry that plausibly
+engages the panel at all.
 
-  positives  JAK actives, pchembl >= 6, any isoform          (src/data/jak.py)
-  negatives  physchem-matched presumed-inactives              (src/data/negatives.py)
+  positives  panel actives, pchembl >= 6, any member    (src/data/panel_data.py)
+  negatives  physchem-matched presumed-inactives         (src/data/negatives.py)
+
+One gate per panel, cached under the panel's namespace: a gate trained on JAK
+actives says nothing useful about PI3K chemistry, and sharing the file would let
+it silently try.
 
 ECFP4 + HistGradientBoosting, scaffold-split evaluation over several seeds — the
 same honest protocol as the regressors. The operating point is **Youden's J** (the
@@ -40,15 +44,12 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score, roc_curve
 
-from ..data import jak
-from ..data.negatives import build_negatives, jak_positive_smiles
+from ..data.negatives import build_negatives, positive_smiles
+from ..panels import DEFAULT_PANEL, PanelSpec, get_panel
 from .features import iter_morgan_batches, morgan_matrix
 from .scaffold_split import scaffold_split
 
 SEEDS = (0, 1, 2, 3, 4)
-_ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = _ROOT / "data" / "models" / "jak"                   # runtime cache, gitignored
-BUNDLED_MODEL_DIR = _ROOT / "assets" / "models" / "jak"         # committed for deploys
 
 
 @dataclass
@@ -104,23 +105,24 @@ def _fit(X: np.ndarray, y: np.ndarray) -> HistGradientBoostingClassifier:
     return model
 
 
-def _dataset(use_cache: bool = True) -> tuple[list[str], np.ndarray]:
-    """Combined (smiles, label) with 1 = JAK binder, 0 = matched presumed-inactive."""
-    pos = sorted(jak_positive_smiles(use_cache=use_cache))
-    neg = build_negatives(use_cache=use_cache)["smi"].tolist()
+def _dataset(panel: PanelSpec, use_cache: bool = True) -> tuple[list[str], np.ndarray]:
+    """Combined (smiles, label) with 1 = panel binder, 0 = matched presumed-inactive."""
+    pos = sorted(positive_smiles(panel, use_cache=use_cache))
+    neg = build_negatives(panel, use_cache=use_cache)["smi"].tolist()
     smiles = pos + neg
     y = np.concatenate([np.ones(len(pos)), np.zeros(len(neg))])
     return smiles, y
 
 
-def evaluate(seeds: tuple[int, ...] = SEEDS, use_cache: bool = True) -> GateMetrics:
+def evaluate(panel: PanelSpec = DEFAULT_PANEL, seeds: tuple[int, ...] = SEEDS,
+             use_cache: bool = True) -> GateMetrics:
     """Scaffold-split AUC / average precision over seeds, and the Youden's-J threshold.
 
     The threshold is Youden's J (argmax of TPR − FPR on the held-out ROC) averaged
     over seeds — measured on molecules whose scaffolds the model never trained on —
     and reported with the recall it keeps and the negative-rejection it buys.
     """
-    smiles, y = _dataset(use_cache=use_cache)
+    smiles, y = _dataset(panel, use_cache=use_cache)
     X, mask = morgan_matrix(smiles)
     y = y[mask]
     kept = [s for s, k in zip(smiles, mask) if k]
@@ -163,25 +165,29 @@ def _save(gate: BinderGate, path: Path) -> None:
                      "metrics": asdict(gate.metrics)}, fh)
 
 
-def train_and_cache(use_cache: bool = True) -> BinderGate:
+def train_and_cache(panel: PanelSpec = DEFAULT_PANEL, use_cache: bool = True) -> BinderGate:
     """Evaluate (seeded splits), refit on all data, cache the deployed gate."""
     if use_cache:
-        for directory in (MODEL_DIR, BUNDLED_MODEL_DIR):
+        for directory in (panel.model_cache, panel.model_bundled):
             path = directory / "binder_gate.pkl"
             if path.exists():
                 return _load(path)
 
-    metrics = evaluate(use_cache=use_cache)
-    smiles, y = _dataset(use_cache=use_cache)
+    metrics = evaluate(panel, use_cache=use_cache)
+    smiles, y = _dataset(panel, use_cache=use_cache)
     X, mask = morgan_matrix(smiles)
     gate = BinderGate(model=_fit(X, y[mask]), threshold=metrics.threshold, metrics=metrics)
-    _save(gate, MODEL_DIR / "binder_gate.pkl")
+    _save(gate, panel.model_cache / "binder_gate.pkl")
     return gate
 
 
 def _main() -> None:
-    m = train_and_cache(use_cache=False).metrics
-    print(f"JAK binder gate  (pos {m.n_pos} / neg {m.n_neg}, {m.n_seeds} seeds, scaffold split)")
+    import sys
+
+    panel = get_panel(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PANEL
+    m = train_and_cache(panel, use_cache=False).metrics
+    print(f"{panel.name} binder gate  (pos {m.n_pos} / neg {m.n_neg}, "
+          f"{m.n_seeds} seeds, scaffold split)")
     print(f"  ROC-AUC            : {m.auc_mean:.3f} ± {m.auc_std:.3f}")
     print(f"  Average precision  : {m.ap_mean:.3f} ± {m.ap_std:.3f}")
     print(f"  Youden's-J threshold : {m.threshold:.3f} "

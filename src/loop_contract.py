@@ -21,7 +21,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-SCHEMA_VERSION = "1.0"
+# 1.1 adds `campaign_id` to provenance (STEP 15). Minor bump, not major: the
+# validator keys compatibility on the major version, so a 1.0 contract still reads
+# and a 1.1 contract still validates against code expecting 1.0. The contract stays
+# what it always was — one case's B->A snapshot — and merely records which campaign
+# it was cut from; the campaign itself lives in the registry, not in here.
+SCHEMA_VERSION = "1.1"
 
 NOTEBOOK_PATH = "notebooks/deep_dive.ipynb"
 _COLAB_BASE = "https://colab.research.google.com/github"
@@ -158,7 +163,8 @@ def model_id(chembl_id: str, model) -> str:
 
 def build_contract(shortlist: pd.DataFrame, target: str, offs: list[str],
                    model_ids: dict[str, str], alpha: float,
-                   case_id: str | None = None, stage: str = "B_export") -> dict:
+                   case_id: str | None = None, stage: str = "B_export",
+                   campaign_id: str | None = None) -> dict:
     """Assemble a contract from a scored shortlist frame (one row per molecule).
 
     Expected columns: smi, pred_<iso>, lo_<iso>, hi_<iso>, in_domain_<iso>,
@@ -197,6 +203,7 @@ def build_contract(shortlist: pd.DataFrame, target: str, offs: list[str],
             "model_ids": dict(model_ids),
             "conformal_alpha": alpha,
             "code_version": code_version(),
+            "campaign_id": campaign_id,
         },
         "molecules": molecules,
     }
