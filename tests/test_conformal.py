@@ -30,6 +30,47 @@ def test_gap_interval_adds_halfwidths():
     assert cf.gap_interval(0.6, 0.7) == pytest.approx(1.3)
 
 
+# --- difficulty-scaled gap interval (STEP 14) ------------------------------- #
+
+_KNOTS = {"x": [0.0, 0.5, 1.0], "y": [1.0, 0.5, 0.2]}
+
+
+def test_sigma_at_interpolates_and_clamps():
+    assert cf.sigma_at(0.0, _KNOTS) == pytest.approx(1.0)
+    assert cf.sigma_at(0.25, _KNOTS) == pytest.approx(0.75)     # linear between knots
+    assert cf.sigma_at(1.0, _KNOTS) == pytest.approx(0.2)
+    # outside the knot range numpy.interp clamps to the end values
+    assert cf.sigma_at(-1.0, _KNOTS) == pytest.approx(1.0)
+    assert cf.sigma_at(2.0, _KNOTS) == pytest.approx(0.2)
+
+
+def test_sigma_is_vectorised():
+    out = cf.sigma_at([0.0, 0.5, 1.0], _KNOTS)
+    assert np.allclose(out, [1.0, 0.5, 0.2])
+
+
+def test_gap_halfwidth_widens_as_similarity_drops(monkeypatch):
+    """The whole point of the change: a molecule far from training must get a wider
+    interval than one close to it. A constant width covered 92% of near molecules
+    but only 46% of far ones at a 90% nominal level."""
+    monkeypatch.setattr(cf, "gap_calibration",
+                        lambda *a, **k: {"q": 2.0, "sigma": _KNOTS})
+    far, near = cf.gap_halfwidth(0.0), cf.gap_halfwidth(1.0)
+    assert far > near
+    assert far == pytest.approx(2.0) and near == pytest.approx(0.4)
+
+
+def test_fit_sigma_returns_usable_knots():
+    """sigma must decrease with similarity when the residuals do."""
+    rng = np.random.default_rng(0)
+    sim = rng.uniform(0, 1, 600)
+    resid = np.abs(rng.normal(0, 1.0 - 0.7 * sim))      # noisier when sim is low
+    knots = cf._fit_sigma(sim, resid)
+    assert len(knots["x"]) == cf.SIGMA_KNOTS == len(knots["y"])
+    assert min(knots["y"]) >= cf._SIGMA_FLOOR
+    assert cf.sigma_at(0.05, knots) > cf.sigma_at(0.95, knots)
+
+
 def test_empirical_coverage_matches_nominal_on_synthetic():
     # Gaussian residuals: the conformal quantile of |errors| should cover ~90%.
     rng = np.random.default_rng(0)

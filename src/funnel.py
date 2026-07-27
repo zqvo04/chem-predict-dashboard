@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from .applicability import in_domain, load_reference
-from .conformal import DEFAULT_ALPHA, halfwidth
+from .conformal import DEFAULT_ALPHA, gap_halfwidth, halfwidth
 from .data import jak
 from .data.library import load_library
 from .filters.druglikeness import apply_druglikeness
@@ -94,14 +94,22 @@ def _trust(df: pd.DataFrame, q, refs, isoforms, target, offs) -> pd.DataFrame:
     """Tier 2 (pricier, survivors only): conformal intervals + applicability domain + MPO."""
     if df.empty:
         return df
-    worst_off = df[[f"pred_{o}" for o in offs]].idxmax(axis=1).str.replace("pred_", "")
     for iso in isoforms:
         df[f"lo_{iso}"] = df[f"pred_{iso}"] - q[iso]
         df[f"hi_{iso}"] = df[f"pred_{iso}"] + q[iso]
         ad = in_domain(df["smi"].tolist(), reference=refs[iso])
         df[f"in_domain_{iso}"] = ad["in_domain"]
-        df[f"nn_sim_{iso}"] = ad["nn_sim"]     # kept: the single-molecule view reports it
-    half = q[target] + np.array([q[o] for o in worst_off])
+        df[f"nn_sim_{iso}"] = ad["nn_sim"]     # feeds the gap interval below
+
+    # The gap interval is calibrated directly against the *measured* gap and scaled
+    # by how far the molecule sits from training, rather than summing the two
+    # isoform half-widths. Summing assumed independent adverse errors; measured,
+    # they correlate at +0.65 and largely cancel, so it delivered 99.7% coverage at
+    # a 90% nominal level — and, being constant, it still covered only 46% of the
+    # low-similarity molecules that make up most of a wide screen.
+    nn_min = np.minimum.reduce([df[f"nn_sim_{iso}"].to_numpy() for iso in isoforms])
+    half = gap_halfwidth(nn_min)
+    df["gap_halfwidth"] = half
     df["gap_lo"] = df["gap"] - half
     df["gap_hi"] = df["gap"] + half
     df["in_domain"] = np.logical_and.reduce([df[f"in_domain_{iso}"] for iso in isoforms])
