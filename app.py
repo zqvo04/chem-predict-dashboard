@@ -22,8 +22,10 @@ import streamlit as st
 from rdkit import Chem
 from rdkit.Chem import Draw
 
-from src.models.property_models import load_property_models
-from src.pipeline import screen
+# `src.pipeline` and the property-model bundle are imported lazily, inside the two
+# Target-screen functions that use them: importing pipeline at module scope loaded
+# the ~2.9 MB ESOL/Tox21 pickle on every app start, including the funnel and
+# single-molecule modes that never touch it.
 
 _ASSETS = Path(__file__).parent / "assets"
 
@@ -97,6 +99,12 @@ def stat_row(stats: list[tuple[str, str, str]], accent_first: bool = False) -> N
 
 def note(html: str) -> None:
     st.html(f"<div class='cp-note'>{html}</div>")
+
+
+def idle_prompt(title: str, deck: str) -> None:
+    """What a mode shows before the user has asked it to run anything."""
+    section_head(title, deck)
+    note(f"<strong>Nothing has run yet.</strong> {deck}")
 
 
 def lead_card(row: pd.Series, target: str, offs: tuple[str, ...]) -> None:
@@ -248,6 +256,8 @@ def run_funnel():
 
 @st.cache_data(show_spinner=False)
 def run_screen(target: str, expand: bool, max_records: int):
+    from src.pipeline import screen
+
     tgt, model, scored = screen(target, expand=expand, max_records=max_records, use_cache=True)
     return tgt, model.metrics, scored
 
@@ -601,6 +611,8 @@ def render_target_screen(target: str, top_n: int, expand: bool, max_records: int
         ("Novel candidates", f"{len(novel)}", "PubChem analogues, not in training"),
     ], accent_first=True)
 
+    from src.models.property_models import load_property_models
+
     prop = load_property_models()
     scoring = (
         f"<strong>{tgt.chembl_id} — {tgt.pref_name}.</strong> Activity model: "
@@ -657,18 +669,26 @@ with st.sidebar:
                                 label_visibility="collapsed") or "Selectivity funnel"
     st.divider()
 
+    # Every mode runs behind an explicit submit. Switching modes used to fire the
+    # workflow immediately off the default text — landing on "Single molecule" scored
+    # ruxolitinib and "Target screen" ran a full EGFR screen — so simply looking at a
+    # tab cost seconds of compute nobody had asked for.
     if mode == "Single molecule":
         st.markdown("### Score a molecule")
-        single_query = st.text_input("SMILES or compound name", value="ruxolitinib")
+        with st.form("single_form"):
+            single_query = st.text_input("SMILES or compound name", value="ruxolitinib")
+            single_go = st.form_submit_button("Score molecule", type="primary")
         st.caption("A SMILES string is parsed locally. Anything else is looked up by "
                    "name on PubChem and reduced to its neutral parent, so a salt form "
                    "scores as the drug it is.")
     elif mode == "Target screen":
         st.markdown("### Screen a target")
-        target = st.text_input("Target name or ChEMBL id", value="EGFR")
-        top_n = st.slider("Top N per track", 4, 24, 8)
-        expand = st.checkbox("Expand with novel PubChem analogues", value=True)
-        max_records = st.select_slider("Max ChEMBL records", [1000, 2000, 4000], value=4000)
+        with st.form("target_form"):
+            target = st.text_input("Target name or ChEMBL id", value="EGFR")
+            top_n = st.slider("Top N per track", 4, 24, 8)
+            expand = st.checkbox("Expand with novel PubChem analogues", value=True)
+            max_records = st.select_slider("Max ChEMBL records", [1000, 2000, 4000], value=4000)
+            target_go = st.form_submit_button("Run screen", type="primary")
         st.caption("EGFR ships with a pre-baked model and returns immediately. Other "
                    "targets train on first run (~30–40 s), then cache.")
     else:
@@ -686,6 +706,27 @@ masthead(["CPU-only", "ChEMBL + PubChem"] if mode == "Target screen"
 if mode == "Selectivity funnel":
     render_funnel()
 elif mode == "Single molecule":
-    render_single(single_query)
+    # The submit flag is remembered, so later reruns (a table selection, an export)
+    # keep showing the result instead of resetting to the idle state.
+    if single_go:
+        st.session_state["single_submitted"] = True
+        st.session_state["single_query"] = single_query
+    if st.session_state.get("single_submitted"):
+        render_single(st.session_state.get("single_query", single_query))
+    else:
+        idle_prompt("Score a molecule",
+                    "Enter a SMILES string or a compound name in the sidebar, then press "
+                    "<strong>Score molecule</strong>. Scoring one structure takes about "
+                    "0.3&nbsp;s; the library percentile it is ranked against is precomputed.")
 else:
-    render_target_screen(target, top_n, expand, max_records)
+    if target_go:
+        st.session_state["target_submitted"] = True
+        st.session_state["target_args"] = (target, top_n, expand, max_records)
+    if st.session_state.get("target_submitted"):
+        render_target_screen(*st.session_state.get(
+            "target_args", (target, top_n, expand, max_records)))
+    else:
+        idle_prompt("Target screen",
+                    "Pick a target in the sidebar and press <strong>Run screen</strong>. "
+                    "EGFR is pre-baked and returns immediately; any other target does a "
+                    "one-off ChEMBL fetch and train (~30–40&nbsp;s) before it caches.")

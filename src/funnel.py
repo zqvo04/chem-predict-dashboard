@@ -15,7 +15,9 @@ same scoring for re-scoring a small set (the Stage-A loop closure), and
 """
 from __future__ import annotations
 
+import json
 from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -31,6 +33,11 @@ from .models.features import iter_morgan_batches
 from .models.isoform_regressor import train_and_cache
 from .mpo import annotate as mpo_annotate
 from .selectivity import OFFS, POTENCY_FLOOR, TARGET
+
+
+_ROOT = Path(__file__).resolve().parents[1]
+GAP_DIST_CACHE = _ROOT / "data" / "library" / "gap_distribution.npz"      # runtime, gitignored
+GAP_DIST_BUNDLED = _ROOT / "assets" / "library" / "gap_distribution.npz"  # committed
 
 
 def _quiet(_message: str) -> None:
@@ -147,17 +154,22 @@ def score_molecules(smiles: list[str], target: str = TARGET, offs: tuple[str, ..
     return _annotate_binder(df, use_cache)
 
 
-@lru_cache(maxsize=4)
-def library_gap_distribution(target: str = TARGET, offs: tuple[str, ...] = OFFS,
-                             use_cache: bool = True) -> np.ndarray:
-    """Sorted Tier-1 gap S over the whole drug-like library.
+def _gap_distribution_provenance(target: str, offs: tuple[str, ...],
+                                 use_cache: bool) -> str:
+    """What a cached gap distribution must match to still be valid.
 
-    The reference distribution a single molecule is ranked against. A lone gap
-    value means little on its own — the 90 % interval spans ~±2 pchembl and
-    usually crosses zero — but the molecule's *position among 10^3 others* is
-    exactly what the gap model was validated on (Spearman 0.80, 4.5x enrichment),
-    so the single-molecule view leads with the percentile.
+    The distribution is a function of the library, the three regressors and the
+    gate threshold. Pinning the model ids (stable behavioural digests since
+    STEP 12) means a retrain invalidates the cache automatically instead of
+    silently ranking against a stale reference.
     """
+    return json.dumps({"models": current_model_ids(target, offs, use_cache),
+                       "gate": round(float(_gate(use_cache).threshold), 6),
+                       "offs": list(offs)}, sort_keys=True)
+
+
+def _compute_gap_distribution(target: str, offs: tuple[str, ...],
+                              use_cache: bool) -> np.ndarray:
     isoforms, models, _, _ = _context(target, offs, use_cache)
     lib = load_library(use_cache=use_cache)
     lib = lib[lib["druglike"]].reset_index(drop=True) if "druglike" in lib.columns else lib
@@ -167,6 +179,36 @@ def library_gap_distribution(target: str = TARGET, offs: tuple[str, ...] = OFFS,
     lib = lib[gate.predict_proba(lib["smi"].tolist()) >= gate.threshold].reset_index(drop=True)
     scored = _predict(lib, models, isoforms, target, offs)
     return np.sort(scored["gap"].to_numpy())
+
+
+@lru_cache(maxsize=4)
+def library_gap_distribution(target: str = TARGET, offs: tuple[str, ...] = OFFS,
+                             use_cache: bool = True) -> np.ndarray:
+    """Sorted Tier-1 gap S over the gate-clearing library — the percentile reference.
+
+    A lone gap value means little on its own, but the molecule's *position among
+    thousands of others* is what the gap model was validated on (Spearman 0.80,
+    4.5x enrichment), so the single-molecule view leads with the percentile.
+
+    Computing it means screening the whole library — ~8.7 s — which the
+    single-molecule view was paying on every cold process just to place one
+    molecule that itself scores in 0.3 s. It depends on nothing the user types, so
+    it is precomputed and shipped, guarded by a provenance string so a retrained
+    model or a moved gate threshold rebuilds it rather than ranking against a stale
+    reference.
+    """
+    want = _gap_distribution_provenance(target, offs, use_cache)
+    if use_cache:
+        for path in (GAP_DIST_CACHE, GAP_DIST_BUNDLED):
+            if path.exists():
+                with np.load(path, allow_pickle=False) as z:
+                    if str(z["provenance"]) == want:
+                        return z["gaps"].astype(float)
+
+    gaps = _compute_gap_distribution(target, offs, use_cache)
+    GAP_DIST_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(GAP_DIST_CACHE, gaps=gaps.astype(np.float32), provenance=want)
+    return gaps
 
 
 def gap_percentile(gap: float, target: str = TARGET, offs: tuple[str, ...] = OFFS,
