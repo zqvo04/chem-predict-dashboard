@@ -517,6 +517,11 @@ def render_single(query: str) -> None:
         st.code(smiles, language=None)
     with right:
         st.markdown(f"**Selectivity gap** `{gap:+.2f}`  90% CI `[{lo:+.2f}, {hi:+.2f}]`")
+        st.caption(
+            f"The interval is calibrated against the *measured* gap and scaled by how "
+            f"far this molecule sits from the training set (nearest neighbour "
+            f"{float(row[f'nn_sim_{TARGET}']):.2f}), so it widens where the model is "
+            f"extrapolating instead of quoting one width everywhere.")
         if lo <= 0.0 <= hi:
             st.warning(
                 f"The interval crosses zero, so this molecule cannot be called "
@@ -524,9 +529,9 @@ def render_single(query: str) -> None:
                 f"**rank**: it sits at the {percentile:.1f}th percentile of the {n_ref} "
                 f"gate-clearing molecules"
                 + (" — a small reference set, so read the percentile as coarse."
-                   if n_ref < 100 else ". ") +
-                f" Selectivity ranking was validated (Spearman 0.80 vs measured gaps, "
-                f"4.5× enrichment); per-molecule intervals this wide were not.")
+                   if n_ref < 100 else ".") +
+                f" Selectivity ranking was validated separately (Spearman 0.80 vs "
+                f"measured gaps, 4.5× enrichment).")
         else:
             st.success(f"The interval excludes zero — the predicted direction of "
                        f"selectivity is supported at 90 % confidence.")

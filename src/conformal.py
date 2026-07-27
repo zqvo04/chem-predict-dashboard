@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -50,8 +51,122 @@ def predict_interval(pred: np.ndarray, q: float) -> tuple[np.ndarray, np.ndarray
 
 
 def gap_interval(q_target: float, q_off: float) -> float:
-    """Conservative half-width for the gap S = pred(target) - max(off): the two add."""
+    """Legacy worst-case half-width for the gap: the two isoform half-widths add.
+
+    Superseded by the directly-calibrated `gap_halfwidth` (STEP 14) and kept only
+    because it documents what the funnel used to do. Summing assumes the two
+    isoform errors are independent and adverse; measured, they correlate at
+    **+0.65**, so they largely cancel in the difference and the sum over-pays —
+    it delivered 99.7 % coverage at a 90 % nominal level, twice the necessary width.
+    """
     return q_target + q_off
+
+
+# --- directly-calibrated, difficulty-scaled gap interval (STEP 14) ------------ #
+
+SIGMA_KNOTS = 21          # piecewise-linear sigma curve, on nn-similarity in [0,1]
+_SIGMA_FLOOR = 0.15       # keeps sigma away from zero where calibration data is thin
+
+
+def _gap_predict(models: dict, X: np.ndarray, target: str, offs: tuple[str, ...]) -> np.ndarray:
+    p = {i: models[i].predict(X) for i in [target, *offs]}
+    return p[target] - np.maximum.reduce([p[o] for o in offs])
+
+
+def _fit_sigma(nn_sim: np.ndarray, residual: np.ndarray) -> dict:
+    """A difficulty curve sigma(nn_similarity), returned as interpolation knots.
+
+    The gap error is not constant: it grows as a molecule sits further from the
+    training set. Fitting that dependence and *scaling* the interval by it is what
+    makes coverage hold for hard molecules instead of only on average. Stored as
+    knots rather than a pickled model — it is a 1-D monotone-ish curve, and knots
+    are inspectable, tiny and version-proof.
+    """
+    model = HistGradientBoostingRegressor(max_iter=120, random_state=0).fit(
+        nn_sim.reshape(-1, 1), np.log(residual + 1e-3))
+    xs = np.linspace(0.0, 1.0, SIGMA_KNOTS)
+    ys = np.clip(np.exp(model.predict(xs.reshape(-1, 1))), _SIGMA_FLOOR, None)
+    return {"x": xs.tolist(), "y": ys.tolist()}
+
+
+def sigma_at(nn_sim, knots: dict) -> np.ndarray:
+    """Evaluate the difficulty curve at given nearest-neighbour similarities."""
+    return np.interp(np.asarray(nn_sim, dtype=float), knots["x"], knots["y"])
+
+
+def calibrate_gap(alpha: float = DEFAULT_ALPHA, seed: int = 0,
+                  use_cache: bool = True) -> dict:
+    """Calibrate the gap interval directly, scaled by distance from training.
+
+    Split-conformal on the **gap residual itself** rather than on each isoform
+    separately, over the cross-measured set (the only place a *measured* gap
+    exists). The calibration half is split again: one part fits the difficulty
+    curve, the other supplies the conformal quantile, so the curve is never fitted
+    and scored on the same molecules.
+
+    Returns `{"q": float, "sigma": {"x": [...], "y": [...]}}`; the half-width for a
+    molecule is `q * sigma(nn_similarity)`.
+    """
+    from .applicability import tanimoto_nn_similarity
+    from .selectivity import OFFS, TARGET
+
+    cross = jak.build_cross_measured(use_cache=use_cache)
+    smiles = cross["smi"].tolist()
+    X, mask = morgan_matrix(smiles)
+    cross = cross[mask].reset_index(drop=True)
+    kept = [s for s, k in zip(smiles, mask) if k]
+    meas = {i: cross[i].to_numpy() for i in [TARGET, *OFFS]}
+    meas_gap = meas[TARGET] - np.maximum.reduce([meas[o] for o in OFFS])
+
+    trpool, _ = scaffold_split(kept, test_frac=0.2, seed=seed)
+    ptr_rel, cal_rel = scaffold_split([kept[i] for i in trpool], test_frac=0.25, seed=seed)
+    ptr, cal = trpool[ptr_rel], trpool[cal_rel]
+
+    models = {i: _fit(X[ptr], meas[i][ptr]) for i in [TARGET, *OFFS]}
+    train_smi = [kept[i] for i in ptr]
+    fit_idx, quant_idx = cal[::2], cal[1::2]
+
+    def resid_and_sim(idx):
+        r = np.abs(meas_gap[idx] - _gap_predict(models, X[idx], TARGET, OFFS))
+        s = tanimoto_nn_similarity([kept[i] for i in idx], train_smi)
+        return r, s
+
+    r_fit, s_fit = resid_and_sim(fit_idx)
+    r_q, s_q = resid_and_sim(quant_idx)
+    knots = _fit_sigma(s_fit, r_fit)
+    q = conformal_quantile(r_q / sigma_at(s_q, knots), alpha)
+    return {"q": float(q), "sigma": knots}
+
+
+def _bundled_gap(alpha: float, seed: int) -> dict | None:
+    if not BUNDLED_QUANTILES.exists():
+        return None
+    table = json.loads(BUNDLED_QUANTILES.read_text(encoding="utf-8"))
+    return table.get(f"gap|alpha={alpha}|seed={seed}")
+
+
+@lru_cache(maxsize=4)
+def gap_calibration(alpha: float = DEFAULT_ALPHA, seed: int = 0,
+                    use_cache: bool = True) -> dict:
+    """The deployed gap calibration — committed table first, else computed."""
+    if use_cache:
+        cached = _bundled_gap(alpha, seed)
+        if cached is not None:
+            return cached
+    return calibrate_gap(alpha, seed, use_cache=use_cache)
+
+
+def gap_halfwidth(nn_sim, alpha: float = DEFAULT_ALPHA, seed: int = 0,
+                  use_cache: bool = True) -> np.ndarray:
+    """Per-molecule gap half-width, widening as a molecule leaves the training set.
+
+    `nn_sim` is the nearest-neighbour Tanimoto similarity to training, taken as the
+    **minimum across the contributing isoforms** — the gap is only as trustworthy as
+    the most-extrapolating model behind it, the same worst-case rule the
+    applicability-domain verdict already uses.
+    """
+    cal = gap_calibration(alpha, seed, use_cache)
+    return cal["q"] * sigma_at(nn_sim, cal["sigma"])
 
 
 def _fit(X: np.ndarray, y: np.ndarray) -> HistGradientBoostingRegressor:
@@ -130,6 +245,63 @@ def evaluate_coverage(isoform: str, alpha: float = DEFAULT_ALPHA,
     )
 
 
+SIM_BUCKETS = ((0.0, 0.35), (0.35, 0.45), (0.45, 0.60), (0.60, 1.01))
+
+
+def evaluate_gap_coverage(alpha: float = DEFAULT_ALPHA, seeds: tuple[int, ...] = SEEDS,
+                          use_cache: bool = True) -> dict:
+    """Marginal *and* per-difficulty coverage of the gap interval, old vs new.
+
+    Marginal coverage alone hides the failure this replaced: a single constant
+    width over-covers molecules close to training and badly under-covers the ones
+    far from it, which is exactly where a wide screen operates. Coverage is
+    therefore reported per nearest-neighbour-similarity bucket.
+    """
+    from .applicability import tanimoto_nn_similarity
+    from .selectivity import OFFS, TARGET
+
+    cross = jak.build_cross_measured(use_cache=use_cache)
+    smiles = cross["smi"].tolist()
+    X, mask = morgan_matrix(smiles)
+    cross = cross[mask].reset_index(drop=True)
+    kept = [s for s, k in zip(smiles, mask) if k]
+    meas = {i: cross[i].to_numpy() for i in [TARGET, *OFFS]}
+    meas_gap = meas[TARGET] - np.maximum.reduce([meas[o] for o in OFFS])
+
+    out = {"marginal_new": [], "marginal_old": [], "width_new": [], "width_old": [],
+           "crosses_zero_new": [], "crosses_zero_old": [],
+           "bucket_new": {b: [] for b in SIM_BUCKETS},
+           "bucket_old": {b: [] for b in SIM_BUCKETS}}
+
+    for seed in seeds:
+        trpool, test = scaffold_split(kept, test_frac=0.2, seed=seed)
+        ptr_rel, cal_rel = scaffold_split([kept[i] for i in trpool], test_frac=0.25, seed=seed)
+        ptr, cal = trpool[ptr_rel], trpool[cal_rel]
+        models = {i: _fit(X[ptr], meas[i][ptr]) for i in [TARGET, *OFFS]}
+        train_smi = [kept[i] for i in ptr]
+
+        g_te = _gap_predict(models, X[test], TARGET, OFFS)
+        r_te = np.abs(meas_gap[test] - g_te)
+        s_te = tanimoto_nn_similarity([kept[i] for i in test], train_smi)
+
+        cal_gap = calibrate_gap(alpha, seed, use_cache=use_cache)
+        w_new = cal_gap["q"] * sigma_at(s_te, cal_gap["sigma"])
+        q_iso = {i: conformal_quantile(
+            np.abs(meas[i][cal] - models[i].predict(X[cal])), alpha) for i in [TARGET, *OFFS]}
+        w_old = np.full(len(test), q_iso[TARGET] + max(q_iso[o] for o in OFFS))
+
+        for tag, w in (("new", w_new), ("old", w_old)):
+            out[f"marginal_{tag}"].append(float((r_te <= w).mean()))
+            out[f"width_{tag}"].append(float(2 * np.mean(w)))
+            out[f"crosses_zero_{tag}"].append(
+                float(((g_te - w <= 0) & (0 <= g_te + w)).mean()))
+            for b in SIM_BUCKETS:
+                sel = (s_te >= b[0]) & (s_te < b[1])
+                if sel.sum() >= 15:
+                    out[f"bucket_{tag}"][b].append(float((r_te[sel] <= w[sel]).mean()))
+    return out
+
+
 def _main() -> None:
     print(f"Split-conformal coverage at {int((1-DEFAULT_ALPHA)*100)}% nominal "
           f"({len(SEEDS)} seeds, scaffold-disjoint):")
@@ -138,6 +310,19 @@ def _main() -> None:
         m = evaluate_coverage(iso)
         print(f"  {iso:7} {m.coverage_mean:6.3f} ± {m.coverage_std:.3f}     "
               f"{m.width_mean:6.2f} ± {m.width_std:.2f}")
+
+    g = evaluate_gap_coverage()
+    mean = lambda v: float(np.mean(v)) if len(v) else float("nan")
+    print(f"\nGap interval — summed half-widths (old) vs directly calibrated (new):")
+    print(f"  {'':22} {'marginal':>10} {'width':>8} {'crosses 0':>11}")
+    for tag, label in (("old", "summed (old)"), ("new", "calibrated (new)")):
+        print(f"  {label:22} {mean(g[f'marginal_{tag}']):10.3f} "
+              f"{mean(g[f'width_{tag}']):8.2f} {mean(g[f'crosses_zero_{tag}']):10.0%}")
+    print(f"\n  coverage by nearest-neighbour similarity to training:")
+    print(f"  {'bucket':22} {'old':>10} {'new':>10}")
+    for b in SIM_BUCKETS:
+        print(f"  [{b[0]:.2f}, {b[1]:.2f})".ljust(24)
+              + f"{mean(g['bucket_old'][b]):10.3f} {mean(g['bucket_new'][b]):10.3f}")
 
 
 if __name__ == "__main__":
