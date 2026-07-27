@@ -85,3 +85,38 @@ def test_live_library_is_diverse_and_leak_free():
     assert out["smi"].is_unique
     if "source_target" in out.columns:
         assert out["source_target"].nunique() >= lib.MIN_TARGETS
+
+
+# --- precomputed gap distribution (STEP 15) --------------------------------- #
+
+def test_gap_distribution_cache_is_provenance_guarded(tmp_path, monkeypatch):
+    """The percentile reference is a function of the library, the regressors and the
+    gate threshold. A cache that ignored that would silently rank molecules against
+    a stale reference after a retrain, so a mismatched provenance must recompute."""
+    import numpy as np
+    from src import funnel
+
+    monkeypatch.setattr(funnel, "GAP_DIST_CACHE", tmp_path / "gap.npz")
+    monkeypatch.setattr(funnel, "GAP_DIST_BUNDLED", tmp_path / "none.npz")
+    monkeypatch.setattr(funnel, "_gap_distribution_provenance",
+                        lambda *a, **k: "PROV-A")
+    calls = []
+
+    def fake_compute(*a, **k):
+        calls.append(1)
+        return np.array([0.0, 1.0, 2.0])
+
+    monkeypatch.setattr(funnel, "_compute_gap_distribution", fake_compute)
+
+    funnel.library_gap_distribution.cache_clear()
+    funnel.library_gap_distribution()
+    funnel.library_gap_distribution.cache_clear()
+    funnel.library_gap_distribution()                    # same provenance -> cache hit
+    assert len(calls) == 1
+
+    monkeypatch.setattr(funnel, "_gap_distribution_provenance",
+                        lambda *a, **k: "PROV-B")        # models moved
+    funnel.library_gap_distribution.cache_clear()
+    funnel.library_gap_distribution()
+    assert len(calls) == 2, "a changed provenance must rebuild, not reuse"
+    funnel.library_gap_distribution.cache_clear()

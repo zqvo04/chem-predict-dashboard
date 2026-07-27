@@ -268,10 +268,14 @@ def evaluate_gap_coverage(alpha: float = DEFAULT_ALPHA, seeds: tuple[int, ...] =
     meas = {i: cross[i].to_numpy() for i in [TARGET, *OFFS]}
     meas_gap = meas[TARGET] - np.maximum.reduce([meas[o] for o in OFFS])
 
-    out = {"marginal_new": [], "marginal_old": [], "width_new": [], "width_old": [],
-           "crosses_zero_new": [], "crosses_zero_old": [],
-           "bucket_new": {b: [] for b in SIM_BUCKETS},
-           "bucket_old": {b: [] for b in SIM_BUCKETS}}
+    # Three arms, because the middle one is the trap: "old" (summed half-widths) is
+    # what shipped, "flat" is the obvious fix (calibrate on the gap, one width for
+    # everyone), and "new" additionally scales that width by distance from training.
+    # Without the flat arm the comparison would hide why the scaling is needed.
+    arms = ("old", "flat", "new")
+    out = {f"{k}_{a}": [] for a in arms
+           for k in ("marginal", "width", "crosses_zero")}
+    out.update({f"bucket_{a}": {b: [] for b in SIM_BUCKETS} for a in arms})
 
     for seed in seeds:
         trpool, test = scaffold_split(kept, test_frac=0.2, seed=seed)
@@ -289,8 +293,10 @@ def evaluate_gap_coverage(alpha: float = DEFAULT_ALPHA, seeds: tuple[int, ...] =
         q_iso = {i: conformal_quantile(
             np.abs(meas[i][cal] - models[i].predict(X[cal])), alpha) for i in [TARGET, *OFFS]}
         w_old = np.full(len(test), q_iso[TARGET] + max(q_iso[o] for o in OFFS))
+        r_cal = np.abs(meas_gap[cal] - _gap_predict(models, X[cal], TARGET, OFFS))
+        w_flat = np.full(len(test), conformal_quantile(r_cal, alpha))
 
-        for tag, w in (("new", w_new), ("old", w_old)):
+        for tag, w in (("new", w_new), ("old", w_old), ("flat", w_flat)):
             out[f"marginal_{tag}"].append(float((r_te <= w).mean()))
             out[f"width_{tag}"].append(float(2 * np.mean(w)))
             out[f"crosses_zero_{tag}"].append(
