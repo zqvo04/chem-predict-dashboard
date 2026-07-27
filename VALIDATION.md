@@ -681,3 +681,100 @@ cp data/library/library.parquet assets/library/
 python -m src.funnel            # screen it
 python scripts/run_loop.py      # regenerate the worked case
 ```
+
+---
+
+## STEP 14 — the gap interval was calibrated on the wrong thing (2026-07-27)
+
+**The defect.** The funnel's selectivity gap `S` came with a 90 % interval whose
+half-width was the **sum of the two contributing isoform half-widths**
+(`conformal.gap_interval`). Summing is the correct worst case only if the two
+isoform errors are independent and adverse. Measured on the cross-measured set they
+are neither: the JAK1 and JAK2 residuals correlate at **+0.65**, so they largely
+cancel in a difference and the sum over-pays for an error that does not occur.
+
+The cost is not academic. At a 90 % nominal level the summed interval delivered
+**99.7 % empirical coverage** at a mean width of **4.86** pchembl units, and on the
+deployed shortlist it **crossed zero for 60 of 60 molecules** — meaning the funnel
+could not call a single molecule selective, which is the one thing it exists to do.
+
+**Three arms, because the obvious fix is a trap.** The fix is to calibrate on the
+gap residual directly, over the cross-measured set (the only place a *measured* gap
+exists). But a single directly-calibrated width passes the headline check while
+failing the molecules the screen is actually made of, so it is measured as its own
+arm rather than skipped:
+
+| arm | what it is | marginal coverage | mean width | crosses zero |
+|---|---|---:|---:|---:|
+| **summed** (shipped before) | q(target) + max q(off) | 0.997 ± 0.003 | 4.86 | 99.6 % |
+| **flat** (the trap) | split-conformal on the gap residual, one width for all | 0.897 ± 0.015 | 1.97 | 74.6 % |
+| **scaled** (shipped now) | that width × a difficulty curve σ(nn-similarity) | 0.896 ± 0.020 | 2.17 | 69.9 % |
+
+Marginal coverage alone would call the flat arm finished — 0.897 against a 0.90
+nominal is as close as this gets. Split by how far a molecule sits from training, it
+is not:
+
+| nn-similarity to training | summed | flat | scaled |
+|---|---:|---:|---:|
+| **[0.00, 0.35)** | 0.921 | **0.460** | **0.921** |
+| **[0.35, 0.45)** | 0.976 | 0.546 | 1.000 |
+| [0.45, 0.60) | 0.998 | 0.837 | 0.938 |
+| [0.60, 1.00] | 0.998 | 0.921 | 0.889 |
+
+**A constant width is mis-sized per molecule, and it is mis-sized in the direction
+that matters.** The flat arm's advertised "90 % CI" is a 46 % CI on the
+lowest-similarity band — and a wide, target-agnostic screen operates almost entirely
+in that band (**88.5 %** of gate survivors and **52 of 60** shortlisted molecules sit
+in the bottom two rows). Scaling the width by a fitted difficulty curve lifts the
+worst bucket from **0.460 to 0.889** while keeping marginal coverage on nominal.
+
+> **Correcting the record.** The commit that introduced this change
+> (`5c37da0`) presented the `0.460` bucket table as a property of the **summed**
+> interval. It is not: the summed interval over-covers *everywhere* (worst bucket
+> 0.921) — its failure is being uniformly too wide, not too narrow on hard
+> molecules. `0.460` belongs to the **flat** arm. The three-arm comparison above is
+> the measurement that separates them, and this table supersedes the one in that
+> commit message.
+
+**What shipped.** `calibrate_gap` splits the cross-measured set scaffold-wise, and
+splits the calibration half again — one part fits the difficulty curve
+σ(nn-similarity), the other supplies the conformal quantile — so the curve is never
+fitted and scored on the same molecules. The half-width for a molecule is
+`q · σ(nn_sim)` with **q = 3.003** and σ running **0.15 → 0.467**. σ is stored as 21
+interpolation knots in `assets/jak/conformal_quantiles.json` rather than a pickled
+model: it is a 1-D curve, and knots are inspectable, tiny and version-proof.
+`nn_sim` is the **minimum across the contributing isoforms** — the gap is only as
+trustworthy as the most-extrapolating model behind it, the same worst-case rule the
+AD verdict already uses.
+
+**Effect on the deployed screen** (60-molecule shortlist, 33 in-domain — unchanged):
+
+| | summed (before) | scaled (after) |
+|---|---:|---:|
+| gap interval width | flat **4.53** | **1.78 – 2.80** (adaptive) |
+| shortlist crossing zero | **60 / 60 (100 %)** | **32 / 60 (53 %)** |
+| molecules with a directional 90 % claim | **0** | **28** |
+
+In the single-molecule view the width now tracks how much the model actually knows
+about the molecule: tofacitinib (nn 1.00) gets **1.23**, ruxolitinib (0.66) **1.78**,
+ethanol (0.11) **2.80**.
+
+**Gate 14 passed:** the gap interval is calibrated against the measured gap rather
+than assembled from two unrelated ones, marginal coverage sits on nominal
+(0.896 vs 0.90), the worst-similarity bucket holds at 0.889 instead of 0.460, and
+the funnel can state a directional selectivity result for 28 molecules where before
+it could state none. Per-isoform coverage is untouched — JAK1 **0.904 ± 0.010**,
+JAK2 **0.905 ± 0.007**, JAK3 **0.888 ± 0.023**, all inside the 88–92 % gate.
+
+**Honest limits.** The two low-similarity buckets clear the 15-molecule reporting
+floor in only **2 of 5 seeds**, so those two rows rest on fewer samples than the two
+above them. `gap_interval()` is kept in the codebase but marked superseded, because
+it documents what the funnel used to do. And the calibration inherits STEP 4's
+caveat unchanged: it is fitted on pooled assay types, so it carries the same
+ATP-competition confound the headline Spearman does.
+
+### Reproduce
+
+```bash
+python -m src.conformal          # per-isoform coverage + the 3-arm gap table
+```

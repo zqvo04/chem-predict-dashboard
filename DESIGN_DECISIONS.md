@@ -186,6 +186,31 @@ between calibration and test data. A scaffold split deliberately breaks that
 (test scaffolds are novel), so coverage on genuinely new chemotypes is expected to
 be the *stress case* — which is exactly why AD (below) runs alongside it.
 
+**Update (2026-07-27) — the gap gets its own calibration, and it is difficulty-scaled.**
+"Propagated from the two isoform intervals" above meant *summed*, which assumes the
+two errors are independent and adverse. They are not: measured on the cross-measured
+set they correlate at **+0.65**, so they largely cancel in a difference. The summed
+interval therefore ran at 99.7 % coverage for a 90 % nominal level and crossed zero
+for **every** shortlisted molecule — an uncertainty statement so conservative it
+deleted the funnel's only output. `S` is now calibrated by split conformal against
+the *measured* gap directly.
+
+That fix alone is not enough, and the reason is the decision worth recording.
+A single directly-calibrated width lands marginal coverage at 0.897 — apparently
+finished — while covering only **0.460** of the molecules furthest from training and
+0.921 of the closest. Marginal coverage averaged the two into a right-looking number.
+Since a wide, target-agnostic screen lives almost entirely in the low-similarity
+band, the honest interval has to be a *function of the molecule*, so the width is
+scaled by a fitted curve σ(nn-similarity). **The general principle: an interval is
+validated per-difficulty or not at all** — the same reason AD exists rather than a
+single global error bar. Measured alternatives: Mondrian per-bucket quantiles reached
+0.738 worst-bucket coverage, the difficulty-scaled form 0.889.
+
+**Rejected alternative.** *Keep summing but shrink by the measured correlation.* It
+would fix the width and not the shape, landing exactly on the flat arm above — and it
+would bake a JAK-specific correlation into a formula meant to generalise to other
+panels, where the correlation is unknown until measured.
+
 ---
 
 ## 5. Applicability domain: two definitions, propagated
