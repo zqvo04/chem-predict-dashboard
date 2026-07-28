@@ -180,6 +180,41 @@ def disjointness_report(panel: PanelSpec) -> dict:
     }
 
 
+def library_molecule_overlap(panel: PanelSpec) -> dict | None:
+    """How many wide-library molecules are this panel's own gate positives?
+
+    `disjointness_report` compares *target identifiers*, which is necessary and not
+    sufficient: a library drawn from other targets can still contain molecules that
+    were separately assayed on this panel. STEP 13 handled that for JAK by dropping
+    known actives **by SMILES**, but a SMILES match misses two spellings of the same
+    structure, and no such exclusion was ever run for a panel added later.
+
+    Answering it needs a molecule-level join across every target at once, which is
+    exactly what the evidence store exists for (STEP 16). Returns None when the store
+    is absent — "not checked" is the honest answer there, not "disjoint".
+    """
+    try:
+        from .data import db as _db
+
+        if not _db.exists():
+            return None
+        with _db.session(read_only=True) as con:
+            if not con.execute("SELECT count(*) FROM library_member").fetchone()[0]:
+                return None
+            n_lib = con.execute("SELECT count(*) FROM library_member").fetchone()[0]
+            positives = con.execute(
+                """SELECT count(DISTINCT lm.inchikey)
+                   FROM library_member lm JOIN activity a USING (inchikey)
+                   WHERE a.target_chembl_id IN ?
+                     AND a.pchembl_value >= 6
+                     AND (a.standard_relation = '=' OR a.standard_relation IS NULL)""",
+                [list(panel.chembl_ids.values())]).fetchone()[0]
+        return {"library_molecules": n_lib, "gate_positives_in_library": positives,
+                "fraction": positives / n_lib if n_lib else 0.0}
+    except Exception:
+        return None
+
+
 def usable_negative_targets(panel: PanelSpec) -> dict[str, str]:
     """The gate's negative basket with any panel member removed.
 

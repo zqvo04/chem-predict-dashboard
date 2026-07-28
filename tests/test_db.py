@@ -148,3 +148,37 @@ def test_molecule_physchem_lands_in_the_right_columns(store):
     assert 1.0 < logp < 2.5                  # ~1.7
     assert hbd == 0 and arom == 1
     assert 0.0 <= qed <= 1.0
+
+
+def test_library_overlap_reports_none_without_a_store(monkeypatch, tmp_path):
+    """'Not checked' must never be reported as 'disjoint' — the whole point of the
+    STEP 16 finding is that target-level disjointness did not imply molecule-level."""
+    from src import panels
+    from src.data import db as dbmod
+
+    monkeypatch.setattr(dbmod, "DB_PATH", tmp_path / "absent.duckdb")
+    assert panels.library_molecule_overlap(panels.JAK) is None
+
+
+def test_library_overlap_counts_gate_positives(tmp_path, monkeypatch):
+    from src import panels
+    from src.data import db as dbmod
+
+    path = tmp_path / "ov.duckdb"
+    con = dbmod.connect(path)
+    con.execute("INSERT INTO source VALUES ('s','ChEMBL','99',now(),'u')")
+    con.execute("INSERT INTO ingestion VALUES ('i','s','T','{}',0,'v',now())")
+    con.execute("INSERT INTO molecule (inchikey, parent_smiles, standardize_version) "
+                "VALUES ('K1','CCO','v'), ('K2','c1ccccc1','v')")
+    con.execute("INSERT INTO library VALUES ('L','d','s',now())")
+    con.execute("INSERT INTO library_member VALUES ('L','K1',NULL,true), ('L','K2',NULL,true)")
+    # K1 is an active on a JAK isoform => a gate positive sitting inside the library
+    con.execute("INSERT INTO activity (activity_id, inchikey, target_chembl_id, "
+                "standard_relation, pchembl_value, source_id, ingestion_id) "
+                "VALUES (1,'K1','CHEMBL2835','=',8.0,'s','i')")
+    con.close()
+    monkeypatch.setattr(dbmod, "DB_PATH", path)
+
+    out = panels.library_molecule_overlap(panels.JAK)
+    assert out["library_molecules"] == 2
+    assert out["gate_positives_in_library"] == 1

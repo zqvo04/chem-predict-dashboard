@@ -899,3 +899,117 @@ python -m src.data.panel_data pi3k         # build the second panel (needs netwo
 python -m src.models.isoform_regressor pi3k
 python -m src.data.negatives pi3k && python -m src.models.binder_gate pi3k
 ```
+
+---
+
+## STEP 16 — the repo stored answers and threw away the evidence (2026-07-28)
+
+**The defect.** `panel_data._collapse` reduced every molecule to a median pchembl at
+ingest, and the raw records survived only in `data/cache/activities_<sha1>.parquet` —
+keyed by a hash of the request params, so "every activity for CHEMBL203" was a
+question the cache could not answer. Two measured consequences:
+
+* The **ATP-competition confound** (Spearman 0.682 → 0.462 on the Ki/Kd subset) could
+  only be *bounded*, never fixed: `standard_type` was the finest instrument available
+  because `assay_chembl_id` was never requested.
+* A campaign was **not reproducible**. It pinned `code_version` and `model_ids` but
+  not its data, and the ChEMBL release appeared nowhere in the repo — the same class
+  of defect as STEP 12's `model_id`, unfixed one layer down.
+
+**What the store holds now** (`src/data/db.py`, DuckDB, gitignored, rebuildable):
+
+| | rows |
+|---|---:|
+| activities (one per measurement, never collapsed) | **103 420** |
+| molecules (keyed by standardised-parent InChIKey) | 75 870 |
+| distinct assays | **5 207** |
+| library members | 38 592 |
+| **right-censored records** (`>`, no pchembl) | **29 321 (28.4 %)** |
+| sources | `chembl_37` |
+
+Per JAK isoform, the numbers the collapsed datasets hid:
+
+| | JAK1 | JAK2 | JAK3 |
+|---|---:|---:|---:|
+| measurements | 19 949 | 24 749 | 14 927 |
+| **distinct assays** | **711** | **1 049** | **777** |
+| censored | 4 737 | 5 511 | 3 881 |
+| molecules in the committed dataset | 10 468 | 12 680 | 7 457 |
+
+JAK1's 10 468-row training set is the collapse of 19 949 measurements taken across
+**711 different assays**. None of that structure was visible before.
+
+### The migration diff is far smaller than the design feared
+
+DATABASE_DESIGN §6 predicted the store would not reproduce the committed parquet, and
+that a careless swap would move every training set. Measured
+(`python scripts/db_equivalence.py`):
+
+| panel | molecule identity | pchembl changed | un-standardised in committed | max Δ |
+|---|---|---:|---:|---:|
+| **JAK** | **100 % shared** (0 only-committed, 0 only-store) | **12 / 30 586** | 74 rows (0.15–0.29 %) | 0.845 |
+| **PI3K** | 100 % shared | 0 | 0 | 0 |
+
+So the honest cost of migrating JAK is **5 molecules merging under standardisation
+and 3–6 pchembl values shifting per isoform**, not the wholesale change §6 braced for.
+PI3K matching exactly is the measurement validating itself: those datasets were built
+this session, from ChEMBL_37, with the current standardisation, so zero drift is the
+right answer and the tool reports it.
+
+**It is still not zero, and non-zero is the whole point.** Any difference changes the
+training set, therefore every `model_id`, therefore every exported contract. So
+`panel_data` still reads the committed parquet; the retrain remains its own announced,
+contract-invalidating step. The committed assets' own release stays **unrecorded** —
+`Campaign.data_version` reports exactly that rather than inventing a default.
+
+### What the store found in its first hour: STEP 15's leakage check was too weak
+
+`disjointness_report` compares **target identifiers**. That is necessary and not
+sufficient: a library drawn from other targets can still contain molecules separately
+assayed on this panel, and those are molecules the gate was trained on. Answering it
+needs a molecule-level join across every target at once — which is precisely what did
+not exist before.
+
+| panel | library molecules that are its own gate positives |
+|---|---:|
+| JAK | **8 / 38 592 (0.02 %)** |
+| **PI3K** | **134 / 38 592 (0.35 %)** |
+
+Two distinct findings:
+
+1. **STEP 13's exclusion leaked slightly.** It dropped known JAK actives from the
+   library **by SMILES**; matching on InChIKey finds 8 that a string comparison
+   missed. Small, and it confirms the exclusion was substantially right.
+2. **PI3K was never excluded at all.** The panel was added in STEP 15, long after the
+   library was built, and the target-level check passed because no PI3K subunit is
+   among the library's 20 targets. 134 library molecules are nonetheless PI3K actives,
+   so the PI3K gate's verdict on those rows is **recall, not prediction** — the exact
+   failure STEP 10 and STEP 13 were fixed for, recurring in a panel added later and
+   invisible until now.
+
+The app previously asserted that target-level disjointness made "the gate's verdict a
+prediction, not recall." That did not follow, and the claim is corrected: the campaign
+card now reports the molecule-level count when the store is present, and says
+**"unchecked on this machine"** when it is not — never "disjoint".
+
+**Gate 16 passed:** measurements are stored rather than discarded, every row carries
+its ChEMBL release, re-ingesting a target inserts nothing (idempotent on ChEMBL's own
+`activity_id`), the assay-stratified query STEP 4's audit needed is a `WHERE` clause,
+and the validated JAK screen is untouched — `model_id`s unchanged, 166 tests green.
+
+**Honest limits.** Only the 7 panel targets and the library are ingested; the 20
+library targets and 10 gate-negative targets are not, so the multi-task matrix
+(DATABASE_DESIGN D4) is not yet buildable. The 134-molecule PI3K leak is **measured
+but not fixed** — fixing it means rebuilding the library with a molecule-level
+exclusion and retraining the PI3K gate, which is a separate change. And the store
+inherits every limitation of ChEMBL curation; storing more evidence does not make the
+evidence better.
+
+### Reproduce
+
+```bash
+pip install -r requirements-dev.txt
+python -m src.data.ingest jak pi3k --library   # needs network, ~25 min
+python -m src.data.db                          # row counts
+python scripts/db_equivalence.py jak           # the migration diff
+```

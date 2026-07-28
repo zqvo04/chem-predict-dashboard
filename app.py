@@ -658,7 +658,7 @@ def render_campaign(panel_name: str) -> None:
     CLI; it is no longer wired into the dashboard.
     """
     from src import registry
-    from src.panels import disjointness_report
+    from src.panels import disjointness_report, library_molecule_overlap
 
     campaign = get_campaign(panel_name)
     panel = campaign.panel
@@ -688,9 +688,34 @@ def render_campaign(panel_name: str) -> None:
             "would be scoring molecules it was trained on. Results are not trustworthy "
             "until the panel or those sets are changed.")
     else:
-        note("<strong>Leakage check passed.</strong> No panel member appears in the "
-             "binder gate's negative basket or in the wide library's target list, so "
-             "the gate's verdict on a library molecule is a prediction, not recall.")
+        note("<strong>Target-level leakage check passed.</strong> No panel member "
+             "appears in the binder gate's negative basket or in the wide library's "
+             "target list.")
+
+    # Target-level disjointness is necessary and not sufficient: a library drawn from
+    # other targets can still contain molecules separately assayed on this panel, and
+    # those are molecules the gate was trained on. Only the evidence store can join
+    # across every target at once to find them (STEP 16).
+    overlap = library_molecule_overlap(panel)
+    if overlap is None:
+        st.warning(
+            "**Molecule-level leakage is unchecked on this machine.** Whether any "
+            "library molecule is also one of this panel's gate positives needs the "
+            "evidence store (`python -m src.data.ingest --library`). Until then, "
+            "target-level disjointness is all that has been verified — it does not by "
+            "itself make the gate's verdict a prediction rather than recall.")
+    elif overlap["gate_positives_in_library"]:
+        st.warning(
+            f"**{overlap['gate_positives_in_library']} of "
+            f"{overlap['library_molecules']} library molecules "
+            f"({overlap['fraction']:.2%}) are gate positives for this panel** — the "
+            "gate was trained on them, so its verdict on those rows is recall, not "
+            "prediction. Small, but it inflates the shortlist toward chemistry the "
+            "model has already seen.")
+    else:
+        note("<strong>Molecule-level leakage check passed.</strong> No library "
+             "molecule is a gate positive for this panel, so the gate's verdict on "
+             "the library is a genuine prediction.")
 
     if not campaign.validation.supports_selectivity_claim:
         st.error(
