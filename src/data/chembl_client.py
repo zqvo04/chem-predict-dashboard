@@ -36,6 +36,28 @@ _ONLY_FIELDS = (
     # time split — the closest free proxy for prospective validation.
     "assay_type,document_year"
 )
+
+# The evidence-level field set, used only by the database ingest (STEP 16).
+#
+# Kept separate from `_ONLY_FIELDS` on purpose. `only` is part of the cache key, so
+# widening the existing tuple would invalidate every cached pull and force the
+# committed datasets to be rebuilt from a *different* ChEMBL release — silently
+# changing the training data behind the validated JAK screen. The evidence path gets
+# its own fields and its own cache entries; the legacy path stays bit-identical.
+#
+# What the extra fields buy:
+#   activity_id        ChEMBL's own key -> idempotent re-ingest
+#   assay_chembl_id    assay identity, so "same compound, same protocol, different
+#                      isoform" becomes expressible — the comparison the selectivity
+#                      gap should have been built from (README's ATP caveat)
+#   standard_relation  '>' marks right-censored non-binders, stored not modelled
+#   document_chembl_id lets measurements be traced to a single paper
+_EVIDENCE_FIELDS = (
+    "activity_id,molecule_chembl_id,canonical_smiles,target_chembl_id,"
+    "assay_chembl_id,assay_type,assay_description,"
+    "standard_type,standard_relation,standard_value,standard_units,pchembl_value,"
+    "document_chembl_id,document_year"
+)
 _HEADERS = {"User-Agent": "chem-predict-dashboard/0.1 (portfolio project)"}
 
 
@@ -171,6 +193,69 @@ def fetch_activities(target_id: str,
     df = pd.DataFrame(rows)
     if use_cache:
         cache.save("activities", cache_params, df)
+    return df
+
+
+def status() -> dict:
+    """Live ChEMBL service status, including the database release.
+
+    The release is what makes a campaign reproducible: the same code against
+    ChEMBL_37 and ChEMBL_38 sees different data, and until STEP 16 nothing recorded
+    which one a dataset came from.
+    """
+    return _get("status", {})
+
+
+def release() -> str:
+    """The ChEMBL database release, e.g. 'ChEMBL_37'."""
+    return str(status().get("chembl_db_version", "unknown"))
+
+
+def fetch_activities_evidence(target_id: str,
+                              activity_types: tuple[str, ...] = DEFAULT_ACTIVITY_TYPES,
+                              max_records: int = 60000,
+                              page_size: int = 1000,
+                              include_censored: bool = True,
+                              use_cache: bool = True) -> pd.DataFrame:
+    """Raw activities for a target with assay identity, for the evidence store.
+
+    Unlike `fetch_activities` this applies **no pchembl filter**: right-censored
+    records ('>' 10 uM, no pchembl) are what a true non-binder looks like in ChEMBL,
+    and the store keeps them. They are excluded by the views, so nothing downstream
+    changes until a query asks for them.
+
+    `max_records` defaults high because this is a one-off backfill, not a query path.
+    """
+    params = {
+        "target_chembl_id": target_id,
+        "standard_type__in": ",".join(activity_types),
+        "only": _EVIDENCE_FIELDS,
+    }
+    if not include_censored:
+        params["pchembl_value__isnull"] = "false"
+    cache_params = {**params, "max_records": max_records, "evidence": True}
+    if use_cache:
+        hit = cache.load("activities_evidence", cache_params)
+        if hit is not None:
+            return hit
+
+    rows: list[dict] = []
+    offset = 0
+    while len(rows) < max_records:
+        page = _get("activity", {**params,
+                                 "limit": min(page_size, max_records - len(rows)),
+                                 "offset": offset})
+        acts = page.get("activities", [])
+        if not acts:
+            break
+        rows.extend(acts)
+        if page.get("page_meta", {}).get("next") is None:
+            break
+        offset += len(acts)
+
+    df = pd.DataFrame(rows)
+    if use_cache:
+        cache.save("activities_evidence", cache_params, df)
     return df
 
 

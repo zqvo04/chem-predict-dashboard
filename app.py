@@ -719,8 +719,16 @@ def render_campaign(panel_name: str) -> None:
             "panel's own binder gate are trained on first run — several minutes, "
             "then cached. Only the validated JAK panel ships pre-trained.")
 
+    if campaign.data_version == "unrecorded":
+        st.caption(
+            "Data release: **unrecorded**. The bundled datasets predate the evidence "
+            "store, so which ChEMBL release trained these models was never written "
+            "down — the campaign pins its code and its models but not its data. "
+            "Rebuilding from `src/data/ingest.py` records it.")
+
     provenance([("campaign", campaign.campaign_id), ("panel", panel.name),
                 ("code version", campaign.code_version),
+                ("data version", campaign.data_version),
                 ("models", ", ".join(sorted(campaign.model_ids.values())) or "not built here")])
 
     st.divider()

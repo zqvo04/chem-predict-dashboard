@@ -34,6 +34,10 @@ VALIDATED = "validated"
 BOOTSTRAP = "bootstrap"
 INSUFFICIENT = "insufficient_data"
 
+# What a campaign reports when its data release is unknown — the honest answer for
+# the committed assets/ parquet, whose ChEMBL release was never written down.
+UNRECORDED = "unrecorded"
+
 # Panels whose numbers are gate-checked and written up in VALIDATION.md. Membership
 # is a claim about evidence that exists in the repo, so it is a hand-maintained
 # list — a panel cannot promote itself by having a lot of data.
@@ -113,6 +117,10 @@ class Campaign:
     conformal_alpha: float
     validation: Validation
     code_version: str = "unknown"
+    # Which data release the models were trained on. Pinning code and models but not
+    # data left a campaign unreproducible: the same code against two ChEMBL releases
+    # trains on different molecules and nothing noticed (STEP 16).
+    data_version: str = UNRECORDED
     created: str = ""
 
     @property
@@ -124,7 +132,8 @@ class Campaign:
                 "library": self.library, "model_ids": self.model_ids,
                 "conformal_alpha": self.conformal_alpha,
                 "validation": asdict(self.validation),
-                "code_version": self.code_version, "created": self.created}
+                "code_version": self.code_version,
+                "data_version": self.data_version, "created": self.created}
 
     @classmethod
     def from_dict(cls, d: dict) -> "Campaign":
@@ -133,7 +142,36 @@ class Campaign:
                    conformal_alpha=d.get("conformal_alpha", 0.10),
                    validation=Validation(**d["validation"]),
                    code_version=d.get("code_version", "unknown"),
+                   data_version=d.get("data_version", UNRECORDED),
                    created=d.get("created", ""))
+
+
+def data_version(panel: PanelSpec) -> str:
+    """Which data release this panel's datasets came from.
+
+    Returns the `source_id`s present in the evidence store for the panel's targets
+    (e.g. `chembl_37`), or `"unrecorded"` when the store is absent — which is the
+    honest answer for the committed `assets/` parquet, since the release they were
+    built from was never written down. That gap is the whole reason STEP 16 exists,
+    so it is reported rather than papered over with a plausible-looking default.
+
+    Never raises: the deployed app has no store and must still describe a campaign.
+    """
+    try:
+        from .data import db as _db
+
+        if not _db.exists():
+            return UNRECORDED
+        with _db.session(read_only=True) as con:
+            ids = con.execute(
+                "SELECT DISTINCT source_id FROM activity "
+                "WHERE target_chembl_id IN ?  ORDER BY 1",
+                [list(panel.chembl_ids.values())]).fetchall()
+        return "+".join(r[0] for r in ids) if ids else UNRECORDED
+    except Exception:
+        # duckdb missing, store locked by a concurrent backfill, schema mismatch —
+        # none of which should stop a campaign being described.
+        return UNRECORDED
 
 
 def models_built(panel: PanelSpec) -> bool:
@@ -168,6 +206,7 @@ def build(panel: PanelSpec, campaign_id: str | None = None, library: str = "wide
         conformal_alpha=alpha,
         validation=assess(panel, n_cross),
         code_version=code_version(),
+        data_version=data_version(panel),
         created=datetime.now(timezone.utc).isoformat(),
     )
 

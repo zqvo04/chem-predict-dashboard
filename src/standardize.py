@@ -29,6 +29,12 @@ from rdkit.Chem.MolStandardize import rdMolStandardize
 
 RDLogger.DisableLog("rdApp.*")
 
+# Names the policy below, so a stored structure can be traced to the rules that
+# produced it. The committed assets/jak parquet predates `standardize()` entirely and
+# is ~0.5 % un-standardised (measured); rows carrying that provenance are tagged
+# "legacy" in the evidence store rather than silently mixed with these.
+STANDARDIZE_VERSION = "largest-fragment+uncharge/v1"
+
 _LARGEST_FRAGMENT = rdMolStandardize.LargestFragmentChooser()
 _UNCHARGER = rdMolStandardize.Uncharger()
 _TAUTOMER = rdMolStandardize.TautomerEnumerator()
