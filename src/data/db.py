@@ -167,20 +167,27 @@ FROM v_pchembl_median;
 """
 
 
-def connect(path: Path | None = None, read_only: bool = False):
+def connect(path: Path | None = None, read_only: bool = False, announce: bool = True):
     """Open the store, creating the schema on first use.
 
     `duckdb` is imported here rather than at module scope so that importing
     `src.data` on a deployment that has no dev dependencies does not fail.
+
+    On the run that *creates* the store, the connection details are printed: that is
+    the moment the path is known, and a database nobody can open is just a file.
+    Set `announce=False` in library code and tests.
     """
     import duckdb
 
     path = Path(path or DB_PATH)
+    fresh = not path.exists()
     if not read_only:
         path.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(path), read_only=read_only)
     if not read_only:
         _init(con)
+    if fresh and announce and not read_only:
+        print(connection_help(path))
     return con
 
 
@@ -197,8 +204,8 @@ def _init(con) -> None:
 
 
 @contextlib.contextmanager
-def session(path: Path | None = None, read_only: bool = False):
-    con = connect(path, read_only=read_only)
+def session(path: Path | None = None, read_only: bool = False, announce: bool = True):
+    con = connect(path, read_only=read_only, announce=announce)
     try:
         yield con
     finally:
@@ -207,6 +214,43 @@ def session(path: Path | None = None, read_only: bool = False):
 
 def exists(path: Path | None = None) -> bool:
     return Path(path or DB_PATH).exists()
+
+
+def connection_url(path: Path | None = None, read_only: bool = False) -> str:
+    """SQLAlchemy/JDBC-style URL for the store, for external SQL tools.
+
+    DuckDB is an embedded engine, so this is a **path to a local file**, not a network
+    endpoint — there is no server to reach and nothing to authenticate against. The
+    store is gitignored and rebuilt per machine, so this URL is only ever valid on the
+    machine that built it.
+
+    `read_only=True` is the form to use while a backfill is running: DuckDB allows one
+    writer, and a second write connection fails rather than waiting.
+    """
+    absolute = Path(path or DB_PATH).resolve()
+    url = f"duckdb:///{absolute}"          # four slashes total for an absolute path
+    return f"{url}?access_mode=read_only" if read_only else url
+
+
+def connection_help(path: Path | None = None) -> str:
+    """Ready-to-paste ways to open the store, printed when it is created.
+
+    A database nobody can open is a file. This is shown at creation time rather than
+    left to the docs, because that is the moment the path is actually known.
+    """
+    absolute = Path(path or DB_PATH).resolve()
+    return (
+        f"connect to the evidence store\n"
+        f"  file      {absolute}\n"
+        f"  url       {connection_url(path)}\n"
+        f"  read-only {connection_url(path, read_only=True)}\n"
+        f"  cli       duckdb {absolute}\n"
+        f"  python    from src.data import db\n"
+        f"            with db.session(read_only=True) as con:\n"
+        f"                con.execute('SELECT * FROM v_pchembl_median LIMIT 5').df()\n"
+        f"  note      embedded engine — a local file, not a server. One writer at a\n"
+        f"            time, so use the read-only form while a backfill is running."
+    )
 
 
 def summary(con) -> dict:
@@ -222,9 +266,12 @@ def summary(con) -> dict:
 
 
 def _main() -> None:
+    fresh = not exists()
     with session() as con:
         s = summary(con)
-        print(f"store: {DB_PATH}")
+        if not fresh:
+            print(connection_help())
+        print("\ncontents")
         for k, v in s.items():
             print(f"  {k:16} {v}")
 

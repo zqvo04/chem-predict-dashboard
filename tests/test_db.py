@@ -39,13 +39,13 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setattr(ingest.cc, "release", lambda: "ChEMBL_99")
     monkeypatch.setattr(ingest.cc, "fetch_activities_evidence",
                         lambda tid, **kw: _acts(_ROWS))
-    con = _db.connect(tmp_path / "t.duckdb")
+    con = _db.connect(tmp_path / "t.duckdb", announce=False)
     yield con
     con.close()
 
 
 def test_schema_starts_empty(tmp_path):
-    con = _db.connect(tmp_path / "empty.duckdb")
+    con = _db.connect(tmp_path / "empty.duckdb", announce=False)
     s = _db.summary(con)
     assert s["activity"] == 0 and s["molecule"] == 0 and s["sources"] == []
     con.close()
@@ -53,7 +53,7 @@ def test_schema_starts_empty(tmp_path):
 
 def test_schema_version_mismatch_is_refused(tmp_path, monkeypatch):
     path = tmp_path / "v.duckdb"
-    _db.connect(path).close()
+    _db.connect(path, announce=False).close()
     monkeypatch.setattr(_db, "SCHEMA_VERSION", _db.SCHEMA_VERSION + 1)
     with pytest.raises(RuntimeError, match="schema"):
         _db.connect(path)
@@ -165,7 +165,7 @@ def test_library_overlap_counts_gate_positives(tmp_path, monkeypatch):
     from src.data import db as dbmod
 
     path = tmp_path / "ov.duckdb"
-    con = dbmod.connect(path)
+    con = dbmod.connect(path, announce=False)
     con.execute("INSERT INTO source VALUES ('s','ChEMBL','99',now(),'u')")
     con.execute("INSERT INTO ingestion VALUES ('i','s','T','{}',0,'v',now())")
     con.execute("INSERT INTO molecule (inchikey, parent_smiles, standardize_version) "
@@ -182,3 +182,31 @@ def test_library_overlap_counts_gate_positives(tmp_path, monkeypatch):
     out = panels.library_molecule_overlap(panels.JAK)
     assert out["library_molecules"] == 2
     assert out["gate_positives_in_library"] == 1
+
+
+def test_connection_url_is_an_absolute_local_path(tmp_path):
+    """The 'connection' is a file, not an endpoint — four slashes mark it absolute."""
+    url = _db.connection_url(tmp_path / "s.duckdb")
+    assert url.startswith("duckdb:////")
+    assert str((tmp_path / "s.duckdb").resolve()) in url
+    ro = _db.connection_url(tmp_path / "s.duckdb", read_only=True)
+    assert ro.endswith("?access_mode=read_only")
+
+
+def test_connection_help_names_the_real_path(tmp_path):
+    text = _db.connection_help(tmp_path / "s.duckdb")
+    assert str((tmp_path / "s.duckdb").resolve()) in text
+    assert "read-only" in text and "one writer" in text.lower()
+
+
+def test_creation_announces_once_then_stays_quiet(tmp_path, capsys):
+    path = tmp_path / "announce.duckdb"
+    _db.connect(path).close()
+    assert "connect to the evidence store" in capsys.readouterr().out
+    _db.connect(path).close()                       # already exists -> no repeat
+    assert "connect to the evidence store" not in capsys.readouterr().out
+
+
+def test_announce_can_be_silenced_for_library_use(tmp_path, capsys):
+    _db.connect(tmp_path / "quiet.duckdb", announce=False).close()
+    assert capsys.readouterr().out == ""

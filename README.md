@@ -304,6 +304,65 @@ print(row["gap"], row["gap_lo"], row["gap_hi"], row["verdict"], row["mpo"])
 print(f"{gap_percentile(row['gap']):.1f}th percentile of the library")
 ```
 
+## The evidence store — building it and connecting to it
+
+The trained artifacts in `assets/` are *derived*; the measurements behind them live in
+an embedded DuckDB store. It is **not committed** (gitignored, like `data/models/`) —
+it is built on your machine from ChEMBL, and the build records which release it used.
+
+```bash
+pip install -r requirements-dev.txt            # adds duckdb (build-side only)
+python -m src.data.ingest jak pi3k --library   # backfill; needs network, ~25 min
+python -m src.data.db                          # row counts + how to connect
+```
+
+The ingest prints the connection details the moment it creates the store, and
+`python -m src.data.db` prints them again:
+
+```
+connect to the evidence store
+  file      /path/to/repo/data/chem.duckdb
+  url       duckdb:////path/to/repo/data/chem.duckdb
+  read-only duckdb:////path/to/repo/data/chem.duckdb?access_mode=read_only
+  cli       duckdb /path/to/repo/data/chem.duckdb
+```
+
+**DuckDB is embedded, so the "connection" is a path to a local file, not a network
+endpoint** — there is no server to start and nothing to authenticate against. The URL
+form is what SQL tools (DBeaver, JetBrains, SQLAlchemy via `duckdb_engine`) expect.
+DuckDB allows **one writer at a time**, so use the read-only URL while a backfill is
+running; a second write connection fails rather than waiting.
+
+From Python, or from any SQL client:
+
+```python
+from src.data import db
+
+print(db.connection_url(read_only=True))       # paste into a SQL tool
+
+with db.session(read_only=True) as con:
+    # the per-molecule median that training consumes — _collapse, as a view
+    con.execute("SELECT * FROM v_pchembl_median WHERE target_chembl_id = 'CHEMBL2835'").df()
+
+    # the assay-stratified subset STEP 4's audit had to hand-build: one predicate
+    con.execute("""
+        SELECT m.parent_smiles, median(a.pchembl_value) AS pchembl
+        FROM activity a JOIN molecule m USING (inchikey)
+        WHERE a.target_chembl_id = 'CHEMBL2835'
+          AND a.standard_type IN ('Ki','Kd') AND a.standard_relation = '='
+        GROUP BY 1""").df()
+```
+
+What it holds after the backfill above: **103 420 measurements** across **5 207
+distinct assays**, 75 870 molecules, 38 592 library members, 28.4 % of records
+right-censored — all tagged `chembl_37`. Details and the migration caveat in
+[VALIDATION.md STEP 16](VALIDATION.md) and [DATABASE_DESIGN.md](DATABASE_DESIGN.md).
+
+> The store does **not** feed the models yet. `panel_data` still reads the committed
+> parquet, because rebuilding training sets from it would change every `model_id` and
+> invalidate every exported contract. `python scripts/db_equivalence.py jak` measures
+> that difference.
+
 The Stage-A deep dive runs in [`notebooks/deep_dive.ipynb`](notebooks/deep_dive.ipynb)
 — [open it in Colab](https://colab.research.google.com/github/zqvo04/chem-predict-dashboard/blob/main/notebooks/deep_dive.ipynb),
 upload a contract in the first cell, and it checks its own clone out at that
