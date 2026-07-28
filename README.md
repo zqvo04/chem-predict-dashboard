@@ -432,6 +432,7 @@ about the same molecule and the domain check silently returns the wrong answer.
 | [WORKFLOW.md](WORKFLOW.md) | the full funnel pipeline, stage by stage — data flow, schemas, module map |
 | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | why each choice (regression + gap, conformal, AD, gates) + rejected alternatives |
 | [VALIDATION.md](VALIDATION.md) | every measured result, gate by gate, with "where this fails" |
+| [PHASE3_DESIGN.md](PHASE3_DESIGN.md) | **design, not built** — the planned acquisition loop: oracle, acquisition functions, and how active learning breaks conformal's exchangeability assumption |
 
 ## Honest limitations (funnel)
 
