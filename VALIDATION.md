@@ -1013,3 +1013,74 @@ python -m src.data.ingest jak pi3k --library   # needs network, ~25 min
 python -m src.data.db                          # row counts
 python scripts/db_equivalence.py jak           # the migration diff
 ```
+
+---
+
+## Audit — the binder gate against *measured* non-binders (2026-07-28)
+
+STEP 10 built the binder gate because the regressors could not recognise a
+non-binder, and validated it at **ROC-AUC 0.998** with **98.4 %** of held-out
+negatives rejected. Those negatives were **presumed** inactive: drug-like molecules
+active on other targets with no JAK record, physchem-matched to the JAK actives.
+DESIGN_DECISIONS §1 flagged the residual risk in advance — a molecule that would in
+fact hit JAK but carries no record is a mislabelled negative.
+
+The evidence store (STEP 16) makes the complementary question answerable for the first
+time: how does the gate do on molecules someone **actually tested on JAK and found
+inactive**? Those records exist — right-censored `>` values with no pchembl — and were
+never fetched before.
+
+**Test set.** 646 molecules whose *every* JAK record is `>` at **≥ 10 µM**, and which
+have no quantified pchembl on any JAK isoform — so they are unambiguous non-binders
+and were never in any training set.
+
+> An earlier pass of this audit used all 3 040 censored-only molecules and reported a
+> 71 % pass rate. That set was contaminated: 1 909 of its records are `>` bounds
+> *below* 100 nM, which are compatible with a potent compound rather than evidence of
+> non-binding. The strict set below supersedes it.
+
+| | gate's own test set (presumed inactives) | **measured inactives (this audit)** |
+|---|---:|---:|
+| negatives rejected | **98.4 %** | **52.3 %** |
+| negatives passed | 1.6 % | **47.7 % (308 / 646)** |
+
+And the regressor behind it, on those same 646 measured non-binders:
+
+| | |
+|---|---:|
+| clear the potency floor (predicted JAK1 pchembl ≥ 6) | **551 / 646 = 85.3 %** |
+| mean predicted JAK1 pchembl | **6.60** |
+| clear the floor **and** ≥ 10× predicted selectivity | 37 = 5.7 % |
+
+**What this means.** STEP 10's headline number is correctly measured and describes the
+wrong population. Presumed-inactives are an easy class — they are drawn from other
+target families and differ from JAK actives in gross chemotype. Molecules that were
+actually put on a JAK assay are the hard class: kinase-like, chosen by a chemist who
+thought they might work, and adjacent to the positives in chemical space. Against them
+the gate is close to a coin flip, and the regressor still reverts to ~6.6 — the same
+"ethanol scores 6.12" failure STEP 10 was built to fix, surviving for a harder and far
+more realistic class of molecule.
+
+**What this does not mean.** These 646 are a biased sample in the funnel's favour's
+opposite direction: they are adversarially hard by construction, not a random draw
+from a screening library. On the actual wide library the gate passes 18.9 % (STEP 13),
+because most of that library is not kinase-like. The honest statement is that the
+gate's rejection rate is **98.4 % against presumed inactives and 52.3 % against
+measured ones**, and a deployed screen sits somewhere between depending on how
+kinase-rich its library is. Nothing here invalidates the regression, gap, conformal or
+AD numbers, which are measured on quantified data and stand.
+
+**Why it matters anyway.** The funnel's job is to reject bad molecules. A gate that
+cannot separate real actives from real measured inactives is not doing that job for
+the population that matters most, and the full cascade still lets 37 of 646 known
+non-binders through to a shortlist. This is the strongest argument for
+[E2E_COMPLETION.md](E2E_COMPLETION.md) P4.2 — retraining the gate on measured
+negatives, which now exist in the store — and this 646-molecule set becomes the
+permanent benchmark that change has to beat.
+
+### Reproduce
+
+```bash
+python -m src.data.db --restore          # or ingest from ChEMBL
+python scripts/gate_negative_audit.py
+```

@@ -236,7 +236,7 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 | Stage | Claim | Result (5-seed scaffold split) |
 |------|-------|--------|
 | Per-isoform QSAR | pchembl regression, JAK1/2/3 | R² 0.71–0.77, Spearman 0.82–0.88 |
-| **Binder gate** | JAK binder vs presumed-inactive | **ROC-AUC 0.998**; ethanol/pesticide gated out, JAK inhibitors kept ([STEP 10](VALIDATION.md#step-10--the-binder-gate-tier-05-2026-07-26)) |
+| **Binder gate** | JAK binder vs **presumed**-inactive | **ROC-AUC 0.998** ([STEP 10](VALIDATION.md#step-10--the-binder-gate-tier-05-2026-07-26)) — but only **52.3 %** of *measured* non-binders are rejected ([audit](VALIDATION.md#audit--the-binder-gate-against-measured-non-binders-2026-07-28)); read both |
 | **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but see the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
 | Uncertainty | conformal 90% intervals, per isoform | empirical coverage **0.89–0.91** |
 | **Selectivity interval** | the gap's own 90% interval | marginal **0.896**, worst-similarity bucket **0.889** (was 0.460 flat / 4.86-wide summed) — [STEP 14](VALIDATION.md#step-14--the-gap-interval-was-calibrated-on-the-wrong-thing-2026-07-27) |
@@ -537,6 +537,7 @@ about the same molecule and the domain check silently returns the wrong answer.
 | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | why each choice (regression + gap, conformal, AD, gates) + rejected alternatives |
 | [VALIDATION.md](VALIDATION.md) | every measured result, gate by gate, with "where this fails" |
 | [PHASE3_DESIGN.md](PHASE3_DESIGN.md) | **design, not built** — the planned acquisition loop: oracle, acquisition functions, and how active learning breaks conformal's exchangeability assumption |
+| [ROADMAP.md](ROADMAP.md) | **start here for the current state** — an audit of what is measured, broken and unearned (including the binder gate failing against measured non-binders), and the roadmap that follows from it |
 | [E2E_COMPLETION.md](E2E_COMPLETION.md) | **design** — what the evidence store unblocked (an assay-matched selectivity gap, measured non-binders), the order that work has to happen in, and where this project's scope deliberately stops |
 | [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | the data layer's design (D0-D1 built in STEP 16; D3-D4 still design) — the data layer: storing measurements instead of medians, recording which ChEMBL release a campaign was built from, and the migration risk that would invalidate every contract |
 
