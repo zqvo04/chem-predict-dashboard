@@ -537,6 +537,7 @@ about the same molecule and the domain check silently returns the wrong answer.
 | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | why each choice (regression + gap, conformal, AD, gates) + rejected alternatives |
 | [VALIDATION.md](VALIDATION.md) | every measured result, gate by gate, with "where this fails" |
 | [PHASE3_DESIGN.md](PHASE3_DESIGN.md) | **design, not built** — the planned acquisition loop: oracle, acquisition functions, and how active learning breaks conformal's exchangeability assumption |
+| [E2E_COMPLETION.md](E2E_COMPLETION.md) | **design** — what the evidence store unblocked (an assay-matched selectivity gap, measured non-binders), the order that work has to happen in, and where this project's scope deliberately stops |
 | [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | the data layer's design (D0-D1 built in STEP 16; D3-D4 still design) — the data layer: storing measurements instead of medians, recording which ChEMBL release a campaign was built from, and the migration risk that would invalidate every contract |
 
 ## Honest limitations (funnel)
