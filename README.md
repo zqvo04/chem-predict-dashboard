@@ -304,6 +304,110 @@ print(row["gap"], row["gap_lo"], row["gap_hi"], row["verdict"], row["mpo"])
 print(f"{gap_percentile(row['gap']):.1f}th percentile of the library")
 ```
 
+## The evidence store — building it and connecting to it
+
+The trained artifacts in `assets/` are *derived*; the measurements behind them live in
+an embedded DuckDB store. It is **not committed** (gitignored, like `data/models/`) —
+it is built on your machine from ChEMBL, and the build records which release it used.
+
+```bash
+pip install -r requirements-dev.txt            # adds duckdb (build-side only)
+python -m src.data.ingest jak pi3k --library   # backfill; needs network, ~25 min
+python -m src.data.db                          # row counts + how to connect
+```
+
+### The data is in the repo — you do not have to build it
+
+The store itself is 52 MB and gitignored, but compressed to ZSTD parquet the same
+content is **5.7 MB**, so it is committed under
+[`assets/evidence/`](assets/evidence/) and travels with the clone. These are the exact
+rows every STEP 16 number was measured from.
+
+| file | rows | what |
+|---|---:|---|
+| [`activity.parquet`](assets/evidence/activity.parquet) | 103 420 | one row per measurement, never collapsed |
+| [`molecule.parquet`](assets/evidence/molecule.parquet) | 75 870 | standardised parents, keyed by InChIKey |
+| [`assay.parquet`](assets/evidence/assay.parquet) | 5 207 | assay identity — what makes the ATP question askable |
+| [`library_member.parquet`](assets/evidence/library_member.parquet) | 38 592 | the wide screening library |
+| [`manifest.json`](assets/evidence/manifest.json) | — | export time, schema version, source releases |
+
+**Restore a working database in seconds, offline:**
+
+```bash
+pip install -r requirements-dev.txt
+python -m src.data.db --restore        # assets/evidence/*.parquet -> data/chem.duckdb
+```
+
+**Or query the files directly, without this repo's code at all.** DuckDB reads parquet
+over HTTPS, so any DuckDB — including the browser build at
+[shell.duckdb.org](https://shell.duckdb.org) — can open them by URL:
+
+```sql
+-- paste into shell.duckdb.org, or any duckdb CLI
+SELECT standard_type, count(*) AS n, round(avg(pchembl_value), 2) AS mean_pchembl
+FROM 'https://raw.githubusercontent.com/zqvo04/chem-predict-dashboard/main/assets/evidence/activity.parquet'
+WHERE target_chembl_id = 'CHEMBL2835' AND standard_relation = '='
+GROUP BY 1 ORDER BY n DESC;
+```
+
+```python
+# or from pandas/duckdb locally, no clone needed
+import duckdb
+base = "https://raw.githubusercontent.com/zqvo04/chem-predict-dashboard/main/assets/evidence"
+duckdb.sql(f"SELECT count(*) FROM '{base}/activity.parquet'").show()
+```
+
+> The raw URLs resolve once this branch is merged to `main`; before that, swap `main`
+> for the branch name. Nothing here is a server — GitHub is serving static files and
+> DuckDB is doing ranged reads against them.
+
+The ingest prints the connection details the moment it creates the store, and
+`python -m src.data.db` prints them again:
+
+```
+connect to the evidence store
+  file      /path/to/repo/data/chem.duckdb
+  url       duckdb:////path/to/repo/data/chem.duckdb
+  read-only duckdb:////path/to/repo/data/chem.duckdb?access_mode=read_only
+  cli       duckdb /path/to/repo/data/chem.duckdb
+```
+
+**DuckDB is embedded, so the "connection" is a path to a local file, not a network
+endpoint** — there is no server to start and nothing to authenticate against. The URL
+form is what SQL tools (DBeaver, JetBrains, SQLAlchemy via `duckdb_engine`) expect.
+DuckDB allows **one writer at a time**, so use the read-only URL while a backfill is
+running; a second write connection fails rather than waiting.
+
+From Python, or from any SQL client:
+
+```python
+from src.data import db
+
+print(db.connection_url(read_only=True))       # paste into a SQL tool
+
+with db.session(read_only=True) as con:
+    # the per-molecule median that training consumes — _collapse, as a view
+    con.execute("SELECT * FROM v_pchembl_median WHERE target_chembl_id = 'CHEMBL2835'").df()
+
+    # the assay-stratified subset STEP 4's audit had to hand-build: one predicate
+    con.execute("""
+        SELECT m.parent_smiles, median(a.pchembl_value) AS pchembl
+        FROM activity a JOIN molecule m USING (inchikey)
+        WHERE a.target_chembl_id = 'CHEMBL2835'
+          AND a.standard_type IN ('Ki','Kd') AND a.standard_relation = '='
+        GROUP BY 1""").df()
+```
+
+What it holds after the backfill above: **103 420 measurements** across **5 207
+distinct assays**, 75 870 molecules, 38 592 library members, 28.4 % of records
+right-censored — all tagged `chembl_37`. Details and the migration caveat in
+[VALIDATION.md STEP 16](VALIDATION.md) and [DATABASE_DESIGN.md](DATABASE_DESIGN.md).
+
+> The store does **not** feed the models yet. `panel_data` still reads the committed
+> parquet, because rebuilding training sets from it would change every `model_id` and
+> invalidate every exported contract. `python scripts/db_equivalence.py jak` measures
+> that difference.
+
 The Stage-A deep dive runs in [`notebooks/deep_dive.ipynb`](notebooks/deep_dive.ipynb)
 — [open it in Colab](https://colab.research.google.com/github/zqvo04/chem-predict-dashboard/blob/main/notebooks/deep_dive.ipynb),
 upload a contract in the first cell, and it checks its own clone out at that
@@ -433,6 +537,8 @@ about the same molecule and the domain check silently returns the wrong answer.
 | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | why each choice (regression + gap, conformal, AD, gates) + rejected alternatives |
 | [VALIDATION.md](VALIDATION.md) | every measured result, gate by gate, with "where this fails" |
 | [PHASE3_DESIGN.md](PHASE3_DESIGN.md) | **design, not built** — the planned acquisition loop: oracle, acquisition functions, and how active learning breaks conformal's exchangeability assumption |
+| [E2E_COMPLETION.md](E2E_COMPLETION.md) | **design** — what the evidence store unblocked (an assay-matched selectivity gap, measured non-binders), the order that work has to happen in, and where this project's scope deliberately stops |
+| [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | the data layer's design (D0-D1 built in STEP 16; D3-D4 still design) — the data layer: storing measurements instead of medians, recording which ChEMBL release a campaign was built from, and the migration risk that would invalidate every contract |
 
 ## Honest limitations (funnel)
 

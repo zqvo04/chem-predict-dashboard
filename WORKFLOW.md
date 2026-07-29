@@ -336,6 +336,8 @@ run back down the funnel — a cycle, not a one-way street. Honest deliverable: 
 | `src/data/cache.py` | reuse | parquet cache |
 | `src/data/pubchem_client.py` | reuse + extend | similarity expansion, and `resolve_name` (name → structure) |
 | `src/data/panel_data.py` | **new** | per-isoform regression datasets + cross-measured join, per panel (STEP 2, generalised STEP 15) |
+| `src/data/db.py` | **new** | the evidence store: one row per measurement, with provenance (STEP 16) |
+| `src/data/ingest.py` | **new** | fetch -> standardise -> idempotent upsert; records the ChEMBL release (STEP 16) |
 | `src/panels.py` | **new** | `PanelSpec` — target + off-targets + ChEMBL ids + asset namespace; the leakage check (STEP 15) |
 | `src/campaign.py` | **new** | `Campaign` + the validation tier that grades it (STEP 15) |
 | `src/registry.py` | **new** | append-only round history under `data/registry/` (STEP 15) |

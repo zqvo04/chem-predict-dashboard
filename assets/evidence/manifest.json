@@ -1,0 +1,41 @@
+{
+  "exported_utc": "2026-07-29T05:13:18.095789+00:00",
+  "schema_version": 1,
+  "sources": [
+    "chembl_37"
+  ],
+  "tables": {
+    "source": {
+      "rows": 1,
+      "bytes": 960
+    },
+    "ingestion": {
+      "rows": 7,
+      "bytes": 1844
+    },
+    "target": {
+      "rows": 7,
+      "bytes": 810
+    },
+    "molecule": {
+      "rows": 75870,
+      "bytes": 3823509
+    },
+    "assay": {
+      "rows": 5207,
+      "bytes": 177652
+    },
+    "activity": {
+      "rows": 103420,
+      "bytes": 1275781
+    },
+    "library": {
+      "rows": 1,
+      "bytes": 977
+    },
+    "library_member": {
+      "rows": 38592,
+      "bytes": 413422
+    }
+  }
+}

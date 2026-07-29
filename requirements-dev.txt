@@ -1,0 +1,6 @@
+# Build-time only. The deployed dashboard never imports these, so they stay out of
+# requirements.txt and off the Streamlit/Render image — the 512 MB ceiling and the
+# ~4.5 s cold start are load-bearing (README "Deploying").
+-r requirements.txt
+
+duckdb==1.5.5        # the evidence store (src/data/db.py); build-side, not served

@@ -428,3 +428,68 @@ reads as a finding and is not one.
   non-JAK chemistry, which is worth keeping — but through the validated cascade,
   not around it. The v1 pipeline itself is left intact behind its CLI.
 
+---
+
+## 13. The evidence store: keep measurements, derive datasets
+
+**Decision.** Activities are stored **one row per measurement** in an embedded
+DuckDB store (`src/data/db.py`), with the per-molecule median that training consumes
+demoted to a *view*. Every write records the ChEMBL release it came from. See
+[DATABASE_DESIGN.md](DATABASE_DESIGN.md) and VALIDATION.md STEP 16.
+
+**Why, concretely.** Two measured limitations both trace to the same habit of storing
+answers instead of evidence:
+
+- The **ATP-competition confound** — the sharpest caveat on the headline selectivity
+  number — could only be *bounded*, never fixed, because `standard_type` was the
+  finest instrument available. `assay_chembl_id` was never even requested, so "same
+  compound, same protocol, different isoform" was not an expressible comparison.
+- A **campaign was not reproducible**. It pinned `code_version` and `model_ids` but
+  not its data, and the ChEMBL release appeared nowhere in the repo. The same code
+  against two releases trains on different molecules, and nothing noticed.
+
+The second is the same class of defect as STEP 12's `model_id`: something the system
+depends on that it does not track. Model identity was fixed then; data identity is
+fixed here.
+
+**Why a view rather than a rebuilt table.** `_collapse` becomes SQL, so the
+assay-stratified training sets that STEP 4's audit had to hand-build are the same
+query with one more predicate, and the molecule x target matrix a multi-task model
+needs is one pivot instead of 37 parquet files with no common index. The cost of
+asking a new question drops from "write a script" to "write a WHERE clause", which is
+the difference between an audit happening and not happening.
+
+**Why the legacy fetch path was left untouched.** `only` is part of the cache key, so
+widening the existing field tuple would have invalidated every cached pull and
+rebuilt the committed datasets from a *different* ChEMBL release — silently changing
+the training data behind the validated JAK screen. The evidence path therefore has
+its own field set and its own cache entries. Two code paths is the price of not
+perturbing a validated result, and it is worth paying.
+
+**Why right-censored rows are stored.** Section 1 rejected fetching `>` values as
+"sparse and biased... at best a partial patch, not worth the complexity now." That
+judgement was correct *when every pull had to be justified by a model that would
+consume it immediately*. With an evidence table the cost is one column and no
+decision, and the censored-label gap — the reason the binder gate exists at all —
+becomes re-examinable with data rather than permanently argued from first principles.
+**Storing is not modelling**; the views exclude them and nothing downstream changes
+until someone writes a query.
+
+**Why DuckDB, and why it barely matters.** It reads the existing parquet in place, so
+migration starts as a query rather than a copy, and the molecule x target pivot is its
+native workload. SQLite would work unchanged at this scale; the schema and the
+ingestion discipline are the deliverable and the engine sits behind one module. It is
+a **dev dependency only** — the deployed app never imports it, because `assets/*.parquet`
+remains the deploy surface and the 512 MB ceiling is load-bearing.
+
+**Rejected alternatives.**
+- *Put the run registry in the database too.* Different problem: small, append-only,
+  written once per round, read in order, and better as greppable JSONL. STEP 15's
+  choice stands.
+- *Rebuild the committed datasets from the store immediately.* This is the trap the
+  design exists to avoid. The store runs a newer ChEMBL release than the committed
+  assets and standardises where they did not, so swapping the source would move every
+  training set, change every `model_id`, and invalidate every exported contract — while
+  the tests still passed. The store is built alongside and the difference is measured
+  first; a retrain is its own announced, contract-invalidating step.
+

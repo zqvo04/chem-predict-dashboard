@@ -15,3 +15,7 @@ data/ad_reference/
 
 # campaign definitions + round history (runtime state, per machine)
 data/registry/
+
+# the evidence store — a rebuildable artifact, like data/models/
+data/chem.duckdb
+data/chem.duckdb.wal
