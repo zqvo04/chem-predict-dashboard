@@ -25,8 +25,9 @@ right answer — see DATABASE_DESIGN.md).
 surface; the database is a build-time artifact that *generates* those files, and
 `duckdb` is a dev dependency only.
 
-CLI (create/inspect the store):
-    python -m src.data.db
+CLI:
+    python -m src.data.db              # create/inspect, and print how to connect
+    python -m src.data.db --restore    # rebuild it from the committed parquet export
 """
 from __future__ import annotations
 
@@ -253,6 +254,38 @@ def connection_help(path: Path | None = None) -> str:
     )
 
 
+EVIDENCE_ASSETS = _ROOT / "assets" / "evidence"     # committed parquet export
+
+
+def restore_from_assets(path: Path | None = None,
+                        assets: Path | None = None) -> dict:
+    """Build a local store from the committed parquet export.
+
+    The point of committing the export is that the evidence travels with the repo:
+    clone, restore, query — no ChEMBL round trip, no 25-minute backfill, and the rows
+    are the exact ones the VALIDATION numbers were measured from. Tables are replaced
+    wholesale, so restoring is idempotent.
+    """
+    assets = Path(assets or EVIDENCE_ASSETS)
+    if not (assets / "manifest.json").exists():
+        raise FileNotFoundError(
+            f"No committed evidence export at {assets}. Build a store and run "
+            "scripts/export_store.py, or ingest from ChEMBL directly.")
+    tables = ("source", "ingestion", "target", "molecule", "assay", "activity",
+              "library", "library_member")
+    con = connect(path, announce=False)
+    try:
+        for table in tables:
+            parquet = assets / f"{table}.parquet"
+            if not parquet.exists():
+                continue
+            con.execute(f"DELETE FROM {table}")
+            con.execute(f"INSERT INTO {table} SELECT * FROM read_parquet('{parquet}')")
+        return summary(con)
+    finally:
+        con.close()
+
+
 def summary(con) -> dict:
     """Row counts per table plus the sources present — what a backfill produced."""
     tables = ("source", "ingestion", "target", "molecule", "assay", "activity",
@@ -266,6 +299,17 @@ def summary(con) -> dict:
 
 
 def _main() -> None:
+    import sys
+
+    if "--restore" in sys.argv:
+        print(f"restoring from {EVIDENCE_ASSETS}")
+        counts = restore_from_assets()
+        print(connection_help())
+        print("\ncontents")
+        for k, v in counts.items():
+            print(f"  {k:16} {v}")
+        return
+
     fresh = not exists()
     with session() as con:
         s = summary(con)

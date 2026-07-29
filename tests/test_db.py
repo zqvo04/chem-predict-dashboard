@@ -210,3 +210,61 @@ def test_creation_announces_once_then_stays_quiet(tmp_path, capsys):
 def test_announce_can_be_silenced_for_library_use(tmp_path, capsys):
     _db.connect(tmp_path / "quiet.duckdb", announce=False).close()
     assert capsys.readouterr().out == ""
+
+
+# --- the committed evidence export ------------------------------------------ #
+
+def test_export_then_restore_round_trips(tmp_path, store):
+    """The export is what puts the data in the repo, so it has to come back intact."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import export_store
+
+    ingest.ingest_target(store, "CHEMBLT1")
+    out = tmp_path / "evidence"
+    manifest = export_store.export(store, out)
+    assert manifest["tables"]["activity"]["rows"] == 5
+    assert (out / "manifest.json").exists()
+
+    counts = _db.restore_from_assets(path=tmp_path / "restored.duckdb", assets=out)
+    assert counts["activity"] == 5
+    assert counts["molecule"] == 3
+    assert counts["sources"] == ["chembl_99"]
+
+
+def test_restore_is_idempotent(tmp_path, store):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import export_store
+
+    ingest.ingest_target(store, "CHEMBLT1")
+    out = tmp_path / "evidence"
+    export_store.export(store, out)
+    target = tmp_path / "twice.duckdb"
+    first = _db.restore_from_assets(path=target, assets=out)
+    second = _db.restore_from_assets(path=target, assets=out)
+    assert first["activity"] == second["activity"] == 5      # replaced, not appended
+
+
+def test_restore_without_an_export_says_so(tmp_path):
+    with pytest.raises(FileNotFoundError, match="No committed evidence export"):
+        _db.restore_from_assets(path=tmp_path / "x.duckdb", assets=tmp_path / "nothing")
+
+
+def test_committed_export_matches_the_documented_row_counts():
+    """The README quotes these numbers; drift between doc and data is a silent lie."""
+    import json
+
+    manifest_path = _db.EVIDENCE_ASSETS / "manifest.json"
+    if not manifest_path.exists():
+        pytest.skip("no committed evidence export in this checkout")
+    m = json.loads(manifest_path.read_text())
+    assert m["tables"]["activity"]["rows"] == 103420
+    assert m["tables"]["molecule"]["rows"] == 75870
+    assert m["tables"]["assay"]["rows"] == 5207
+    assert m["tables"]["library_member"]["rows"] == 38592
+    assert m["schema_version"] == _db.SCHEMA_VERSION

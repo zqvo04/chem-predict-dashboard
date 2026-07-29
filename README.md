@@ -316,6 +316,51 @@ python -m src.data.ingest jak pi3k --library   # backfill; needs network, ~25 mi
 python -m src.data.db                          # row counts + how to connect
 ```
 
+### The data is in the repo — you do not have to build it
+
+The store itself is 52 MB and gitignored, but compressed to ZSTD parquet the same
+content is **5.7 MB**, so it is committed under
+[`assets/evidence/`](assets/evidence/) and travels with the clone. These are the exact
+rows every STEP 16 number was measured from.
+
+| file | rows | what |
+|---|---:|---|
+| [`activity.parquet`](assets/evidence/activity.parquet) | 103 420 | one row per measurement, never collapsed |
+| [`molecule.parquet`](assets/evidence/molecule.parquet) | 75 870 | standardised parents, keyed by InChIKey |
+| [`assay.parquet`](assets/evidence/assay.parquet) | 5 207 | assay identity — what makes the ATP question askable |
+| [`library_member.parquet`](assets/evidence/library_member.parquet) | 38 592 | the wide screening library |
+| [`manifest.json`](assets/evidence/manifest.json) | — | export time, schema version, source releases |
+
+**Restore a working database in seconds, offline:**
+
+```bash
+pip install -r requirements-dev.txt
+python -m src.data.db --restore        # assets/evidence/*.parquet -> data/chem.duckdb
+```
+
+**Or query the files directly, without this repo's code at all.** DuckDB reads parquet
+over HTTPS, so any DuckDB — including the browser build at
+[shell.duckdb.org](https://shell.duckdb.org) — can open them by URL:
+
+```sql
+-- paste into shell.duckdb.org, or any duckdb CLI
+SELECT standard_type, count(*) AS n, round(avg(pchembl_value), 2) AS mean_pchembl
+FROM 'https://raw.githubusercontent.com/zqvo04/chem-predict-dashboard/main/assets/evidence/activity.parquet'
+WHERE target_chembl_id = 'CHEMBL2835' AND standard_relation = '='
+GROUP BY 1 ORDER BY n DESC;
+```
+
+```python
+# or from pandas/duckdb locally, no clone needed
+import duckdb
+base = "https://raw.githubusercontent.com/zqvo04/chem-predict-dashboard/main/assets/evidence"
+duckdb.sql(f"SELECT count(*) FROM '{base}/activity.parquet'").show()
+```
+
+> The raw URLs resolve once this branch is merged to `main`; before that, swap `main`
+> for the branch name. Nothing here is a server — GitHub is serving static files and
+> DuckDB is doing ranged reads against them.
+
 The ingest prints the connection details the moment it creates the store, and
 `python -m src.data.db` prints them again:
 
