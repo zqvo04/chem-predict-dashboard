@@ -538,6 +538,7 @@ about the same molecule and the domain check silently returns the wrong answer.
 | [VALIDATION.md](VALIDATION.md) | every measured result, gate by gate, with "where this fails" |
 | [PHASE3_DESIGN.md](PHASE3_DESIGN.md) | **design, not built** — the planned acquisition loop: oracle, acquisition functions, and how active learning breaks conformal's exchangeability assumption |
 | [E2E_COMPLETION.md](E2E_COMPLETION.md) | **design** — what the evidence store unblocked (an assay-matched selectivity gap, measured non-binders), the order that work has to happen in, and where this project's scope deliberately stops |
+| [IMPROVEMENT_PLAN.md](IMPROVEMENT_PLAN.md) | **design** — the funnel's first external falsification (91% of 414 measured non-binders in its own library are predicted potent), what that reorders, and the improvement designs that follow from it |
 | [DMTA_DESIGN.md](DMTA_DESIGN.md) | **design** — the Design-Make-Test-Analyze layer: why the proposed store-lookup proxy oracle is empty (measured: 9-28 molecules), the two oracle populations that are not, and what has to change for the run registry to drive a loop rather than log one |
 | [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | the data layer's design (D0-D1 built in STEP 16; D3-D4 still design) — the data layer: storing measurements instead of medians, recording which ChEMBL release a campaign was built from, and the migration risk that would invalidate every contract |
 
@@ -575,7 +576,11 @@ closed:
    the store was ingested from the same targets that built the training data and the
    library excludes JAK actives by construction. Two populations that *are* large
    enough — measured non-binders and a document-year split — and what to do instead
-   are in [DMTA_DESIGN.md](DMTA_DESIGN.md) §1.
+   are in [DMTA_DESIGN.md](DMTA_DESIGN.md) §1. Running the second of those against the
+   deployed models closed this gap for the first time, and the answer is not
+   flattering: of 414 measured non-binders sitting in the wide library itself,
+   **91% are predicted more potent than their own measured ceiling** (median overshoot
+   1.02 log units). See [IMPROVEMENT_PLAN.md](IMPROVEMENT_PLAN.md) §1.
 2. **Tier 2 is a confidence annotation, not orthogonal evidence.** Conformal
    intervals and AD both answer "should I trust *this model*", not "is this
    molecule good", and both are computed in the same ECFP4 space from the same
@@ -583,6 +588,11 @@ closed:
    each tier. The cheapest genuinely orthogonal second opinion would be a model of
    a different architecture (a graph network rather than fixed fingerprints), not
    more of the same representation.
+   **The theoretical point stands; the effect has now been measured, and it is not
+   small.** Of the 12 measured non-binders that reach Tier 2 through the gate, the
+   potency floor and the top-5% gap band, the applicability domain quarantines 8 as
+   `uncertain`. It is the one tier with external evidence that it earns its cost
+   ([IMPROVEMENT_PLAN.md](IMPROVEMENT_PLAN.md) §1, §3C).
 3. **No GPU workload actually executes.** `src/generate.py` is a deterministic CPU
    RDKit decorator; re-scoring runs the same sklearn models as Stage B. Docking
    (`src/docking.py`) is referenced in the module map as `future` and does not
