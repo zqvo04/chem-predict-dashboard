@@ -538,6 +538,7 @@ about the same molecule and the domain check silently returns the wrong answer.
 | [VALIDATION.md](VALIDATION.md) | every measured result, gate by gate, with "where this fails" |
 | [PHASE3_DESIGN.md](PHASE3_DESIGN.md) | **design, not built** — the planned acquisition loop: oracle, acquisition functions, and how active learning breaks conformal's exchangeability assumption |
 | [E2E_COMPLETION.md](E2E_COMPLETION.md) | **design** — what the evidence store unblocked (an assay-matched selectivity gap, measured non-binders), the order that work has to happen in, and where this project's scope deliberately stops |
+| [DMTA_DESIGN.md](DMTA_DESIGN.md) | **design** — the Design-Make-Test-Analyze layer: why the proposed store-lookup proxy oracle is empty (measured: 9-28 molecules), the two oracle populations that are not, and what has to change for the run registry to drive a loop rather than log one |
 | [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | the data layer's design (D0-D1 built in STEP 16; D3-D4 still design) — the data layer: storing measurements instead of medians, recording which ChEMBL release a campaign was built from, and the migration risk that would invalidate every contract |
 
 ## Honest limitations (funnel)
@@ -569,6 +570,12 @@ closed:
    was **not** in training, report measured vs predicted. That turns "the model
    likes its own suggestions" into "the model was right N times out of M", at
    near-zero cost. Not built.
+   **Measured since, and it does not work as written:** only 11 JAK1 molecules
+   (9 with all three isoforms) are in the store but outside the training set, because
+   the store was ingested from the same targets that built the training data and the
+   library excludes JAK actives by construction. Two populations that *are* large
+   enough — measured non-binders and a document-year split — and what to do instead
+   are in [DMTA_DESIGN.md](DMTA_DESIGN.md) §1.
 2. **Tier 2 is a confidence annotation, not orthogonal evidence.** Conformal
    intervals and AD both answer "should I trust *this model*", not "is this
    molecule good", and both are computed in the same ECFP4 space from the same
