@@ -71,6 +71,13 @@ echo "Needs network to ChEMBL on first run; results cache under data/cache/."
 python scripts/gate0_audit.py
 
 echo
+echo "== Chirality audit (STATE.md section 3) =="
+echo "How much of the training data the achiral ECFP4 representation collapses, how"
+echo "much of that is chirality rather than hashing, and what a two-stage design"
+echo "would lose. Committed assets only, no network."
+python scripts/chirality_audit.py
+
+echo
 echo "== Assay-type + time-split audit (VALIDATION.md) =="
 echo "Re-tests the headline gap claim on the ATP-independent Ki/Kd subset and on a"
 echo "publication-year cut. Either can invalidate a headline number — that is the point."

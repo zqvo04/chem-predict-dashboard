@@ -23,7 +23,10 @@ from rdkit import RDLogger
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.data.chembl_client import fetch_activities  # noqa: E402
-from src.data.jak import MAX_RECORDS, TARGETS, _canonical  # noqa: E402
+from src.data.panel_data import MAX_RECORDS, _canonical  # noqa: E402
+from src.panels import get_panel  # noqa: E402
+
+TARGETS = get_panel("jak").chembl_ids
 
 RDLogger.DisableLog("rdApp.*")
 
