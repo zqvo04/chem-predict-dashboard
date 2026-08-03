@@ -1,3 +1,9 @@
+> **아카이브 (2026-08-03).** [ROADMAP.md](../../ROADMAP.md)로 대체됐다. §2의 순서 제약(라벨 → 게이트 → 건초더미 → AL)은 반증 체인 밖의 별도 축이었고 **끝까지 살아남아** ROADMAP §4에 그대로 있다. §5의 범위 선언은 ROADMAP §9가 이어받았다.
+>
+> §4의 DB 판단('두 번째 writer가 생길 때까지 DuckDB + 커밋된 parquet')도 유효하며, ROADMAP §10이 그 트리거가 아직 당겨지지 않았음을 확인한다.
+
+---
+
 # Completing the pipeline — what the evidence store unblocked, and in what order
 
 **Status: design.** The numbers in §1 are measured from the committed store

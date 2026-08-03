@@ -73,9 +73,9 @@ def _gate_training_smiles(use_cache: bool = True) -> set[str]:
     lazily: `negatives` imports this module's sibling `jak`, and the exclusion is
     only needed on a rebuild.
     """
-    from .negatives import build_negatives, jak_positive_smiles
+    from .negatives import build_negatives, positive_smiles
 
-    return set(jak_positive_smiles(use_cache=use_cache)) | set(
+    return set(positive_smiles(use_cache=use_cache)) | set(
         build_negatives(use_cache=use_cache)["smi"])
 
 

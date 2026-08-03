@@ -1,3 +1,11 @@
+> **아카이브 (2026-08-03).** [ROADMAP.md](../../ROADMAP.md)로 대체됐다. 획득함수 비교는 여전히 유효한 질문이며 ROADMAP §4의 5단계에 있다.
+>
+> **반증된 부분:** 이 문서는 회고 오라클이 이미 있다고 전제했으나 그 모집단은 비어 있었다(STATE §5). 그리고 벤치마크가 도는 교차측정 풀에서는 potency floor가 구속력을 갖지 않으므로, **이 벤치마크는 배포에서 실제로 실패하는 축을 원리적으로 측정할 수 없다.**
+>
+> **살아남은 부분:** 무작위 베이스라인 필수화, `diverse-greedy`, 매 배치 20 % 무작위 캘리브레이션 스트림 — 셋 다 옳았고 ROADMAP이 그대로 채택한다.
+
+---
+
 # Phase 3 design — the acquisition loop
 
 **Status: design, not built.** Nothing in this document has been measured except
