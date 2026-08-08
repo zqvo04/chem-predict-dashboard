@@ -1013,3 +1013,60 @@ python -m src.data.ingest jak pi3k --library   # needs network, ~25 min
 python -m src.data.db                          # row counts
 python scripts/db_equivalence.py jak           # the migration diff
 ```
+
+---
+
+## Funnel falsification, both arms (2026-08-08)
+
+**Purpose.** The deployed cascade had never been scored against a measured answer.
+This is the first external test of it, and it runs in both directions on purpose:
+a cascade scored only against non-binders always looks better when tightened, so
+a false-positive rate alone cannot distinguish accuracy from conservatism.
+
+**Source.** The committed evidence store (`assets/evidence/`), ChEMBL_37. No network.
+
+### Negative arm — 414 measured non-binders
+
+Library molecules whose only panel record is censored (`IC50 > x`, no pchembl
+anywhere in JAK1/2/3), drug-like, sealed to `assets/jak/sealed_negatives.parquet`.
+They carry no pchembl, so `build_isoform_dataset` excludes them by construction —
+the deployed models have never seen them. Each bound is the **weakest** claim among
+the molecule's records for that isoform, so the falsification rate is a lower bound.
+
+| | |
+|---|---|
+| molecules / (molecule, isoform) bounds | 414 / 744 |
+| **falsification rate** | **385 / 414 = 93.0 %**, median exceedance 0.65 log |
+| JAK1-matched pairs only | 74 / 74 = 100 %, median exceedance 1.89 log |
+| Tier 0.5 binder gate (P >= 0.54) | 149 = 36.0 % pass |
+| Tier 1 potency floor (pred JAK1 >= 6) | 334 = 80.7 % pass |
+| Tier 2 in-domain | 221 = 53.4 % |
+| cascaded gate -> floor -> in-domain | 127 -> 76 |
+
+### Positive arm — 1,928 actives published after 2020
+
+Per-isoform regressors refit on pre-2020 molecules only (through the training-data
+injection seam), then scored on JAK1 actives (pchembl >= 6) first published after
+the cut. Those molecules are absent from the refit training sets.
+
+| Tier 1 potency floor | pass |
+|---|---:|
+| 414 measured non-binders | 80.7 % |
+| 1,928 post-2020 measured actives | **99.4 %** |
+| real actives discarded by the floor | **11 = 0.6 %** |
+
+**What this says.** The potency floor is correctly signed but nearly inert: 18.7
+points of discrimination, and it passes four out of five molecules that are known
+not to bind. It is not throwing actives away, so it is not a candidate for removal —
+removing it would recover 0.6 % of actives at the cost of admitting 19.3 % more
+non-binders.
+
+**What it does not say.** The positive arm covers Tier 1 only. An honest Tier 0.5 or
+Tier 2 recall needs the binder gate and the AD reference refit on the same time cut,
+and neither takes injected data yet. Nothing here measures recall for those tiers.
+
+### Reproduce
+
+```bash
+python scripts/funnel_falsification_audit.py
+```

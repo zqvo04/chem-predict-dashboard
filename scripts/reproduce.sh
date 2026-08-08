@@ -78,6 +78,12 @@ echo "would lose. Committed assets only, no network."
 python scripts/chirality_audit.py
 
 echo
+echo "== Funnel falsification, both arms (STATE.md sections 2 / 2a) =="
+echo "The deployed cascade scored against 414 measured non-binders, and against"
+echo "post-2020 actives through regressors refit on the pre-cut data only."
+python scripts/funnel_falsification_audit.py
+
+echo
 echo "== early_stopping='auto' audit (STATE.md section 4a) =="
 echo "Whether early stopping is on per isoform, whether it ever fired, and whether the"
 echo "deployed model and the evaluated model land on the same side of the threshold."
