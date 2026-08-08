@@ -70,6 +70,42 @@ def test_train_and_cache_predicts_and_aligns(tmp_path, monkeypatch):
     assert np.isfinite(preds[0]) and np.isnan(preds[1])   # aligned, NaN on bad SMILES
 
 
+def test_injected_data_is_what_gets_trained_on(tmp_path):
+    """G1: the seam trains on the frame it is handed, not on the panel's own data.
+
+    No monkeypatching — that is the point of the seam: STATE.md section 1a traced
+    the undetected breakages to tests replacing module globals because the data
+    could not be passed in.
+    """
+    panel = dataclasses.replace(JAK, root=tmp_path)
+    full = _synthetic(panel, "JAK1")
+    frame = full.iloc[:-8]                     # a real subset, every scaffold kept
+    bundle = ir.train_and_cache(panel, "JAK1", use_cache=False, data=frame)
+    assert bundle.metrics.n_molecules == len(frame) < len(full)
+    assert np.isfinite(bundle.predict(["c1ccccc1"])[0])
+
+
+def test_injected_run_never_writes_the_model_cache(tmp_path):
+    """G1/G0: a subset-trained model must not land where the deployed one lives."""
+    panel = dataclasses.replace(JAK, root=tmp_path)
+    ir.train_and_cache(panel, "JAK1", use_cache=False,
+                       data=_synthetic(panel, "JAK1"))
+    assert not (panel.model_cache / "JAK1_reg.pkl").exists()
+
+
+def test_default_path_still_loads_the_committed_jak_model():
+    """G0: adding the seam must not move the deployed JAK assets.
+
+    The default call has to keep short-circuiting to `assets/models/jak/` — if it
+    ever starts retraining, the deployed model_id changes and the whole validated
+    JAK story detaches from the numbers in VALIDATION.md.
+    """
+    bundle = ir.train_and_cache(JAK, "JAK1")
+    committed = ir._load(JAK.model_bundled / "JAK1_reg.pkl")
+    assert bundle.metrics == committed.metrics
+    assert np.array_equal(bundle.predict(_SMILES), committed.predict(_SMILES))
+
+
 def test_cache_roundtrips_via_plain_dict(tmp_path, monkeypatch):
     # The cache must load regardless of __main__/import context (plain-dict pickle).
     panel = dataclasses.replace(JAK, root=tmp_path)

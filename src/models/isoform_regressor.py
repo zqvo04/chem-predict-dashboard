@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from scipy.stats import spearmanr
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -81,9 +82,15 @@ def _eval_one_seed(X: np.ndarray, y: np.ndarray, smiles: list[str], seed: int) -
 
 
 def evaluate(panel: PanelSpec, name: str, seeds: tuple[int, ...] = SEEDS,
-             use_cache: bool = True) -> IsoformMetrics:
-    """Scaffold-split metrics over several seeds, as mean +- std."""
-    data = panel_data.build_isoform_dataset(panel, name, use_cache=use_cache)
+             use_cache: bool = True,
+             data: pd.DataFrame | None = None) -> IsoformMetrics:
+    """Scaffold-split metrics over several seeds, as mean +- std.
+
+    `data` (columns `smi`, `pchembl`) trains on a caller-supplied set instead of
+    the panel's own; see `train_and_cache` for why the seam exists.
+    """
+    if data is None:
+        data = panel_data.build_isoform_dataset(panel, name, use_cache=use_cache)
     smiles = data["smi"].tolist()
     X, mask = morgan_matrix(smiles)
     y = data["pchembl"].to_numpy()[mask]
@@ -117,25 +124,35 @@ def _save(bundle: IsoformModel, path: Path) -> None:
                      "metrics": asdict(bundle.metrics)}, fh)
 
 
-def train_and_cache(panel: PanelSpec, name: str, use_cache: bool = True) -> IsoformModel:
+def train_and_cache(panel: PanelSpec, name: str, use_cache: bool = True,
+                    data: pd.DataFrame | None = None) -> IsoformModel:
     """Evaluate (seeded splits), refit on all data, cache the deployed model.
 
     A committed model in assets/ is used when no runtime cache exists, so a fresh
     deploy loads in milliseconds instead of retraining on ~10k molecules.
+
+    `data` (columns `smi`, `pchembl`) is the training-set injection seam: the
+    learning curve, the leave-one-target-out baseline and the nearest-neighbour
+    comparison all have to train on a *subset*, which the panel-derived path
+    cannot express. An injected run neither reads nor writes the model cache — a
+    subset-trained model must never land where the deployed one lives.
     """
-    if use_cache:
+    injected = data is not None
+    if use_cache and not injected:
         for directory in (panel.model_cache, panel.model_bundled):
             path = directory / f"{name}_reg.pkl"
             if path.exists():
                 return _load(path)
 
-    metrics = evaluate(panel, name, use_cache=use_cache)
-    data = panel_data.build_isoform_dataset(panel, name, use_cache=use_cache)
+    metrics = evaluate(panel, name, use_cache=use_cache, data=data)
+    if data is None:
+        data = panel_data.build_isoform_dataset(panel, name, use_cache=use_cache)
     X, mask = morgan_matrix(data["smi"].tolist())
     y = data["pchembl"].to_numpy()[mask]
     bundle = IsoformModel(isoform=name, model=_fit(X, y), metrics=metrics)
-    # retrains land in the runtime cache, never on top of a committed asset
-    _save(bundle, panel.model_cache / f"{name}_reg.pkl")
+    if not injected:
+        # retrains land in the runtime cache, never on top of a committed asset
+        _save(bundle, panel.model_cache / f"{name}_reg.pkl")
     return bundle
 
 
