@@ -78,6 +78,12 @@ echo "would lose. Committed assets only, no network."
 python scripts/chirality_audit.py
 
 echo
+echo "== early_stopping='auto' audit (STATE.md section 4a) =="
+echo "Whether early stopping is on per isoform, whether it ever fired, and whether the"
+echo "deployed model and the evaluated model land on the same side of the threshold."
+python scripts/early_stopping_audit.py
+
+echo
 echo "== Assay-type + time-split audit (VALIDATION.md) =="
 echo "Re-tests the headline gap claim on the ATP-independent Ki/Kd subset and on a"
 echo "publication-year cut. Either can invalidate a headline number — that is the point."
