@@ -84,6 +84,12 @@ echo "post-2020 actives through regressors refit on the pre-cut data only."
 python scripts/funnel_falsification_audit.py
 
 echo
+echo "== Learning curves, per axis (STATE.md section 4b) =="
+echo "Whether another round's worth of molecules still moves either model, measured"
+echo "against the seed-to-seed noise floor (~12 minutes)."
+python scripts/learning_curve_audit.py
+
+echo
 echo "== early_stopping='auto' audit (STATE.md section 4a) =="
 echo "Whether early stopping is on per isoform, whether it ever fired, and whether the"
 echo "deployed model and the evaluated model land on the same side of the threshold."
