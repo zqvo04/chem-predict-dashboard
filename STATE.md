@@ -42,8 +42,18 @@ STEP 15의 패널 일반화 때 심볼이 개명됐고 호출부가 따라가지
 지점이므로, 진짜 생산 경로는 한 번도 실행되지 않았다. 이것은 테스트 위생 문제가 아니라
 **주입 seam 부재의 다른 얼굴**이다 — 데이터를 인자로 못 받으니 모듈 전역을 갈아끼울 수밖에 없다.
 
-> **재발 방지 장치는 아직 없다.** CI에 생산 경로 스모크가 들어가기 전까지, 같은 종류의
-> 개명이 같은 방식으로 다시 깨뜨릴 수 있다.
+2026-08-08에 `isoform_regressor.evaluate` / `train_and_cache`가 `data=` 를 받는다
+(ROADMAP F). 주입 실행은 모델 캐시를 읽지도 쓰지도 않으므로 부분 학습된 모델이 배포
+모델 자리에 앉을 수 없다. `src/selectivity.py`는 손대지 않았다 — `evaluate_split`이
+이미 데이터와 분할을 인자로 받는다.
+
+**재발 방지 장치 (2026-08-08, G11).** `tests/test_production_path.py`가 두 경로를
+아무것도 monkeypatch하지 않고 커밋 자산 위에서 실행한다. CI가 이미 `pytest tests/`를
+돌리므로 워크플로 변경은 없다. 측정으로 확인했다 — 두 개명을 되돌려 넣으면 새 스모크
+2개가 실패하고, **`tests/test_library.py`는 그대로 7 passed**다.
+
+> **덮지 못하는 것:** 네트워크 재구축(`use_cache=False`)의 fetch 루프. CI는 오프라인이고,
+> 두 파손 모두 fetch 루프에 있지 않았다.
 
 ---
 
@@ -323,11 +333,14 @@ JAK 3 + PI3K 4뿐이다. **라이브러리의 20개 타깃과 게이트 음성�
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest -q                                    # 176 passed (2026-08-03 재확인)
-# requirements-dev.txt 없이 돌리면 155 passed + 1 skipped — tests/test_db.py가
-# 모듈 단위로 건너뛰어진다(duckdb는 dev 전용). 176을 보려면 dev 의존성이 필요하다.
+python -m pytest -q                                    # 181 passed (2026-08-08)
+# requirements-dev.txt 없이 돌리면 160 passed + 1 skipped — tests/test_db.py가
+# 모듈 단위로 건너뛰어진다(duckdb는 dev 전용). 181을 보려면 dev 의존성이 필요하다.
 
-# §1a — 수리된 생산 경로
+# §1a — 수리된 생산 경로 + 재발 방지 스모크
+python -m pytest tests/test_production_path.py -q
+# 주의: 아래 옛 명령은 속성을 **참조만** 한다. library 쪽 파손은 함수 본문의
+# import에 있었으므로 이 명령으로는 잡히지 않는다 — 호출해야 한다.
 python -c "from src.data import library; library._gate_training_smiles"
 python -c "import scripts.gate0_audit"
 
@@ -345,7 +358,7 @@ for n, p in PANELS.items(): print(n, library_molecule_overlap(p))"
 
 | 절 | 수치 | 스크립트 |
 |---|---|---|
-| §1a | 죽은 import | ✅ import 성공이 곧 증명. **CI 스모크는 아직 없음** |
+| §1a | 죽은 import | ✅ `tests/test_production_path.py` — CI 스모크 포함 (G11) |
 | §2 | 91.3 % 반증, 36 %/80.7 % 통과율, AD 8/12 | ❌ **없음** — `funnel_falsification_audit.py` 필요 |
 | §3 | 카이랄성 전부 | ✅ `scripts/chirality_audit.py` |
 | §4 | 하이퍼파라미터·표현 | ✅ 코드 인용 |
