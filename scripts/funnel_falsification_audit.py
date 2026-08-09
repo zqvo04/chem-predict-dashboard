@@ -44,7 +44,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src import funnel                                             # noqa: E402
 from src.data import panel_data                                    # noqa: E402
-from src.models.isoform_regressor import train_and_cache           # noqa: E402
+from src.models.features import morgan_matrix                       # noqa: E402
+from src.models.isoform_regressor import _fit                       # noqa: E402
 from src.panels import DEFAULT_PANEL                                # noqa: E402
 from src.selectivity import POTENCY_FLOOR                          # noqa: E402
 
@@ -156,8 +157,12 @@ def positive_arm() -> None:
 
     models = {}
     for iso, data in frames.items():
+        # `_fit` rather than `train_and_cache`: the latter also runs a five-seed
+        # scaffold-split evaluation whose metrics nothing here reads, which is five
+        # extra fits per isoform.
         pre = data[data["year_first"] <= TIME_CUT]
-        models[iso] = train_and_cache(DEFAULT_PANEL, iso, use_cache=False, data=pre).model
+        X, mask = morgan_matrix(pre["smi"].tolist())
+        models[iso] = _fit(X, pre["pchembl"].to_numpy()[mask])
         print(f"  {iso}: refit on {len(pre)} pre-{TIME_CUT} molecules "
               f"(deployed model uses all {len(data)})")
 
