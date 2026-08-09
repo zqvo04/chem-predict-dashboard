@@ -40,7 +40,13 @@ def run(panel: PanelSpec, campaign_id: str, n_rounds: int = 3, batch: int = BATC
     context = context or dmta.build_context(panel)
     oracle = TimeSplitOracle(panel)
 
-    recorded = registry.rounds(campaign_id, root)
+    # Only this loop's own rounds. `registry.rounds` returns every kind, and app.py
+    # writes `screen` rounds into whatever campaign the dashboard is on; one of
+    # those landing in a DMTA campaign would shift the round numbering, consume a
+    # round, and feed a foreign metrics dict to the penalty. Today the ids differ
+    # (`jak-default` vs `jak-autoimmune`) so it is latent — but `campaign_id` is a
+    # CLI argument, so it is one typo from live.
+    recorded = [r for r in registry.rounds(campaign_id, root) if r.kind == "select"]
     history = [r.metrics for r in recorded]
     # Replay: re-asking the recorded molecules advances the oracle to the state the
     # recorded rounds left it in. Their answers are already in the ledger.

@@ -111,3 +111,18 @@ def test_resuming_after_two_rounds_reproduces_the_third(tmp_path, context):
         assert a["asked"] == b["asked"]
         assert a["acquired"] == b["acquired"]
         assert a["random"] == b["random"]
+
+
+def test_a_foreign_round_kind_does_not_consume_a_dmta_round(tmp_path, context):
+    """app.py writes `screen` rounds; they must not shift this loop's numbering."""
+    import sys
+    sys.path.insert(0, "scripts")
+    import dmta_run
+    from src import registry
+
+    registry.append_round("mixed", kind="screen", model_ids={}, n_molecules=5,
+                          metrics={"best_gap": 1.0}, root=tmp_path)
+    history = dmta_run.run(JAK, "mixed", n_rounds=1, batch=10,
+                           root=tmp_path, context=context)
+    assert len(history) == 1
+    assert history[0]["acquired"]["n"] == 10

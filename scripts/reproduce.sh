@@ -120,7 +120,6 @@ echo "publication-year cut. Either can invalidate a headline number — that is 
 python scripts/assay_time_audit.py
 
 echo
-echo
 echo "== DMTA loop, three rounds (STATE.md section 11) =="
 echo "Selection, measured answers from the sealed eval fold, and a random control"
 echo "arm every round. Models are frozen; only acquisition changes."

@@ -15,6 +15,34 @@ ROOT = Path(__file__).resolve().parents[1]
 CASES = ROOT / "assets" / "cases"
 
 
+STRONG_EVIDENCE = {1, 2, 3}     # approved-drug label / mechanism / human LoF genetics
+
+
+def violations(card: dict) -> list[str]:
+    """G10: an anti-target needs evidence of class 1-3 to be registered.
+
+    Class 4 is structural similarity, which says "it could bind", not "binding it is
+    bad". Registering on similarity alone is how STATE.md section 7's gaps 7b and 7c
+    happened — the off-targets were chosen because they were in the family and
+    nobody was asked for safety evidence.
+
+    Enforced here rather than in a test alone: this is the one place that already
+    reads every card, so a card that violates the rule cannot produce an index.
+    """
+    found = []
+    for name, evidence in card.get("anti_target_evidence", {}).items():
+        classes = set(evidence.get("class", []))
+        if evidence.get("registered") and not (classes & STRONG_EVIDENCE):
+            found.append(f"{card['case_id']}: {name} is registered on class "
+                         f"{sorted(classes)} only — G10 requires one of 1, 2 or 3")
+    listed = set(card.get("anti_target_evidence", {}))
+    missing = [o for o in card.get("offs", []) if o not in listed]
+    if missing:
+        found.append(f"{card['case_id']}: off-targets with no evidence entry at all: "
+                     f"{missing}")
+    return found
+
+
 def _rounds(directory: Path) -> list[dict]:
     path = directory / "rounds.jsonl"
     if not path.exists():
@@ -37,6 +65,10 @@ def main() -> None:
         if not card_file.exists():
             continue
         card = json.loads(card_file.read_text())
+        broken = violations(card)
+        if broken:
+            raise SystemExit("G10 violation, refusing to write the index:\n  "
+                             + "\n  ".join(broken))
         rounds = _rounds(directory)
         if rounds:
             last = rounds[-1]["metrics"]
