@@ -30,9 +30,10 @@ from sklearn.metrics import mean_absolute_error
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from funnel_falsification_audit import TIME_CUT, _year_first        # noqa: E402
 from src.applicability import _bitvects                             # noqa: E402
 from src.data import panel_data                                     # noqa: E402
+from src.data.panel_data import EVAL_TIME_CUT as TIME_CUT           # noqa: E402
+from src.data.panel_data import year_first as _year_first           # noqa: E402
 from src.models import isoform_regressor as ir                      # noqa: E402
 from src.models.features import morgan_matrix                       # noqa: E402
 from src.models.scaffold_split import scaffold_split                # noqa: E402
@@ -93,7 +94,7 @@ def gap_scaffold() -> None:
 
 def gap_time() -> None:
     X, cross, gap, kept = _gap_data()
-    year = _year_first()
+    year = _year_first(DEFAULT_PANEL)
     years = np.array([year.get(s, np.nan) for s in kept])
     tr = np.flatnonzero(years <= TIME_CUT)
     te = np.flatnonzero(years > TIME_CUT)

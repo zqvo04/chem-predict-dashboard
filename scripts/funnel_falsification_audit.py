@@ -53,7 +53,7 @@ EVIDENCE = _ROOT / "assets" / "evidence"
 SEALED = DEFAULT_PANEL.data_bundled / "sealed_negatives.parquet"
 
 CENSORED_RELATIONS = (">", ">=")
-TIME_CUT = 2020            # STATE.md section 5: the 2020 cut leaves 1,525 molecules
+TIME_CUT = panel_data.EVAL_TIME_CUT     # the same cut the evaluation split is sealed on
 ACTIVE_PCHEMBL = 6.0       # matches POTENCY_FLOOR: "active" on the funnel's own scale
 
 
@@ -178,23 +178,6 @@ def negative_arm() -> None:
 # Positive arm
 # --------------------------------------------------------------------------- #
 
-def _year_first() -> pd.Series:
-    """smi -> earliest year any panel member published a quantified measurement.
-
-    The committed `assets/jak/*.parquet` carry only (smi, pchembl, n_meas) — the
-    `year_first` column `_collapse` produces never made it into the bundle, so
-    `scripts/assay_time_audit.py` needs a network rebuild to run. The evidence
-    store holds the same provenance offline, so the cut is taken from there.
-    """
-    act = pd.read_parquet(EVIDENCE / "activity.parquet")
-    molecule = pd.read_parquet(EVIDENCE / "molecule.parquet")
-    panel_rows = act[act["target_chembl_id"].isin(DEFAULT_PANEL.chembl_ids.values())
-                     & act["pchembl_value"].notna()]
-    year = panel_rows.groupby("inchikey")["document_year"].min()
-    joined = molecule[["inchikey", "parent_smiles"]].join(year, on="inchikey")
-    return joined.dropna(subset=["document_year"]).set_index("parent_smiles")["document_year"]
-
-
 def _cut(data: pd.DataFrame, year: pd.Series) -> pd.DataFrame:
     """`data` with a `year_first` column, dropping the rows provenance cannot date."""
     out = data.copy()
@@ -209,7 +192,7 @@ def positive_arm() -> None:
     print("=" * 78)
 
     target = DEFAULT_PANEL.target
-    year = _year_first()
+    year = panel_data.year_first(DEFAULT_PANEL)
     frames = {iso: _cut(panel_data.build_isoform_dataset(DEFAULT_PANEL, iso), year)
               for iso in DEFAULT_PANEL.isoforms}
 

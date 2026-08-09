@@ -149,6 +149,42 @@ def build_cross_measured(panel: PanelSpec, use_cache: bool = True) -> pd.DataFra
     return cross
 
 
+EVAL_TIME_CUT = 2020        # STATE.md section 4c: the cut the model beats a lookup on
+
+
+def year_first(panel: PanelSpec) -> pd.Series:
+    """smi -> earliest year any panel member published a quantified measurement.
+
+    The committed per-isoform parquets carry only (smi, pchembl, n_meas): the
+    `year_first` column `_collapse` produces never made it into the bundle. The
+    evidence store holds the same provenance offline, so provenance-dated work
+    reads it from there rather than forcing a network rebuild.
+    """
+    root = panel.root / "assets" / "evidence"
+    act = pd.read_parquet(root / "activity.parquet")
+    molecule = pd.read_parquet(root / "molecule.parquet")
+    rows = act[act["target_chembl_id"].isin(panel.chembl_ids.values())
+               & act["pchembl_value"].notna()]
+    year = rows.groupby("inchikey")["document_year"].min()
+    joined = molecule[["inchikey", "parent_smiles"]].join(year, on="inchikey")
+    return joined.dropna(subset=["document_year"]).set_index("parent_smiles")["document_year"]
+
+
+def load_eval_split(panel: PanelSpec) -> pd.DataFrame:
+    """The evaluation split sealed at round 0 (G9); columns smi, year_first, fold.
+
+    Read-only on purpose. `scripts/seal_eval_split.py` writes it once and refuses to
+    overwrite, because a split that can be recomputed is not sealed — the training
+    set grows from round to round and the split must not move with it.
+    """
+    path = _cached(panel, "eval_split.parquet")
+    if path is None:
+        raise FileNotFoundError(
+            f"No sealed evaluation split for panel {panel.name!r}. "
+            "Run: python scripts/seal_eval_split.py " + panel.name)
+    return pd.read_parquet(path)
+
+
 def summary(panel: PanelSpec, use_cache: bool = True) -> pd.DataFrame:
     """Per-isoform count + pchembl distribution table."""
     rows = []
