@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from sklearn.metrics import roc_curve
+from sklearn.metrics import roc_auc_score, roc_curve
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -72,6 +72,12 @@ def youden_threshold(model, positives: list[str], negatives: list[str]) -> float
     return float(thresholds[np.argmax(tpr - fpr)])
 
 
+def _auc(p_pos: np.ndarray, p_neg: np.ndarray) -> float:
+    """ROC-AUC of positives against one negative population. Threshold-free."""
+    y = np.concatenate([np.ones(len(p_pos)), np.zeros(len(p_neg))])
+    return float(roc_auc_score(y, np.concatenate([p_pos, p_neg])))
+
+
 def at_matched_recall(p_meas: np.ndarray, p_pos: np.ndarray,
                       recall: float) -> tuple[float, float]:
     """(threshold, measured-negative pass rate) where the gate keeps `recall` of actives.
@@ -94,7 +100,12 @@ def main() -> None:
     pos_train = sorted(all_positives & train_smiles)
     pos_eval = sorted(all_positives & eval_smiles)
 
-    presumed = build_negatives(panel)["smi"].tolist()
+    # Shuffled before splitting: `build_negatives` concatenates one frame per
+    # basket target in order, so a positional slice hands the holdout entirely to
+    # EGFR + CDK2 — the two hard kinases — and the Youden threshold would be
+    # calibrated against the hardest negatives in the basket.
+    presumed = (build_negatives(panel)
+                .sample(frac=1.0, random_state=0)["smi"].tolist())
     cut = int(len(presumed) * PRESUMED_HOLDOUT)
     holdout_presumed, train_presumed = presumed[:cut], presumed[cut:]
 
@@ -136,6 +147,14 @@ def main() -> None:
         p_meas, p_pos = probabilities(model, meas_eval), probabilities(model, pos_eval)
         p_sealed = probabilities(model, sealed)
         curves[name] = (p_meas, p_pos, p_sealed)
+        # Threshold-free, because everything above depends on where the operating
+        # point lands and the two gates are calibrated differently: the candidate's
+        # positives sit at a lower median, so a fixed threshold flatters it for a
+        # reason that has nothing to do with discrimination.
+        print(f"\n  ROC-AUC, positives[eval] vs measured[eval]: "
+              f"{_auc(p_pos, p_meas):.3f}")
+        print(f"  ROC-AUC, positives[eval] vs sealed 414     : "
+              f"{_auc(p_pos, p_sealed):.3f}")
         print(f"\n  {'threshold':>10} {'measured[eval] pass':>21} {'positives kept':>16}")
         for t in SWEEP:
             print(f"  {t:10.2f} {100 * (p_meas >= t).mean():20.1f}% "
