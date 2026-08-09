@@ -84,6 +84,12 @@ echo "post-2020 actives through regressors refit on the pre-cut data only."
 python scripts/funnel_falsification_audit.py
 
 echo
+echo "== Paralog transfer baseline, LOTO (STATE.md section 4d) =="
+echo "Each held-out target scored by a model trained on its own data and by one that"
+echo "only saw the paralogs, split by whether the paralogs had the molecule."
+python scripts/loto_audit.py
+
+echo
 echo "== Nearest-neighbour baseline (STATE.md section 4c / VALIDATION.md) =="
 echo "The gap and potency claims against a Tanimoto 1-NN lookup on the same split,"
 echo "the same fingerprints and the same metric."
