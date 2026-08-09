@@ -163,15 +163,21 @@ def run_round(panel: PanelSpec, context: Context, oracle: TimeSplitOracle,
                      for b in sorted(set(bucket)) if (bucket == b).sum() >= MIN_BUCKET}
 
     acq_metrics, ctl_metrics = _metrics(acq), _metrics(ctl)
-    base_rate = float((both["measured_gap"] >= SELECTIVE_GAP).mean()) if len(both) else 0.0
+    # The base rate is the CONTROL arm's hit rate, not the two arms pooled. The
+    # acquired arm is selected to be enriched, so pooling it in inflates the
+    # denominator by exactly the effect being measured — which produced an
+    # "enrichment ceiling" below the enrichment it was supposed to cap.
+    base_rate = ctl_metrics["hit_rate"]
     return {
         "acquired": acq_metrics,
         "random": ctl_metrics,
         "advantage": acq_metrics["hit_rate"] - ctl_metrics["hit_rate"],
         "falsification_by_bucket": by_bucket,
         "base_rate": base_rate,
-        # Raw enrichment is not comparable across rounds with different base rates:
-        # at a 34 % base rate a perfect ranker tops out at 2.94x.
+        # Raw enrichment is not comparable across rounds: the pool empties of
+        # selective molecules as the loop consumes them, so the base rate falls and
+        # the ceiling rises. Report the ratio to the ceiling, never the ratio alone.
+        "enrichment": (acq_metrics["hit_rate"] / base_rate) if base_rate else float("nan"),
         "enrichment_ceiling": (1.0 / base_rate) if base_rate else float("nan"),
         "oracle_remaining": oracle.population(),
         "model_ids": dict(context.model_ids),

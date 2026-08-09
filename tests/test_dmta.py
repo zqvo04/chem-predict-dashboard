@@ -47,9 +47,12 @@ def test_round_reports_both_arms_and_a_comparable_ceiling(one_round):
         assert result[arm]["n"] == BATCH
         assert 0.0 <= result[arm]["hit_rate"] <= 1.0
         assert 0.0 <= result[arm]["falsification_rate"] <= 1.0
-    assert result["enrichment_ceiling"] > 1.0
     assert result["advantage"] == pytest.approx(
         result["acquired"]["hit_rate"] - result["random"]["hit_rate"])
+    # A ceiling below the enrichment it caps is a broken metric, not a strong
+    # result. It happened once, by pooling the acquired arm into the base rate.
+    assert result["enrichment"] <= result["enrichment_ceiling"] + 1e-9
+    assert result["base_rate"] == pytest.approx(result["random"]["hit_rate"])
 
 
 def test_round_records_every_answer_in_the_ledger_as_sealed(one_round):
@@ -87,3 +90,24 @@ def test_penalty_averages_across_rounds_it_is_given():
 
 def test_no_history_means_no_penalty():
     assert dmta.penalty_from([]) == {}
+
+
+def test_resuming_after_two_rounds_reproduces_the_third(tmp_path, context):
+    """G4: the round history is the state, so a restart is not a different run."""
+    import sys
+    sys.path.insert(0, "scripts")
+    import dmta_run
+
+    straight = dmta_run.run(JAK, "g4-a", n_rounds=3, batch=10,
+                            root=tmp_path, context=context)
+    dmta_run.run(JAK, "g4-b", n_rounds=2, batch=10, root=tmp_path, context=context)
+    resumed = dmta_run.run(JAK, "g4-b", n_rounds=3, batch=10,
+                           root=tmp_path, context=context)
+
+    # Not "there are three rounds" — the stopping rule may end it sooner, and that
+    # is a legitimate outcome. G4 is that the restart continues identically.
+    assert len(resumed) == len(straight)
+    for a, b in zip(resumed, straight):
+        assert a["asked"] == b["asked"]
+        assert a["acquired"] == b["acquired"]
+        assert a["random"] == b["random"]
