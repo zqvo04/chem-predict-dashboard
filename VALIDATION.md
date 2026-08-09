@@ -139,6 +139,12 @@ Isoform regressors here are trained only on the scaffold-train molecules
 |-----------|:------------------------------------:|
 | difference-of-regressors (wide) | 0.797 ± 0.041 |
 | direct gap regressor (narrow re-rank) | 0.816 ± 0.044 |
+| **Tanimoto 1-NN lookup (no model)** | **0.782 ± 0.039** — see "Nearest-neighbour baseline" below |
+
+> ⚠️ **Read this table with the baseline row.** On a scaffold split, copying the
+> measured gap of the single most similar training molecule scores the same as the
+> model (2026-08-08, N1). The claim that survives the baseline is the **time-split**
+> one, not this one.
 
 Top-decile enrichment of ≥10×-selective molecules: **4.54 ± 0.56×** over a base
 rate of 16.4% — the top 10% ranked by predicted gap concentrate 4.5× more truly
@@ -1069,4 +1075,53 @@ and neither takes injected data yet. Nothing here measures recall for those tier
 
 ```bash
 python scripts/funnel_falsification_audit.py
+```
+
+---
+
+## Nearest-neighbour baseline (2026-08-08)
+
+**Purpose.** STATE.md section 4 states the models' judgement principle as "do this
+molecule's substructure fragments resemble the fragments of molecules that were
+active in training". A Tanimoto 1-nearest-neighbour lookup answers that with no
+model, so it is the line the headline claims have to clear. It had never been run.
+
+**Source.** Committed assets. Baseline and model share the split, the fingerprints
+(`applicability`'s own Morgan generator) and the metric (`selectivity.evaluate_split`).
+The baseline predicts the measured value of the single most similar training molecule.
+
+| Split | Metric | Model | 1-NN lookup | Model advantage |
+|---|---|---:|---:|---:|
+| gap, scaffold (n=3624, 3 seeds) | Spearman | 0.779 ± 0.031 | **0.782 ± 0.039** | **−0.003** |
+| gap, scaffold | top-decile enrichment | 4.36× | 4.24× | +0.12× |
+| gap, 2020 time split (2534/1078) | Spearman | **0.734** | 0.572 | **+0.162** |
+| gap, 2020 time split | top-decile enrichment | 2.53× | 2.31× | +0.22× |
+| potency JAK1, scaffold (seed 0) | Spearman | 0.865 | 0.818 | +0.047 |
+| potency JAK1, scaffold (seed 0) | MAE | 0.430 | 0.479 | −0.049 |
+
+**What this says.** On the scaffold split — the protocol behind the headline
+Spearman ≈ 0.80 — **the model does not beat the baseline.** The difference is
+−0.003 against a seed spread of ±0.03 to ±0.04.
+
+Under temporal shift the two separate sharply. The lookup falls 0.782 → 0.572
+while the model falls 0.779 → 0.734, an advantage of +0.162. The time-split test
+molecules are 90 % new Murcko scaffolds (STATE.md section 5), so the neighbourhood
+the lookup depends on is genuinely thinner there, and what the model has learned
+beyond its nearest neighbour is what carries across.
+
+**Consequence for the claim.** "Predicted selectivity tracks measured selectivity
+at Spearman ≈ 0.80 on a scaffold split" is true and is also achieved by a lookup,
+so on its own it does not demonstrate that the model learned anything. The
+defensible form of the claim is the time-split one: **under a publication-year
+shift the model retains 0.734 where a similarity lookup retains 0.572.**
+
+**What it does not say.** Nothing about the potency axis' correctness — that axis is
+93 % falsified against measured non-binders regardless of which side wins here.
+A 1-NN lookup is one baseline, not the strongest possible one; k-NN with similarity
+weighting was not run.
+
+### Reproduce
+
+```bash
+python scripts/nn_baseline_audit.py
 ```

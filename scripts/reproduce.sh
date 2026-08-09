@@ -84,6 +84,12 @@ echo "post-2020 actives through regressors refit on the pre-cut data only."
 python scripts/funnel_falsification_audit.py
 
 echo
+echo "== Nearest-neighbour baseline (STATE.md section 4c / VALIDATION.md) =="
+echo "The gap and potency claims against a Tanimoto 1-NN lookup on the same split,"
+echo "the same fingerprints and the same metric."
+python scripts/nn_baseline_audit.py
+
+echo
 echo "== Learning curves, per axis (STATE.md section 4b) =="
 echo "Whether another round's worth of molecules still moves either model, measured"
 echo "against the seed-to-seed noise floor (~12 minutes)."
