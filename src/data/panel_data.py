@@ -24,6 +24,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from rdkit import RDLogger
 
@@ -168,6 +169,52 @@ def year_first(panel: PanelSpec) -> pd.Series:
     year = rows.groupby("inchikey")["document_year"].min()
     joined = molecule[["inchikey", "parent_smiles"]].join(year, on="inchikey")
     return joined.dropna(subset=["document_year"]).set_index("parent_smiles")["document_year"]
+
+
+CENSORED_RELATIONS = (">", ">=")
+
+
+def censored_library_molecules(panel: PanelSpec) -> pd.DataFrame:
+    """Library molecules whose only panel measurement is a censored non-binding.
+
+    One row per (molecule, isoform) that has a censored record and no pchembl for
+    that molecule anywhere in the panel. `pchembl_upper` is the **weakest** claim
+    among that molecule's records for the isoform — the largest IC50 quoted, hence
+    the loosest bound — so a falsification counted against it is a lower bound.
+
+    This is the negative arm of the falsification audit and one of the counts the
+    suitability screen reports, so it lives here with the other per-panel datasets
+    rather than in whichever script needed it first.
+    """
+    root = panel.root / "assets" / "evidence"
+    act = pd.read_parquet(root / "activity.parquet")
+    member = pd.read_parquet(root / "library_member.parquet")
+    molecule = pd.read_parquet(root / "molecule.parquet")
+
+    isoform_of = {cid: iso for iso, cid in panel.chembl_ids.items()}
+    rows = act[act["target_chembl_id"].isin(isoform_of)].copy()
+    rows["isoform"] = rows["target_chembl_id"].map(isoform_of)
+
+    # A molecule with a pchembl on *any* panel member is in the training data for
+    # that member, so it is not a clean external test even where another isoform
+    # only censored it.
+    quantified = set(rows.loc[rows["pchembl_value"].notna(), "inchikey"])
+
+    censored = rows[
+        rows["standard_relation"].isin(CENSORED_RELATIONS)
+        & rows["pchembl_value"].isna()
+        & rows["standard_value"].notna()
+        & (rows["standard_units"] == "nM")     # the other 1 % of units are not worth converting
+        & ~rows["inchikey"].isin(quantified)
+    ].copy()
+    censored["pchembl_upper"] = 9.0 - np.log10(censored["standard_value"])
+
+    druglike = member.loc[member["druglike"], ["inchikey"]]
+    sealed = (censored.merge(druglike, on="inchikey")
+              .groupby(["inchikey", "isoform"], as_index=False)["pchembl_upper"].max()
+              .merge(molecule[["inchikey", "parent_smiles"]], on="inchikey")
+              .rename(columns={"parent_smiles": "smi"}))
+    return sealed.sort_values(["inchikey", "isoform"]).reset_index(drop=True)
 
 
 def load_eval_split(panel: PanelSpec) -> pd.DataFrame:

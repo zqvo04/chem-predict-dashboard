@@ -78,6 +78,12 @@ echo "would lose. Committed assets only, no network."
 python scripts/chirality_audit.py
 
 echo
+echo "== Suitability screen, Stage 0.5 (per panel) =="
+echo "The counts that decide whether a panel can be validated at all, before any"
+echo "target rationale is argued."
+python scripts/suitability_screen.py
+
+echo
 echo "== Funnel falsification, both arms (STATE.md sections 2 / 2a) =="
 echo "The deployed cascade scored against 414 measured non-binders, and against"
 echo "post-2020 actives through regressors refit on the pre-cut data only."
