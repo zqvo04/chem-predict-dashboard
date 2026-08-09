@@ -150,6 +150,52 @@ def build_cross_measured(panel: PanelSpec, use_cache: bool = True) -> pd.DataFra
     return cross
 
 
+def measured_negatives(panel: PanelSpec) -> pd.DataFrame:
+    """Molecules assayed against the panel and found weak; columns inchikey, smi.
+
+    A censored record ("IC50 > x") and no pchembl anywhere in the panel. These are
+    the negative class the binder gate has never had: its presumed negatives are
+    actives of *other* targets, so it learned to recognise panel chemistry rather
+    than binding, and on 2026-08-09 it passed 65.3 % of these at a median
+    P(binder) of 0.921.
+
+    The sealed 414 (`censored_library_molecules`) are removed — they are the
+    falsification audit's negative arm and must stay out of every training set (G6).
+    What is left is the censored population outside the wide library, which is
+    mostly panel-programme chemistry rather than off-target chemistry.
+    """
+    root = panel.root / "assets" / "evidence"
+    act = pd.read_parquet(root / "activity.parquet")
+    molecule = pd.read_parquet(root / "molecule.parquet").dropna(subset=["parent_smiles"])
+
+    rows = act[act["target_chembl_id"].isin(panel.chembl_ids.values())]
+    quantified = set(rows.loc[rows["pchembl_value"].notna(), "inchikey"])
+    censored = set(rows.loc[rows["standard_relation"].isin(CENSORED_RELATIONS), "inchikey"])
+    sealed = set(censored_library_molecules(panel)["inchikey"])
+
+    usable = (censored - quantified) - sealed
+    return (molecule.loc[molecule["inchikey"].isin(usable), ["inchikey", "parent_smiles"]]
+            .rename(columns={"parent_smiles": "smi"})
+            .drop_duplicates("inchikey")
+            .sort_values("inchikey")
+            .reset_index(drop=True))
+
+
+def load_measured_negatives(panel: PanelSpec) -> pd.DataFrame:
+    """The sealed measured-negative split; columns inchikey, smi, fold.
+
+    Read-only. `scripts/seal_measured_negatives.py` writes it once, because a
+    held-out set that is recomputed per run is not held out — the evidence store
+    grows and the evaluation moves with it.
+    """
+    path = _cached(panel, "measured_negatives.parquet")
+    if path is None:
+        raise FileNotFoundError(
+            f"No sealed measured-negative split for panel {panel.name!r}. "
+            "Run: python scripts/seal_measured_negatives.py " + panel.name)
+    return pd.read_parquet(path)
+
+
 EVAL_TIME_CUT = 2020        # STATE.md section 4c: the cut the model beats a lookup on
 
 
