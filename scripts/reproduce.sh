@@ -120,6 +120,12 @@ echo "publication-year cut. Either can invalidate a headline number — that is 
 python scripts/assay_time_audit.py
 
 echo
+echo "== Binder gate A/B, negative class (STATE.md section 2b) =="
+echo "Presumed-only versus presumed-plus-measured negatives, identical positives,"
+echo "scored on held-out measured non-binders and held-out actives."
+python scripts/gate_ab_audit.py
+
+echo
 echo "== DMTA loop, three rounds (STATE.md section 11) =="
 echo "Selection, measured answers from the sealed eval fold, and a random control"
 echo "arm every round. Models are frozen; only acquisition changes."
