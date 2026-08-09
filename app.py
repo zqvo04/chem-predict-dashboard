@@ -556,7 +556,9 @@ def render_single(query: str) -> None:
          f"rank by gap S among the {n_ref} molecules clearing the binder gate"),
         ("Gap S", f"{gap:+.2f}", "log-units over the worst off-isoform"),
         (f"pred {TARGET}", f"{row[f'pred_{TARGET}']:.2f}",
-         f"potency floor {POTENCY_FLOOR:.1f} — {'clears' if row['meets_floor'] else 'below'}"),
+         f"floor {POTENCY_FLOOR:.1f} — {'clears' if row['meets_floor'] else 'below'}. "
+         "A coarse screen, not a potency claim: measured on 414 known non-binders "
+         "this floor passes 80.7 % of them (and 99.4 % of real actives)"),
         ("Domain", "in-domain" if row["in_domain"] else "uncertain",
          "both applicability signals agree" if row["in_domain"] else "a model is extrapolating"),
     ], accent_first=True)

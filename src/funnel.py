@@ -17,6 +17,17 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
+# Hyperparameters are deliberately untuned, and that is a decision rather than an
+# omission: tuning before the potency axis is fixed would optimise R2, and the 93 %
+# falsification (STATE.md section 2) happened at good R2. The tuning protocol is
+# fixed in advance in ROADMAP section 8 and opens after A2. `early_stopping='auto'`
+# behaves differently per isoform (STATE.md section 4a) and the 10 % of rows it
+# costs JAK1 and JAK2 is below the seed noise floor (section 4b), so it is a
+# consistency fix scheduled with the next retrain, not a performance one.
+#
+# The applicability domain is blind to chirality: stereoisomers are Tanimoto
+# distance 0 under this fingerprint, so a molecule can read in-domain because its
+# mirror image was in training (STATE.md section 3d).
 from pathlib import Path
 
 import numpy as np

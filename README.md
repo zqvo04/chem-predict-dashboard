@@ -228,6 +228,35 @@ a fit, not a forecast, and scaffold-split metrics do not describe them.
 Full data-flow schemas and module map: [WORKFLOW.md](WORKFLOW.md).
 Design rationale and rejected alternatives: [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
 
+## 판단 원리 — 이 퍼널이 무엇을 보고 무엇을 안 보는가
+
+```
+분자 → [반지름 2까지 부분구조 열거 → 해시] → 2048비트
+     → HistGradientBoosting → pchembl
+```
+
+판단 원리는 하나다: **"이 분자의 부분구조 조각들이, 학습셋에서 활성이었던 분자들의 조각들과
+닮았는가."** 단백질도, 결합의 물리도, 3D 형태도, 카이랄성도 보지 않는다.
+
+그래서 **에탄올이 760 nM JAK1 저해제로 점수가 난다** — 도메인 밖에서 트리 앙상블은 학습
+평균(~6.3)으로 회귀하기 때문이다. Tier 0.5 바인더 게이트가 존재하는 이유가 이것이다.
+
+**측정된 한계 세 가지** (전부 `scripts/` 아래 재현 스크립트가 있다):
+
+| | 측정 |
+|---|---|
+| potency 축 | 실측 비결합자 414개에 대해 예측이 자기 측정 상한을 **93.0 %** 초과한다 (`funnel_falsification_audit.py`) |
+| potency floor | 그 414개의 **80.7 %** 를 통과시킨다. 진짜 활성은 99.4 % 통과시키므로 방향은 맞지만 판별폭은 18.7 포인트뿐이다 |
+| gap 축 | scaffold 분할에서 **Tanimoto 최근접이웃 조회(0.782)를 이기지 못한다(0.779).** 2020년 시간분할에서는 조회 0.572 대 모델 0.734로 갈라진다 (`nn_baseline_audit.py`) |
+
+**따라서 이 저장소가 방어하는 주장은 "선택성을 잘 맞힌다"가 아니라 "출판연도가 이동해도
+유사도 조회보다 덜 무너진다"이다.**
+
+`pchembl 6` = IC50 **1 µM**이다. 승인약은 대개 nM(pchembl 8~9)이다. potency floor는 약물
+수준 기준이 아니라 **스크리닝 컷**이다.
+
+---
+
 ## Headline results — all measured, reproducible via `./scripts/reproduce.sh`
 
 Every number has a seed + script; nothing is a placeholder. Full detail and
@@ -237,7 +266,7 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 |------|-------|--------|
 | Per-isoform QSAR | pchembl regression, JAK1/2/3 | R² 0.71–0.77, Spearman 0.82–0.88 |
 | **Binder gate** | JAK binder vs presumed-inactive | **ROC-AUC 0.998**; ethanol/pesticide gated out, JAK inhibitors kept ([STEP 10](VALIDATION.md#step-10--the-binder-gate-tier-05-2026-07-26)) |
-| **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but see the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
+| **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but a 1-NN lookup scores **0.782** on this split, so read it with the [nearest-neighbour baseline](VALIDATION.md#nearest-neighbour-baseline-2026-08-08) and the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
 | Uncertainty | conformal 90% intervals, per isoform | empirical coverage **0.89–0.91** |
 | **Selectivity interval** | the gap's own 90% interval | marginal **0.896**, worst-similarity bucket **0.889** (was 0.460 flat / 4.86-wide summed) — [STEP 14](VALIDATION.md#step-14--the-gap-interval-was-calibrated-on-the-wrong-thing-2026-07-27) |
 | Applicability domain | error out- vs in-domain | error rises **~2×** as molecules leave the domain |
