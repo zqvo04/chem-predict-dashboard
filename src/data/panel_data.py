@@ -220,6 +220,47 @@ def year_first(panel: PanelSpec) -> pd.Series:
 CENSORED_RELATIONS = (">", ">=")
 
 
+def same_document_cross_measured(panel: PanelSpec) -> pd.DataFrame:
+    """교차측정 세트를 한 논문 안에서 만든 것 (ROADMAP P4.1).
+
+    `build_cross_measured`는 아이소폼마다 모든 문헌에 걸친 중앙값을 취하므로, 한 분자의
+    선택성 gap이 서로 다른 논문·서로 다른 ATP 농도에서 나온 두 값의 차이일 수 있다.
+    이 함수는 분자마다 **패널 레코드를 가장 많이 담은 단일 문헌** — 동수면 문헌 id가 작은
+    쪽, 그래서 결정적 — 을 고르고 그 문헌 안의 아이소폼별 중앙값만 쓴다.
+
+    컬럼은 `build_cross_measured`와 같은 `smi + 아이소폼별 한 컬럼`이라, 두 프레임 모두
+    `selectivity.evaluate_split`에 그대로 들어간다. 그것이 비교를 가능하게 하는 조건이다.
+    """
+    root = panel.root / "assets" / "evidence"
+    act = pd.read_parquet(root / "activity.parquet")
+    molecule = pd.read_parquet(root / "molecule.parquet")[["inchikey", "parent_smiles"]]
+
+    by_target = {cid: iso for iso, cid in panel.chembl_ids.items()}
+    rows = act[act["target_chembl_id"].isin(by_target)
+               & act["pchembl_value"].notna()].copy()
+    rows["isoform"] = rows["target_chembl_id"].map(by_target)
+
+    grouped = rows.groupby(["inchikey", "document_chembl_id"])
+    per_doc = pd.DataFrame({"n_iso": grouped["isoform"].nunique(),
+                            "n_rec": grouped.size()}).reset_index()
+    covered = per_doc[per_doc["n_iso"] == len(panel.isoforms)]
+    if covered.empty:
+        return pd.DataFrame(columns=["smi", *panel.isoforms])
+
+    chosen = (covered.sort_values(["inchikey", "n_rec", "document_chembl_id"],
+                                 ascending=[True, False, True])
+                     .drop_duplicates("inchikey")[["inchikey", "document_chembl_id"]])
+
+    picked = rows.merge(chosen, on=["inchikey", "document_chembl_id"])
+    wide = (picked.groupby(["inchikey", "isoform"])["pchembl_value"]
+                  .median().unstack("isoform"))
+    out = (wide.join(molecule.drop_duplicates("inchikey").set_index("inchikey"))
+               .rename(columns={"parent_smiles": "smi"})
+               .dropna()
+               .reset_index(drop=True))
+    return out[["smi", *panel.isoforms]].drop_duplicates("smi").reset_index(drop=True)
+
+
 def censored_library_molecules(panel: PanelSpec) -> pd.DataFrame:
     """Library molecules whose only panel measurement is a censored non-binding.
 
