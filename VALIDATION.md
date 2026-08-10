@@ -1201,3 +1201,111 @@ until A2. Neither gate here is the deployed one, and nothing was deployed.
 ```bash
 python scripts/gate_ab_audit.py
 ```
+
+---
+
+## Same-document labels — the gap built from one paper (2026-08-10)
+
+The deployed label is a median pchembl over every document that measured a
+molecule, so a selectivity gap can be assembled from two papers run at different
+ATP concentrations. ROADMAP P4.1 asks what the gap looks like when both values
+come from the same publication.
+
+**Same-assay matching does not exist.** A ChEMBL assay belongs to one target, so
+no assay covers two isoforms — 0 of them do. Cross-isoform matching is only
+possible at the document level, which closes open question 3's second option by
+showing it was never constructible.
+
+For each molecule the single document reporting the most panel records is chosen
+(ties broken by the smallest document id, so the choice is deterministic) and
+only that document's per-isoform medians are used.
+
+| labels | n | Spearman (difference) | Spearman (direct) | top-decile enrichment | base |
+|---|---:|---:|---:|---:|---:|
+| pooled | 3,624 | 0.797 ± 0.041 | 0.816 ± 0.044 | 4.54 ± 0.56 | 16.4 % |
+| same-document | 3,614 | 0.800 ± 0.020 | 0.820 ± 0.019 | 5.30 ± 0.52 | 16.4 % |
+
+3,605 molecules are in both sets, so this is a label-value comparison and not a
+sample-size one. The median per-isoform label shift is 0.000 and only 1.6–3.8 %
+of molecules move by more than 0.5 log.
+
+**The mean does not move; the variance does.** +0.003 Spearman is inside the
+seed-to-seed noise, but the seed-to-seed spread halves (0.041 → 0.020, and
+0.044 → 0.019 on the direct regressor) and top-decile enrichment rises from 4.54
+to 5.30. Matching does not make the label better on average, it removes the
+cross-study noise that made the estimate unstable.
+
+The pooled row reproduces Gate 4's 0.798, which is the check that both rows are
+measuring the same quantity.
+
+### Reproduce
+
+```bash
+python scripts/matched_label_audit.py
+```
+
+---
+
+## Two-part model — the first thing that improved (2026-08-10)
+
+Tier 1 ranks on the regressor alone, and the regressor only ever saw quantified
+pchembl, so a molecule the panel has never bound gets the training mean and
+clears the potency floor. The two-part model multiplies the binder gate's
+probability back in:
+
+```
+EV = P(binder) · regressor + (1 − P(binder)) · FLOOR
+```
+
+FLOOR was committed before any sealed molecule was scored (`src/models/two_part.py`
+— the G8 discipline applied to a constant): 5.0 is pchembl at 10 µM, where a
+kinase panel usually stops, and 4.0 is the sensitivity point. Neither was searched
+between.
+
+**Both arms run through one pre-2020 refit** — regressors (JAK1 8,247 / JAK2
+10,008 / JAK3 5,025) and gate (11,789 positives + 12,144 presumed negatives). The
+funnel falsification audit could not do this and said so; the baseline below is
+therefore not comparable to that audit's 93.0 %, which is a deployed-model number.
+
+414 sealed non-binders against 1,928 actives first published after 2020.
+
+| | BASELINE (regressor only) | floor 5.0 | floor 4.0 |
+|---|---:|---:|---:|
+| **ROC-AUC**, actives vs sealed 414 | 0.890 | **0.956** | 0.955 |
+| **sealed 414 passing at 95 % active recall** | 41.8 % | **19.6 %** | 23.2 % |
+| falsification rate (reported, not decisive) | 96.1 % | 37.7 % | 15.9 % |
+| median JAK1 score on sealed | 6.49 | 5.08 | 4.14 |
+| median JAK1 score on post-cut actives | 7.39 | 7.30 | 7.28 |
+
+The rule was fixed before the run: adopt only on a ROC-AUC gain of at least 0.02
+**and** a fall in the sealed pass rate at matched recall. Both hold — +0.066 AUC,
+−22.2 points of pass rate — so the two-part model is adopted as a measurement
+result.
+
+**The falsification rate was excluded from the rule on purpose.** EV ≤ regressor
+for every molecule because P ≤ 1, so 96.1 % → 37.7 % appears whether or not
+discrimination improved. It is the same calibration shift the binder gate A/B
+caught one measurement earlier, and only the threshold-free and matched-recall
+numbers remove it.
+
+**The floor constant did not produce the result.** Floors 5.0 and 4.0 differ by
+0.001 in AUC, so the discrimination comes from P(binder) rather than from where
+the constant was pre-registered.
+
+**The selectivity gap is unchanged by construction.** One gate per panel means P
+is identical across isoforms, so EV(target) − max EV(off) = P · gap: binders are
+not re-ranked against each other. This is a potency-axis result, not a
+selectivity-ranking one.
+
+Read against the gate A/B above, the two results do not conflict. That one found
+the gate cannot be made more discriminative by redefining its negatives; this one
+finds the discrimination it already has was being thrown away.
+
+Nothing is deployed. Changing Tier 1's score changes what the potency floor means
+and every number downstream of it (G0).
+
+### Reproduce
+
+```bash
+python scripts/two_part_audit.py
+```
