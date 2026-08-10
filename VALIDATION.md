@@ -1292,10 +1292,15 @@ numbers remove it.
 0.001 in AUC, so the discrimination comes from P(binder) rather than from where
 the constant was pre-registered.
 
-**The selectivity gap is unchanged by construction.** One gate per panel means P
-is identical across isoforms, so EV(target) − max EV(off) = P · gap: binders are
-not re-ranked against each other. This is a potency-axis result, not a
-selectivity-ranking one.
+**No new information enters the selectivity gap.** One gate per panel means P is
+identical across isoforms, so EV(target) − max EV(off) = P · gap — the old gap
+scaled by the gate's probability.
+
+That is not the same as leaving the ranking alone. P differs between molecules, so
+the multiplication reorders them: gap 2.0 at P 0.50 (1.00) falls behind gap 1.2 at
+P 0.95 (1.14). Demoting low-P molecules is the intent, but **whether that demotion
+helps or hurts the selectivity axis was not measured here.** Every number above is
+a potency-axis number, scored on the target isoform.
 
 Read against the gate A/B above, the two results do not conflict. That one found
 the gate cannot be made more discriminative by redefining its negatives; this one
