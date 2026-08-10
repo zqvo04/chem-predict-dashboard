@@ -20,6 +20,8 @@
 - 시간 컷은 `panel_data.EVAL_TIME_CUT` (= 2020) 하나만 쓴다. 상수를 스크립트에 다시 적지 않는다.
 - 모든 새 코드는 오프라인에서 돌아야 한다 — 커밋된 `assets/` 만 읽는다. 네트워크 호출 금지.
 - 전체 스위트(`python -m pytest tests/ -q`)가 매 커밋에서 통과. 현재 218 통과가 기준선.
+- **런타임 추정치는 낙관적이다.** 실측: 전체 스위트 ~5분, `matched_label_audit.py` ~13분.
+  스크립트 docstring의 분 단위 추정을 믿지 말고 타임아웃을 넉넉히(600000 ms) 잡는다.
 
 ---
 
@@ -374,12 +376,11 @@ Expected: FAIL — `AttributeError: ... has no attribute 'evidence_isoform_frame
 
 - [ ] **Step 3: 최소 구현**
 
-`src/data/panel_data.py`의 `CENSORED_RELATIONS` 옆에 상수를, `same_document_cross_measured`
-뒤에 함수를 추가한다:
+`src/data/panel_data.py`의 `same_document_cross_measured` 뒤에 함수를 추가한다.
 
-```python
-KIKD_TYPES = ("Ki", "Kd")           # ATP 농도에 의존하지 않는 측정치
-```
+**상수를 새로 만들지 않는다** — `EQUILIBRIUM_TYPES = ("Ki", "Kd")`가 같은 모듈 65번째
+줄에 이미 있고 `_collapse`가 `pchembl_kikd`를 만들 때 쓰고 있다. 같은 값을 두 이름으로
+두면 언젠가 한쪽만 바뀐다.
 
 ```python
 def evidence_isoform_frame(panel: PanelSpec, isoform: str) -> pd.DataFrame:
@@ -399,7 +400,7 @@ def evidence_isoform_frame(panel: PanelSpec, isoform: str) -> pd.DataFrame:
 
     rows = act[(act["target_chembl_id"] == panel.chembl_ids[isoform])
                & act["pchembl_value"].notna()]
-    kikd = (rows[rows["standard_type"].isin(KIKD_TYPES)]
+    kikd = (rows[rows["standard_type"].isin(EQUILIBRIUM_TYPES)]
             .groupby("inchikey")["pchembl_value"].median().rename("pchembl_kikd"))
     year = rows.groupby("inchikey")["document_year"].min().rename("year_first")
 
@@ -455,12 +456,14 @@ def _cross(column: str) -> pd.DataFrame:
 - [ ] **Step 6: 감사를 돌린다**
 
 Run: `python scripts/assay_time_audit.py`
-Expected: 두 감사가 모두 완주한다. AUDIT 1이 Ki/Kd n≈386을 보고하고 "too small"로 죽지
-않는다. AUDIT 2의 표가 2015~2020 여섯 줄을 채우고, train/test 수가 지도 문서의
-2016 → 860/2,752 · 2018 → 1,353/2,259 · 2020 → 2,089/1,523과 일치한다.
+Expected: 두 감사가 모두 완주한다. AUDIT 1이 Ki/Kd n = 384를 보고하고 "too small"로 죽지
+않는다(문턱은 300). AUDIT 2의 표가 2015~2020 여섯 줄을 채우고, train/test 수가
+2016 → 1,227/2,385 · 2018 → 1,720/1,892 · 2020 → 2,534/**1,078**과 일치한다.
 
-일치하지 않으면 진행하지 않는다 — `_isoform_frame` join이 SMILES 표준화 차이로 행을
-잃고 있다는 뜻이고, 그건 데이터 결함이지 감사 결과가 아니다.
+**1,078이 가장 중요한 검증이다** — `TimeSplitOracle`의 모집단과 같은 수이고, 오라클도
+`year > 2020`을 eval로 쓴다. 두 경로가 서로 모르는 채 같은 수에 도달하면 유도 컬럼이
+행을 잃지 않은 것이다. 어긋나면 `_isoform_frame` join이 SMILES 표준화 차이로 행을 잃고
+있다는 뜻이고, 그건 데이터 결함이지 감사 결과가 아니다 — 진행하지 않는다.
 
 - [ ] **Step 7: 커밋**
 
@@ -795,7 +798,7 @@ Expected: PASS (4 passed)
 - [ ] **Step 9: 전체 스위트 확인 후 커밋**
 
 Run: `python -m pytest tests/ -q`
-Expected: PASS, 222 passed (218 + 이 웨이브의 신규 4). Task 1·2의 3건을 더하면 225.
+Expected: PASS, **225 passed** — 착수 시 218, Task 1이 2건, Task 2가 1건, 이 태스크가 4건.
 
 ```bash
 git add src/models/two_part.py tests/test_two_part.py

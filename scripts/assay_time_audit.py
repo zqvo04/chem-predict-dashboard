@@ -59,11 +59,25 @@ def enrichment_ceiling(base_rate: float, frac: float = TOP_FRAC) -> float:
     return min(1.0 / base_rate, 1.0 / frac) if base_rate > 0 else float("nan")
 
 
+def _isoform_frame(iso: str):
+    """한 아이소폼의 smi-인덱스 프레임, `pchembl_kikd`와 `year_first`를 보장한다.
+
+    커밋된 JAK 번들은 `(smi, pchembl, n_meas)`뿐이라 이 감사가 오프라인에서 죽었다.
+    재빌드는 네트워크를 요구하고 배포 자산을 움직이므로(G0), 없는 두 컬럼만 커밋된 증거
+    저장소에서 채운다. 컬럼이 이미 있는 패널(PI3K)에서는 아무것도 하지 않는다.
+    """
+    d = panel_data.build_isoform_dataset(DEFAULT_PANEL, iso).set_index("smi")
+    if {"pchembl_kikd", "year_first"} <= set(d.columns):
+        return d
+    derived = panel_data.evidence_isoform_frame(DEFAULT_PANEL, iso).set_index("smi")
+    return d.join(derived[["pchembl_kikd", "year_first"]])
+
+
 def _cross(column: str) -> pd.DataFrame:
     """Cross-measured frame built from one pchembl column, carrying year_first."""
     frames, years = [], []
     for iso in DEFAULT_PANEL.isoforms:
-        d = panel_data.build_isoform_dataset(DEFAULT_PANEL, iso).set_index("smi")
+        d = _isoform_frame(iso)
         frames.append(d[column].rename(iso).dropna())
         years.append(d["year_first"].rename(iso))
     cross = pd.concat(frames, axis=1, join="inner")

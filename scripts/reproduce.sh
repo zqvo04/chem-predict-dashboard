@@ -126,6 +126,18 @@ echo "scored on held-out measured non-binders and held-out actives."
 python scripts/gate_ab_audit.py
 
 echo
+echo "== Same-document labels (P4.1, open question 3) =="
+echo "The selectivity gap rebuilt from one publication per molecule, against the"
+echo "pooled-median labels the deployed models train on. Same metric as Gate 4."
+python scripts/matched_label_audit.py
+
+echo
+echo "== Two-part model, both arms (A2, open question 1) =="
+echo "EV = P(binder) x regressor + (1 - P) x floor, scored against the sealed"
+echo "non-binders and post-cut actives through one pre-cut refit."
+python scripts/two_part_audit.py
+
+echo
 echo "== DMTA loop, three rounds (STATE.md section 11) =="
 echo "Selection, measured answers from the sealed eval fold, and a random control"
 echo "arm every round. Models are frozen; only acquisition changes."
