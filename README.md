@@ -254,10 +254,13 @@ Design rationale and rejected alternatives: [DESIGN_DECISIONS.md](DESIGN_DECISIO
 유사도 조회보다 덜 무너진다"이다.** 그리고 그 랭킹의 일부는 선택성이 아니라 **측정 조건**을
 읽고 있다.
 
-**2부 모델이 potency 축을 고친다** — `EV = P(binder) · pred + (1−P) · floor`로 채점하면
-같은 재적합 위에서 봉인 414 대 실측 활성의 ROC-AUC가 0.890 → 0.956이 된다
-(`two_part_audit.py`). **아직 배포에 배선되지 않았다** — 배선은 shortlist 순서를 바꾸므로
-gap 축 측정이 먼저다.
+**2부 모델이 potency 축을 고친다 — 그러나 배선하지 않았다.**
+`EV = P(binder) · pred + (1−P) · floor`로 채점하면 게이트를 안 쓰는 회귀기 대비 ROC-AUC가
+0.890 → 0.956이 된다. 그런데 배포 퍼널은 게이트를 **이미 하드 필터로 쓰고 있고**, 그
+캐스케이드와 비교하면 이득이 **1.0 포인트**(봉인 414 통과 8.9 % → 8.0 %, 활성 재현율 동일)로
+줄어든다. 대가는 배포 shortlist의 rank 상관 0.532, top-10 중 5개 교체, 1위 분자 변경이다.
+그 60개 분자에는 **실측 gap이 없어 어느 순서가 옳은지 채점할 수 없다.** 그래서 측정하고
+배선하지 않았다 — `two_part_audit.py`, `ev_gap_audit.py`, STATE.md §2c·§2d.
 
 `pchembl 6` = IC50 **1 µM**이다. 승인약은 대개 nM(pchembl 8~9)이다. potency floor는 약물
 수준 기준이 아니라 **스크리닝 컷**이다.
@@ -272,7 +275,7 @@ Every number has a seed + script; nothing is a placeholder. Full detail and
 | Stage | Claim | Result (5-seed scaffold split) |
 |------|-------|--------|
 | Per-isoform QSAR | pchembl regression, JAK1/2/3 | R² 0.71–0.77, Spearman 0.82–0.88 |
-| **Binder gate** | JAK binder vs presumed-inactive | **ROC-AUC 0.998**; ethanol/pesticide gated out, JAK inhibitors kept ([STEP 10](VALIDATION.md#step-10--the-binder-gate-tier-05-2026-07-26)) |
+| **Binder gate** | JAK binder vs presumed-inactive | **ROC-AUC 0.998**; ethanol/pesticide gated out, JAK inhibitors kept ([STEP 10](VALIDATION.md#step-10--the-binder-gate-tier-05-2026-07-26)). Against **measured** non-binders it is **0.741**, and redefining the negative class does not fix it ([gate A/B](VALIDATION.md#binder-gate--measured-negatives-do-not-fix-it-2026-08-09)) |
 | **Selectivity** | predicted gap vs **measured** gap | **Spearman 0.80**, ≥10×-selective enrichment **4.5×** — but a 1-NN lookup scores **0.782** on this split, so read it with the [nearest-neighbour baseline](VALIDATION.md#nearest-neighbour-baseline-2026-08-08) and the [assay audit](#the-headline-selectivity-number-has-a-measured-caveat) |
 | Uncertainty | conformal 90% intervals, per isoform | empirical coverage **0.89–0.91** |
 | **Selectivity interval** | the gap's own 90% interval | marginal **0.896**, worst-similarity bucket **0.889** (was 0.460 flat / 4.86-wide summed) — [STEP 14](VALIDATION.md#step-14--the-gap-interval-was-calibrated-on-the-wrong-thing-2026-07-27) |
@@ -290,24 +293,34 @@ stated here rather than buried because it changes how the number should be read.
 **It survives a time split.** Training only on chemistry published before a cutoff
 and testing on what came after — strictly harder than a scaffold split — costs
 about a tenth of the rank correlation at comparable training size (Spearman
-**0.715 vs 0.798**), and the top-decile enrichment reaches **90 % of its achievable
-ceiling vs 73 %** for the scaffold split. The ranking transfers to genuinely
-unpublished molecules.
+**0.734 vs 0.797**, train 2,534 vs ≈2,899), and the top-decile enrichment reaches
+**86 % of its achievable ceiling vs 74 %** for the scaffold split. The ranking
+transfers to genuinely unpublished molecules. That test fold, 1,078 molecules, is
+also exactly `TimeSplitOracle`'s population.
 
 **Part of it is carried by assay conditions, not biology.** The training label
 pools IC50, Ki, Kd and EC50. An IC50 for an ATP-competitive kinase inhibitor
 depends on the assay's ATP concentration and JAK1/2/3 do not share an ATP Km, so a
 gap assembled across assay types can encode an artefact. On the ATP-independent
-Ki/Kd-only subset, **at matched sample size**, Spearman falls from **0.682 to
-0.462** and the top-decile enrichment collapses from 3.71× to below random. Sample
-size explains part of the total drop; it does not explain that.
+Ki/Kd-only subset, **at matched sample size**, Spearman falls from **0.664 to
+0.330** and the top-decile enrichment collapses from 3.96× to 1.44× — 14 % of its
+own ceiling, which is no enrichment worth the name. Sample size alone takes the
+correlation from 0.797 to 0.664; it does not explain the rest.
 
 So "Spearman 0.80" is correctly measured for what it measures, and the honest
-phrasing is **"0.80 on pooled assay types, substantially lower on the
-ATP-independent subset"**. The Ki/Kd set is small (n = 386) and differs in base
-rate, so this is a serious flag requiring follow-up rather than a refutation —
-separating the two would need a larger ATP-independent set than ChEMBL supplies, or
-explicit ATP normalisation of the IC50 records.
+phrasing is **"0.80 on pooled assay types, roughly half that on the
+ATP-independent subset"**. The Ki/Kd set is small (n = 384) and differs in base
+rate (9.6 % vs 15.5 %), so this is a serious flag requiring follow-up rather than a
+refutation — separating the two would need a larger ATP-independent set than ChEMBL
+supplies, or explicit ATP normalisation of the IC50 records.
+
+> Both audits above are quoted from the offline run that `./scripts/reproduce.sh`
+> now performs. Earlier editions of this section carried slightly different figures
+> (0.715 / 0.682 / 0.462) from a network rebuild that could not be reproduced from a
+> clean checkout, because the committed JAK parquets lack the `year_first` and
+> `pchembl_kikd` columns the audit reads. Those columns are now derived from the
+> committed evidence store instead. The conclusion is unchanged in both directions;
+> only the reproducibility is.
 
 One concern was measured and **dismissed**: 95–99 % of these records are binding
 assays, so biochemical-vs-cellular mixing is not a confound here.
