@@ -548,8 +548,10 @@ def render_single(query: str) -> None:
 
     # Percentile leads. A lone gap value is weakly supported — the 90 % interval
     # spans ~±2 pchembl and usually crosses zero — while the *ranking* is what was
-    # validated (Spearman 0.80 against measured gaps). Reporting the rank first
-    # keeps the headline on the claim the evidence actually supports.
+    # validated (Spearman 0.80 against measured gaps, and 0.33 on the Ki/Kd subset
+    # against a 0.66 same-size control, so even the ranking is partly assay
+    # conditions). Reporting the rank first keeps the headline on the claim the
+    # evidence actually supports.
     gap, lo, hi = float(row["gap"]), float(row["gap_lo"]), float(row["gap_hi"])
     stat_row([
         ("Gap percentile", f"{percentile:.1f}",
@@ -600,7 +602,10 @@ def render_single(query: str) -> None:
                 + (" — a small reference set, so read the percentile as coarse."
                    if n_ref < 100 else ".") +
                 f" Selectivity ranking was validated separately (Spearman 0.80 vs "
-                f"measured gaps, 4.5× enrichment).")
+                f"measured gaps, 4.5× enrichment) — but on **pooled assay types**. "
+                f"On ATP-independent Ki/Kd measurements alone it falls to 0.33, "
+                f"against 0.66 for a same-size control, so part of that ranking is "
+                f"assay conditions rather than selectivity.")
         else:
             st.success(f"The interval excludes zero — the predicted direction of "
                        f"selectivity is supported at 90 % confidence.")
