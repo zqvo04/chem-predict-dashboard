@@ -67,3 +67,21 @@ def test_document_tie_breaks_on_the_smallest_id(tmp_path):
 
     assert len(out) == 1
     assert out[t].iloc[0] == pytest.approx(3.0), "CHEMBL_D5 < CHEMBL_D6"
+
+
+def test_evidence_isoform_frame_derives_kikd_and_year(tmp_path):
+    t, o1, _ = DEFAULT_PANEL.isoforms
+    panel = _store(tmp_path, [
+        _row("A", "CHEMBL_D1", t, 8.0, stype="IC50", year=2012),
+        _row("A", "CHEMBL_D2", t, 7.0, stype="Ki", year=2019),
+        _row("A", "CHEMBL_D3", t, 9.0, stype="Kd", year=2020),
+        _row("B", "CHEMBL_D1", t, 5.0, stype="IC50", year=2011),   # no Ki/Kd
+        _row("A", "CHEMBL_D1", o1, 4.0, stype="Ki", year=2012),    # other isoform
+    ])
+    out = panel_data.evidence_isoform_frame(panel, t)
+
+    assert list(out.columns) == ["smi", "pchembl_kikd", "year_first"]
+    row_a = out[out["pchembl_kikd"].notna()]
+    assert len(row_a) == 1, "only A has Ki/Kd on this isoform"
+    assert row_a["pchembl_kikd"].iloc[0] == pytest.approx(8.0), "median of Ki 7.0 and Kd 9.0"
+    assert row_a["year_first"].iloc[0] == 2012, "earliest year over ALL types, not Ki/Kd only"

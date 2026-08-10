@@ -261,6 +261,34 @@ def same_document_cross_measured(panel: PanelSpec) -> pd.DataFrame:
     return out[["smi", *panel.isoforms]].drop_duplicates("smi").reset_index(drop=True)
 
 
+def evidence_isoform_frame(panel: PanelSpec, isoform: str) -> pd.DataFrame:
+    """증거 저장소에서 유도한 한 아이소폼의 (smi, pchembl_kikd, year_first).
+
+    `build_isoform_dataset`은 네트워크 재빌드 시 이 두 컬럼을 만들지만, 커밋된 JAK 번들은
+    그 이전 스키마라 `(smi, pchembl, n_meas)`뿐이다. 배포 자산 재빌드는 G0 사건이므로,
+    assay 종류나 출판 연도가 필요한 감사는 같은 provenance를 이쪽에서 읽는다 —
+    `year_first`가 이미 만든 선례와 같다.
+
+    `year_first`는 **모든** assay 종류에 걸친 최초 연도다. 분자가 문헌에 등장한 시점이
+    질문이지, Ki로 측정된 시점이 아니다.
+    """
+    root = panel.root / "assets" / "evidence"
+    act = pd.read_parquet(root / "activity.parquet")
+    molecule = pd.read_parquet(root / "molecule.parquet")[["inchikey", "parent_smiles"]]
+
+    rows = act[(act["target_chembl_id"] == panel.chembl_ids[isoform])
+               & act["pchembl_value"].notna()]
+    kikd = (rows[rows["standard_type"].isin(EQUILIBRIUM_TYPES)]
+            .groupby("inchikey")["pchembl_value"].median().rename("pchembl_kikd"))
+    year = rows.groupby("inchikey")["document_year"].min().rename("year_first")
+
+    out = (pd.concat([year, kikd], axis=1)
+             .join(molecule.drop_duplicates("inchikey").set_index("inchikey")))
+    return (out.dropna(subset=["parent_smiles", "year_first"])
+               .rename(columns={"parent_smiles": "smi"})
+               .reset_index(drop=True)[["smi", "pchembl_kikd", "year_first"]])
+
+
 def censored_library_molecules(panel: PanelSpec) -> pd.DataFrame:
     """Library molecules whose only panel measurement is a censored non-binding.
 
