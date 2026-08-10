@@ -138,6 +138,12 @@ echo "non-binders and post-cut actives through one pre-cut refit."
 python scripts/two_part_audit.py
 
 echo
+echo "== EV wiring decision, gap axis (Wave 5) =="
+echo "What multiplying the gap by P(binder) does to the selectivity ranking, and"
+echo "how far it would reorder the deployed shortlist."
+python scripts/ev_gap_audit.py
+
+echo
 echo "== DMTA loop, three rounds (STATE.md section 11) =="
 echo "Selection, measured answers from the sealed eval fold, and a random control"
 echo "arm every round. Models are frozen; only acquisition changes."

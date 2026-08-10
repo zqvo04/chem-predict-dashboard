@@ -1387,3 +1387,84 @@ Read % of max, not the raw multiplier.
 ```bash
 python scripts/assay_time_audit.py
 ```
+
+---
+
+## EV wiring — measured, and not wired (2026-08-10)
+
+The two-part model above was adopted as a measurement and never reached the
+deployed screen. ROADMAP's A2 item is "two-part model **+ EV reconstruction**",
+so wiring is part of the item. Two things were pre-registered and measured first.
+
+### M1 — against the deployed cascade, not against nothing
+
+The two-part audit's BASELINE arm used the regressor with no gate, while
+`screen_library` already thresholds on the gate at Tier 0.5. So that comparison
+answered "is the gate's probability useful", and a wiring decision asks "is
+multiplying by it better than thresholding on it".
+
+| | post-cut actives kept | sealed 414 passing |
+|---|---:|---:|
+| CASCADE — deployed structure (gate P ≥ 0.789, then pred ≥ 6.0) | 89.9 % | **8.9 %** |
+| TWO-PART floor 5.0, matched to that recall | 89.9 % | **8.0 %** |
+| TWO-PART floor 4.0 | 89.9 % | 8.0 % |
+
+One point. The rule said "lower", so M1 passes — but **21.2 of the 22.2 points
+reported in the two-part section were already being delivered by the hard filter
+the funnel runs today.** That section should not be read without this one.
+
+The cascade is scored as the single operating point it is. Scoring it as a curve
+required a sentinel for gated-out molecules, which both broke `roc_auc_score` and
+invited comparison at recalls the cascade cannot reach: the gate rejects 184 of
+the 1,928 post-cut actives, capping its recall at 90.5 %.
+
+### M2 — the gap axis, on a population that could not show it
+
+`EV(target) − max EV(off) = P · gap`, so the multiplication reorders whenever P
+varies.
+
+| ranking | Spearman | top-decile enrichment |
+|---|---:|---:|
+| gap | 0.637 | 2.50× |
+| P · gap | 0.636 | 2.50× |
+
+Within the 0.02 tolerance, so M2 passes. **It is not a clean bill of health.** The
+1,078 post-cut cross-measured molecules are all actives measured on all three
+isoforms, and the gate gives them a median P of 0.997 — the multiplication cannot
+move anything there, and the top 60 is unchanged. The script prints a warning
+saying exactly that.
+
+The deployed shortlist is not saturated (median P 0.846, minimum 0.551), and there
+the change is large:
+
+| | |
+|---|---|
+| rank correlation between the two orders | **0.532** |
+| top-10 membership unchanged | **5 / 10** |
+| molecule ranked first by gap | **changes** |
+| clearing a 6.0 potency floor | 60/60 either way — pure reordering, not filtering |
+
+No molecule in that shortlist has a measured gap, so neither order can be scored.
+
+### Decision — not wired
+
+Both pre-registered conditions pass and the wiring was still declined. The rule was
+written assuming M2 would measure the reordering; the only population with measured
+gaps turned out to be one where the multiplication is inert, and the population that
+actually reorders cannot be scored at all. What is on offer is one point on the
+potency axis against reordering half the deployed top ten on unscored evidence.
+
+Reopening this does not need a better threshold. It needs **measured gaps for
+library molecules** — which is what docking (G-1) or Stage 7 pre-registration would
+supply.
+
+Limitation: the gate here sits at its own Youden point (0.789) after a pre-cut
+refit, not at the deployed 0.544. This is the deployed *structure*, not the
+deployed *gate*.
+
+### Reproduce
+
+```bash
+python scripts/two_part_audit.py
+python scripts/ev_gap_audit.py
+```
