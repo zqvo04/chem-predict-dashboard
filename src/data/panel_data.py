@@ -24,6 +24,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from rdkit import RDLogger
 
@@ -147,6 +148,134 @@ def build_cross_measured(panel: PanelSpec, use_cache: bool = True) -> pd.DataFra
     panel.data_cache.mkdir(parents=True, exist_ok=True)
     cross.to_parquet(panel.data_cache / "cross_measured.parquet", index=False)
     return cross
+
+
+def measured_negatives(panel: PanelSpec) -> pd.DataFrame:
+    """Molecules assayed against the panel and found weak; columns inchikey, smi.
+
+    A censored record ("IC50 > x") and no pchembl anywhere in the panel. These are
+    the negative class the binder gate has never had: its presumed negatives are
+    actives of *other* targets, so it learned to recognise panel chemistry rather
+    than binding, and on 2026-08-09 it passed 65.3 % of these at a median
+    P(binder) of 0.921.
+
+    The sealed 414 (`censored_library_molecules`) are removed — they are the
+    falsification audit's negative arm and must stay out of every training set (G6).
+    What is left is the censored population outside the wide library, which is
+    mostly panel-programme chemistry rather than off-target chemistry.
+    """
+    root = panel.root / "assets" / "evidence"
+    act = pd.read_parquet(root / "activity.parquet")
+    molecule = pd.read_parquet(root / "molecule.parquet").dropna(subset=["parent_smiles"])
+
+    rows = act[act["target_chembl_id"].isin(panel.chembl_ids.values())]
+    quantified = set(rows.loc[rows["pchembl_value"].notna(), "inchikey"])
+    censored = set(rows.loc[rows["standard_relation"].isin(CENSORED_RELATIONS), "inchikey"])
+    sealed = set(censored_library_molecules(panel)["inchikey"])
+
+    usable = (censored - quantified) - sealed
+    return (molecule.loc[molecule["inchikey"].isin(usable), ["inchikey", "parent_smiles"]]
+            .rename(columns={"parent_smiles": "smi"})
+            .drop_duplicates("inchikey")
+            .sort_values("inchikey")
+            .reset_index(drop=True))
+
+
+def load_measured_negatives(panel: PanelSpec) -> pd.DataFrame:
+    """The sealed measured-negative split; columns inchikey, smi, fold.
+
+    Read-only. `scripts/seal_measured_negatives.py` writes it once, because a
+    held-out set that is recomputed per run is not held out — the evidence store
+    grows and the evaluation moves with it.
+    """
+    path = _cached(panel, "measured_negatives.parquet")
+    if path is None:
+        raise FileNotFoundError(
+            f"No sealed measured-negative split for panel {panel.name!r}. "
+            "Run: python scripts/seal_measured_negatives.py " + panel.name)
+    return pd.read_parquet(path)
+
+
+EVAL_TIME_CUT = 2020        # STATE.md section 4c: the cut the model beats a lookup on
+
+
+def year_first(panel: PanelSpec) -> pd.Series:
+    """smi -> earliest year any panel member published a quantified measurement.
+
+    The committed per-isoform parquets carry only (smi, pchembl, n_meas): the
+    `year_first` column `_collapse` produces never made it into the bundle. The
+    evidence store holds the same provenance offline, so provenance-dated work
+    reads it from there rather than forcing a network rebuild.
+    """
+    root = panel.root / "assets" / "evidence"
+    act = pd.read_parquet(root / "activity.parquet")
+    molecule = pd.read_parquet(root / "molecule.parquet")
+    rows = act[act["target_chembl_id"].isin(panel.chembl_ids.values())
+               & act["pchembl_value"].notna()]
+    year = rows.groupby("inchikey")["document_year"].min()
+    joined = molecule[["inchikey", "parent_smiles"]].join(year, on="inchikey")
+    return joined.dropna(subset=["document_year"]).set_index("parent_smiles")["document_year"]
+
+
+CENSORED_RELATIONS = (">", ">=")
+
+
+def censored_library_molecules(panel: PanelSpec) -> pd.DataFrame:
+    """Library molecules whose only panel measurement is a censored non-binding.
+
+    One row per (molecule, isoform) that has a censored record and no pchembl for
+    that molecule anywhere in the panel. `pchembl_upper` is the **weakest** claim
+    among that molecule's records for the isoform — the largest IC50 quoted, hence
+    the loosest bound — so a falsification counted against it is a lower bound.
+
+    This is the negative arm of the falsification audit and one of the counts the
+    suitability screen reports, so it lives here with the other per-panel datasets
+    rather than in whichever script needed it first.
+    """
+    root = panel.root / "assets" / "evidence"
+    act = pd.read_parquet(root / "activity.parquet")
+    member = pd.read_parquet(root / "library_member.parquet")
+    molecule = pd.read_parquet(root / "molecule.parquet")
+
+    isoform_of = {cid: iso for iso, cid in panel.chembl_ids.items()}
+    rows = act[act["target_chembl_id"].isin(isoform_of)].copy()
+    rows["isoform"] = rows["target_chembl_id"].map(isoform_of)
+
+    # A molecule with a pchembl on *any* panel member is in the training data for
+    # that member, so it is not a clean external test even where another isoform
+    # only censored it.
+    quantified = set(rows.loc[rows["pchembl_value"].notna(), "inchikey"])
+
+    censored = rows[
+        rows["standard_relation"].isin(CENSORED_RELATIONS)
+        & rows["pchembl_value"].isna()
+        & rows["standard_value"].notna()
+        & (rows["standard_units"] == "nM")     # the other 1 % of units are not worth converting
+        & ~rows["inchikey"].isin(quantified)
+    ].copy()
+    censored["pchembl_upper"] = 9.0 - np.log10(censored["standard_value"])
+
+    druglike = member.loc[member["druglike"], ["inchikey"]]
+    sealed = (censored.merge(druglike, on="inchikey")
+              .groupby(["inchikey", "isoform"], as_index=False)["pchembl_upper"].max()
+              .merge(molecule[["inchikey", "parent_smiles"]], on="inchikey")
+              .rename(columns={"parent_smiles": "smi"}))
+    return sealed.sort_values(["inchikey", "isoform"]).reset_index(drop=True)
+
+
+def load_eval_split(panel: PanelSpec) -> pd.DataFrame:
+    """The evaluation split sealed at round 0 (G9); columns smi, year_first, fold.
+
+    Read-only on purpose. `scripts/seal_eval_split.py` writes it once and refuses to
+    overwrite, because a split that can be recomputed is not sealed — the training
+    set grows from round to round and the split must not move with it.
+    """
+    path = _cached(panel, "eval_split.parquet")
+    if path is None:
+        raise FileNotFoundError(
+            f"No sealed evaluation split for panel {panel.name!r}. "
+            "Run: python scripts/seal_eval_split.py " + panel.name)
+    return pd.read_parquet(path)
 
 
 def summary(panel: PanelSpec, use_cache: bool = True) -> pd.DataFrame:

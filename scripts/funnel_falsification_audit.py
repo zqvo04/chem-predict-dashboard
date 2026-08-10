@@ -44,61 +44,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src import funnel                                             # noqa: E402
 from src.data import panel_data                                    # noqa: E402
-from src.models.isoform_regressor import train_and_cache           # noqa: E402
-from src.panels import DEFAULT_PANEL                               # noqa: E402
+from src.models.features import morgan_matrix                       # noqa: E402
+from src.models.isoform_regressor import _fit                       # noqa: E402
+from src.panels import DEFAULT_PANEL                                # noqa: E402
 from src.selectivity import POTENCY_FLOOR                          # noqa: E402
 
-_ROOT = Path(__file__).resolve().parents[1]
-EVIDENCE = _ROOT / "assets" / "evidence"
 SEALED = DEFAULT_PANEL.data_bundled / "sealed_negatives.parquet"
 
-CENSORED_RELATIONS = (">", ">=")
-TIME_CUT = 2020            # STATE.md section 5: the 2020 cut leaves 1,525 molecules
+TIME_CUT = panel_data.EVAL_TIME_CUT     # the same cut the evaluation split is sealed on
 ACTIVE_PCHEMBL = 6.0       # matches POTENCY_FLOOR: "active" on the funnel's own scale
 
 
 # --------------------------------------------------------------------------- #
 # The sealed negative set
 # --------------------------------------------------------------------------- #
-
-def build_sealed() -> pd.DataFrame:
-    """The library molecules whose only panel measurement is a censored non-binding.
-
-    One row per (molecule, isoform) with a censored record and no pchembl for that
-    molecule anywhere in the panel. `pchembl_upper` is the **weakest** claim among
-    that molecule's records for the isoform — the largest IC50 quoted, hence the
-    loosest bound — so a falsification counted against it is a lower bound on the
-    real rate, exactly as STATE.md section 2 describes.
-    """
-    act = pd.read_parquet(EVIDENCE / "activity.parquet")
-    member = pd.read_parquet(EVIDENCE / "library_member.parquet")
-    molecule = pd.read_parquet(EVIDENCE / "molecule.parquet")
-
-    isoform_of = {cid: iso for iso, cid in DEFAULT_PANEL.chembl_ids.items()}
-    panel_rows = act[act["target_chembl_id"].isin(isoform_of)].copy()
-    panel_rows["isoform"] = panel_rows["target_chembl_id"].map(isoform_of)
-
-    # A molecule with a pchembl on *any* panel member is in the training data for
-    # that member, so it is not a clean external test even where another isoform
-    # only censored it.
-    quantified = set(panel_rows.loc[panel_rows["pchembl_value"].notna(), "inchikey"])
-
-    censored = panel_rows[
-        panel_rows["standard_relation"].isin(CENSORED_RELATIONS)
-        & panel_rows["pchembl_value"].isna()
-        & panel_rows["standard_value"].notna()
-        & (panel_rows["standard_units"] == "nM")          # the other 1 % of units are not worth converting
-        & ~panel_rows["inchikey"].isin(quantified)
-    ].copy()
-    censored["pchembl_upper"] = 9.0 - np.log10(censored["standard_value"])
-
-    druglike = member.loc[member["druglike"], ["inchikey"]]
-    sealed = (censored.merge(druglike, on="inchikey")
-              .groupby(["inchikey", "isoform"], as_index=False)["pchembl_upper"].max()
-              .merge(molecule[["inchikey", "parent_smiles"]], on="inchikey")
-              .rename(columns={"parent_smiles": "smi"}))
-    return sealed.sort_values(["inchikey", "isoform"]).reset_index(drop=True)
-
 
 def load_sealed() -> pd.DataFrame:
     """The sealed set, written on first run and read verbatim afterwards (G6/G8).
@@ -109,7 +68,7 @@ def load_sealed() -> pd.DataFrame:
     """
     if SEALED.exists():
         return pd.read_parquet(SEALED)
-    sealed = build_sealed()
+    sealed = panel_data.censored_library_molecules(DEFAULT_PANEL)
     SEALED.parent.mkdir(parents=True, exist_ok=True)
     sealed.to_parquet(SEALED, index=False)
     print(f"  sealed {sealed['inchikey'].nunique()} molecules -> {SEALED}")
@@ -178,23 +137,6 @@ def negative_arm() -> None:
 # Positive arm
 # --------------------------------------------------------------------------- #
 
-def _year_first() -> pd.Series:
-    """smi -> earliest year any panel member published a quantified measurement.
-
-    The committed `assets/jak/*.parquet` carry only (smi, pchembl, n_meas) — the
-    `year_first` column `_collapse` produces never made it into the bundle, so
-    `scripts/assay_time_audit.py` needs a network rebuild to run. The evidence
-    store holds the same provenance offline, so the cut is taken from there.
-    """
-    act = pd.read_parquet(EVIDENCE / "activity.parquet")
-    molecule = pd.read_parquet(EVIDENCE / "molecule.parquet")
-    panel_rows = act[act["target_chembl_id"].isin(DEFAULT_PANEL.chembl_ids.values())
-                     & act["pchembl_value"].notna()]
-    year = panel_rows.groupby("inchikey")["document_year"].min()
-    joined = molecule[["inchikey", "parent_smiles"]].join(year, on="inchikey")
-    return joined.dropna(subset=["document_year"]).set_index("parent_smiles")["document_year"]
-
-
 def _cut(data: pd.DataFrame, year: pd.Series) -> pd.DataFrame:
     """`data` with a `year_first` column, dropping the rows provenance cannot date."""
     out = data.copy()
@@ -209,14 +151,18 @@ def positive_arm() -> None:
     print("=" * 78)
 
     target = DEFAULT_PANEL.target
-    year = _year_first()
+    year = panel_data.year_first(DEFAULT_PANEL)
     frames = {iso: _cut(panel_data.build_isoform_dataset(DEFAULT_PANEL, iso), year)
               for iso in DEFAULT_PANEL.isoforms}
 
     models = {}
     for iso, data in frames.items():
+        # `_fit` rather than `train_and_cache`: the latter also runs a five-seed
+        # scaffold-split evaluation whose metrics nothing here reads, which is five
+        # extra fits per isoform.
         pre = data[data["year_first"] <= TIME_CUT]
-        models[iso] = train_and_cache(DEFAULT_PANEL, iso, use_cache=False, data=pre).model
+        X, mask = morgan_matrix(pre["smi"].tolist())
+        models[iso] = _fit(X, pre["pchembl"].to_numpy()[mask])
         print(f"  {iso}: refit on {len(pre)} pre-{TIME_CUT} molecules "
               f"(deployed model uses all {len(data)})")
 

@@ -35,6 +35,11 @@ REGISTRY_ROOT = _ROOT / "data" / "registry"     # runtime state, gitignored
 CAMPAIGN_FILE = "campaign.json"
 ROUNDS_FILE = "rounds.jsonl"
 
+# What a round can be. Validated on write: `Round.kind` documented these three from
+# the start but nothing enforced them, and STATE.md section 8 measured that only
+# "screen" was ever recorded — an unenforced vocabulary drifts silently.
+KINDS = ("screen", "select", "rescore")
+
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
@@ -107,9 +112,15 @@ def rounds(campaign_id: str, root: Path | None = None) -> list[Round]:
         if not line:
             continue
         try:
-            out.append(Round.from_dict(json.loads(line)))
+            record = Round.from_dict(json.loads(line))
         except (json.JSONDecodeError, KeyError):
             continue
+        # The index is the row's position in the append-only file, not a number
+        # chosen before writing. Two processes appending concurrently therefore get
+        # two distinct indices by construction rather than by hoping they did not
+        # read the same length first.
+        record.index = len(out)
+        out.append(record)
     return out
 
 
@@ -119,29 +130,38 @@ def append_round(campaign_id: str, kind: str, model_ids: dict[str, str],
                  root: Path | None = None) -> Round:
     """Record a round; returns it with its assigned index.
 
-    The index is derived from what is already on disk rather than tracked in memory,
-    so two processes appending to the same campaign produce two rounds rather than
-    one overwriting the other's number.
+    The index is the row's position in the append-only file and the scores filename
+    carries a random suffix, so two processes appending concurrently produce two
+    rounds with two score files rather than one overwriting the other. `kind` is
+    validated against KINDS — the log is meant to distinguish a screen from a
+    selection from a Stage-A rescore, and a free-form string cannot.
     """
+    from uuid import uuid4
+
     from .loop_contract import code_version
+
+    if kind not in KINDS:
+        raise ValueError(f"kind must be one of {KINDS}, got {kind!r}")
 
     directory = campaign_dir(campaign_id, root)
     directory.mkdir(parents=True, exist_ok=True)
-    index = len(rounds(campaign_id, root))
 
     scores_path = None
     if scores is not None and not scores.empty:
-        name = f"round_{index}_scores.parquet"
+        # Random rather than index-derived: the index is not known until the row is
+        # appended, and two writers must not be able to pick the same name.
+        name = f"round_{uuid4().hex[:8]}_scores.parquet"
         scores.to_parquet(directory / name, index=False)
         scores_path = name
 
-    record = Round(index=index, kind=kind,
+    record = Round(index=-1, kind=kind,
                    created=datetime.now(timezone.utc).isoformat(),
                    code_version=code_version(), model_ids=dict(model_ids),
                    n_molecules=int(n_molecules), metrics=dict(metrics or {}),
                    scores_path=scores_path, notes=notes)
     with open(directory / ROUNDS_FILE, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record.to_dict(), sort_keys=True) + "\n")
+    record.index = len(rounds(campaign_id, root)) - 1
     return record
 
 

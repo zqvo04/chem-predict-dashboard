@@ -30,3 +30,20 @@ def test_gate_training_smiles_runs_the_real_chain():
 
 def test_gate0_audit_module_imports():
     importlib.import_module("scripts.gate0_audit")
+
+
+def test_suitability_screen_runs_offline_for_both_panels():
+    """Stage 0.5 crosses the production path STATE.md section 1a found broken."""
+    from scripts.suitability_screen import screen
+    from src.panels import JAK, PI3K
+
+    jak = screen(JAK)
+    assert jak["n_members"] == 3
+    assert jak["n_cross_measured"] > 3000
+    assert jak["censored_in_library"] == 414        # matches STATE.md section 5
+    assert jak["library_leakage"] == 8              # matches STATE.md section 6c
+
+    pi3k = screen(PI3K)
+    assert pi3k["n_members"] == 4
+    assert pi3k["censored_in_library"] < jak["censored_in_library"]
+    assert pi3k["library_leakage"] > jak["library_leakage"]

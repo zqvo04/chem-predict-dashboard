@@ -157,3 +157,35 @@ def test_a_panel_needs_a_chembl_id_for_every_member():
 
     with pytest.raises(ValueError, match="no ChEMBL id"):
         dataclasses.replace(JAK, offs=("JAK2", "JAK9"))
+
+
+def test_two_writers_seeing_the_same_length_do_not_share_a_scores_file(
+        tmp_path, monkeypatch):
+    """STATE.md section 8: the race is two writers reading the length before either appends.
+
+    Sequential calls cannot reproduce it — the second one sees the first's row. The
+    race is forced by making both writers see an empty campaign, which is what a
+    real concurrent pair sees. Under the old code both then wrote
+    `round_0_scores.parquet` and the second silently destroyed the first's scores.
+    """
+    scores = pd.DataFrame({"smi": ["CCO"], "gap": [1.0]})
+    monkeypatch.setattr(reg, "rounds", lambda *a, **k: [])
+    a = reg.append_round("c1", kind="screen", model_ids={}, n_molecules=1,
+                         scores=scores, root=tmp_path)
+    b = reg.append_round("c1", kind="screen", model_ids={}, n_molecules=1,
+                         scores=scores, root=tmp_path)
+
+    assert a.scores_path != b.scores_path
+    written = sorted(p.name for p in reg.campaign_dir("c1", tmp_path).glob("*.parquet"))
+    assert len(written) == 2, f"one write destroyed the other: {written}"
+
+    monkeypatch.undo()
+    assert [r.index for r in reg.rounds("c1", root=tmp_path)] == [0, 1]
+    assert reg.round_scores("c1", 0, root=tmp_path) is not None
+    assert reg.round_scores("c1", 1, root=tmp_path) is not None
+
+
+def test_append_round_rejects_an_unknown_kind(tmp_path):
+    with pytest.raises(ValueError):
+        reg.append_round("c1", kind="frobnicate", model_ids={}, n_molecules=1,
+                         root=tmp_path)

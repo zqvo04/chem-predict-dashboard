@@ -78,10 +78,28 @@ echo "would lose. Committed assets only, no network."
 python scripts/chirality_audit.py
 
 echo
+echo "== Suitability screen, Stage 0.5 (per panel) =="
+echo "The counts that decide whether a panel can be validated at all, before any"
+echo "target rationale is argued."
+python scripts/suitability_screen.py
+
+echo
 echo "== Funnel falsification, both arms (STATE.md sections 2 / 2a) =="
 echo "The deployed cascade scored against 414 measured non-binders, and against"
 echo "post-2020 actives through regressors refit on the pre-cut data only."
 python scripts/funnel_falsification_audit.py
+
+echo
+echo "== Paralog transfer baseline, LOTO (STATE.md section 4d) =="
+echo "Each held-out target scored by a model trained on its own data and by one that"
+echo "only saw the paralogs, split by whether the paralogs had the molecule."
+python scripts/loto_audit.py
+
+echo
+echo "== Nearest-neighbour baseline (STATE.md section 4c / VALIDATION.md) =="
+echo "The gap and potency claims against a Tanimoto 1-NN lookup on the same split,"
+echo "the same fingerprints and the same metric."
+python scripts/nn_baseline_audit.py
 
 echo
 echo "== Learning curves, per axis (STATE.md section 4b) =="
@@ -100,6 +118,19 @@ echo "== Assay-type + time-split audit (VALIDATION.md) =="
 echo "Re-tests the headline gap claim on the ATP-independent Ki/Kd subset and on a"
 echo "publication-year cut. Either can invalidate a headline number — that is the point."
 python scripts/assay_time_audit.py
+
+echo
+echo "== Binder gate A/B, negative class (STATE.md section 2b) =="
+echo "Presumed-only versus presumed-plus-measured negatives, identical positives,"
+echo "scored on held-out measured non-binders and held-out actives."
+python scripts/gate_ab_audit.py
+
+echo
+echo "== DMTA loop, three rounds (STATE.md section 11) =="
+echo "Selection, measured answers from the sealed eval fold, and a random control"
+echo "arm every round. Models are frozen; only acquisition changes."
+python scripts/dmta_run.py jak jak-reproduce 3
+python scripts/make_cases_index.py
 
 echo
 echo "Done. Compare the Gate 0 tables above against VALIDATION.md."

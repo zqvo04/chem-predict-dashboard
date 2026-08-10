@@ -139,6 +139,12 @@ Isoform regressors here are trained only on the scaffold-train molecules
 |-----------|:------------------------------------:|
 | difference-of-regressors (wide) | 0.797 ± 0.041 |
 | direct gap regressor (narrow re-rank) | 0.816 ± 0.044 |
+| **Tanimoto 1-NN lookup (no model)** | **0.782 ± 0.039** — see "Nearest-neighbour baseline" below |
+
+> ⚠️ **Read this table with the baseline row.** On a scaffold split, copying the
+> measured gap of the single most similar training molecule scores the same as the
+> model (2026-08-08, N1). The claim that survives the baseline is the **time-split**
+> one, not this one.
 
 Top-decile enrichment of ≥10×-selective molecules: **4.54 ± 0.56×** over a base
 rate of 16.4% — the top 10% ranked by predicted gap concentrate 4.5× more truly
@@ -1069,4 +1075,129 @@ and neither takes injected data yet. Nothing here measures recall for those tier
 
 ```bash
 python scripts/funnel_falsification_audit.py
+```
+
+---
+
+## Nearest-neighbour baseline (2026-08-08)
+
+**Purpose.** STATE.md section 4 states the models' judgement principle as "do this
+molecule's substructure fragments resemble the fragments of molecules that were
+active in training". A Tanimoto 1-nearest-neighbour lookup answers that with no
+model, so it is the line the headline claims have to clear. It had never been run.
+
+**Source.** Committed assets. Baseline and model share the split, the fingerprints
+(`applicability`'s own Morgan generator) and the metric (`selectivity.evaluate_split`).
+The baseline predicts the measured value of the single most similar training molecule.
+
+| Split | Metric | Model | 1-NN lookup | Model advantage |
+|---|---|---:|---:|---:|
+| gap, scaffold (n=3624, 3 seeds) | Spearman | 0.779 ± 0.031 | **0.782 ± 0.039** | **−0.003** |
+| gap, scaffold | top-decile enrichment | 4.36× | 4.24× | +0.12× |
+| gap, 2020 time split (2534/1078) | Spearman | **0.734** | 0.572 | **+0.162** |
+| gap, 2020 time split | top-decile enrichment | 2.53× | 2.31× | +0.22× |
+| potency JAK1, scaffold (seed 0) | Spearman | 0.865 | 0.818 | +0.047 |
+| potency JAK1, scaffold (seed 0) | MAE | 0.430 | 0.479 | −0.049 |
+
+**What this says.** On the scaffold split — the protocol behind the headline
+Spearman ≈ 0.80 — **the model does not beat the baseline.** The difference is
+−0.003 against a seed spread of ±0.03 to ±0.04.
+
+Under temporal shift the two separate sharply. The lookup falls 0.782 → 0.572
+while the model falls 0.779 → 0.734, an advantage of +0.162. The time-split test
+molecules are 90 % new Murcko scaffolds (STATE.md section 5), so the neighbourhood
+the lookup depends on is genuinely thinner there, and what the model has learned
+beyond its nearest neighbour is what carries across.
+
+**Consequence for the claim.** "Predicted selectivity tracks measured selectivity
+at Spearman ≈ 0.80 on a scaffold split" is true and is also achieved by a lookup,
+so on its own it does not demonstrate that the model learned anything. The
+defensible form of the claim is the time-split one: **under a publication-year
+shift the model retains 0.734 where a similarity lookup retains 0.572.**
+
+**What it does not say.** Nothing about the potency axis' correctness — that axis is
+93 % falsified against measured non-binders regardless of which side wins here.
+A 1-NN lookup is one baseline, not the strongest possible one; k-NN with similarity
+weighting was not run.
+
+### Reproduce
+
+```bash
+python scripts/nn_baseline_audit.py
+```
+
+---
+
+## Binder gate — measured negatives do not fix it (2026-08-09)
+
+**Purpose.** The gate is the funnel's Tier 0.5, and STATE.md section 2 measured it
+passing 36 % of the sealed 414 measured non-binders. Its negatives are all
+"presumed inactive by absence" — actives of other targets — so the standing
+hypothesis was that a *measured* negative class would fix it. This tests that.
+
+**Source.** Committed assets, ChEMBL_37. No network.
+
+### The problem is larger than 36 %
+
+The deployed gate scored against the wider censored population, 1,720 molecules
+with a JAK censored record, no pchembl anywhere in the panel, never trained on:
+
+| group | n | pass at 0.544 | median P(binder) |
+|---|---:|---:|---:|
+| **measured negatives** | 1,720 | **65.3 %** | **0.921** |
+| sealed 414 | 414 | 36.0 % | 0.245 |
+| presumed negatives (training) | 2,000 | 0.4 % | 0.007 |
+| positives (training) | 2,000 | 99.8 % | 0.999 |
+
+The 414 come from the wide library, which is built from other targets' actives, so
+they are off-target chemistry. On real JAK-programme non-binders the false-pass
+rate is 65 %. Raising the threshold to 0.99 still passes 34.6 % and costs 14 % of
+actives, so recalibration is ruled out.
+
+### The A/B
+
+Identical positives (11,789 pre-2020), presumed negatives, fingerprints, estimator,
+seed and threshold rule. The candidate additionally receives 1,290 measured
+negatives. All scoring populations are held out from both gates.
+
+| | BASELINE (presumed only) | CANDIDATE (+ measured) |
+|---|---:|---:|
+| Youden threshold | 0.046 | 0.019 |
+| measured[eval] n=430 pass | 74.4 % | 63.5 % |
+| sealed 414 pass | 53.6 % | 64.0 % |
+| presumed[eval] n=2428 pass | 3.5 % | 10.1 % |
+| **positives[eval] n=3433 kept** | **96.9 %** | 83.5 % |
+| **ROC-AUC vs measured[eval]** | **0.741** | **0.735** |
+| **ROC-AUC vs sealed 414** | **0.925** | **0.773** |
+
+At matched positive recall the candidate is worse everywhere — 99 % recall: 84.0 %
+vs 98.4 % measured-negative pass; 95 % recall: 70.0 % vs 91.2 %.
+
+**Result: falsified.** Adding a measured negative class did not improve
+discrimination on the population it was meant to fix (AUC 0.741 → 0.735) and
+degraded it badly on the sealed 414 (0.925 → 0.773).
+
+**How this could have been reported as a win.** At any fixed threshold the
+candidate looks decisive — at 0.9 it passes 7.0 % of measured negatives against the
+baseline's 43.5 %. That is a calibration shift: the candidate's positives also fell
+from a median of 0.996 to 0.781. Without the matched-recall control and the
+threshold-free AUC this experiment would have shipped as a success.
+
+**Interpretation.** The sealed 414 are library molecules, i.e. off-target chemistry
+from the same distribution as the presumed negatives, which is why the baseline
+reaches 0.925 on them. The measured negatives are JAK-programme chemistry, and
+teaching the model "looks like JAK, is negative" blurs the boundary it had for
+off-target chemistry. A measured non-binder from a JAK paper sits in the same ECFP4
+neighbourhood as an active — the same label-noise structure STATE.md section 3a
+measured for stereoisomers, now across the activity boundary. **The gate's failure
+is a limit of the representation, not of the label class.**
+
+**Honest limits.** 1,720 measured negatives against 12,144 presumed. One scaffold
+split seed. Weighted training was not tried — ROADMAP section 8 keeps tuning closed
+until A2. Neither gate here is the deployed one, and nothing was deployed.
+
+### Reproduce
+
+```bash
+python scripts/gate_ab_audit.py
 ```
