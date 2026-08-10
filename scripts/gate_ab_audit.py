@@ -29,64 +29,30 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from sklearn.metrics import roc_auc_score, roc_curve
+from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.data import panel_data                                     # noqa: E402
 from src.data.negatives import build_negatives, positive_smiles     # noqa: E402
-from src.models.binder_gate import _fit                             # noqa: E402
-from src.models.features import morgan_matrix                       # noqa: E402
+from src.models.binder_gate import (at_matched_recall, build_gate,  # noqa: E402
+                                    proba_aligned, youden_threshold)
 from src.panels import DEFAULT_PANEL                                # noqa: E402
 
 SWEEP = (0.5, 0.7, 0.9, 0.95, 0.99)
 PRESUMED_HOLDOUT = 0.2
 
 
-def build_gate(positives: list[str], negatives: list[str]):
-    """Fit a gate from explicit class members; nothing is cached."""
-    smiles = list(positives) + list(negatives)
-    y = np.concatenate([np.ones(len(positives)), np.zeros(len(negatives))])
-    X, mask = morgan_matrix(smiles)
-    return _fit(X, y[mask])
-
-
 def probabilities(model, smiles: list[str]) -> np.ndarray:
-    """P(binder) for each parseable SMILES."""
-    X, mask = morgan_matrix(list(smiles))
-    out = np.full(len(mask), np.nan)
-    if X.shape[0]:
-        out[mask] = model.predict_proba(X)[:, 1]
-    return out[~np.isnan(out)]
-
-
-def youden_threshold(model, positives: list[str], negatives: list[str]) -> float:
-    """Youden's J on held-out positives vs held-out presumed negatives.
-
-    Deliberately not computed on the measured negatives: a threshold tuned on the
-    population it is then judged against is not a measurement.
-    """
-    p_pos, p_neg = probabilities(model, positives), probabilities(model, negatives)
-    y = np.concatenate([np.ones(len(p_pos)), np.zeros(len(p_neg))])
-    fpr, tpr, thresholds = roc_curve(y, np.concatenate([p_pos, p_neg]))
-    return float(thresholds[np.argmax(tpr - fpr)])
+    """P(binder) for each parseable SMILES. Population statistics need no alignment."""
+    p = proba_aligned(model, smiles)
+    return p[~np.isnan(p)]
 
 
 def _auc(p_pos: np.ndarray, p_neg: np.ndarray) -> float:
     """ROC-AUC of positives against one negative population. Threshold-free."""
     y = np.concatenate([np.ones(len(p_pos)), np.zeros(len(p_neg))])
     return float(roc_auc_score(y, np.concatenate([p_pos, p_neg])))
-
-
-def at_matched_recall(p_meas: np.ndarray, p_pos: np.ndarray,
-                      recall: float) -> tuple[float, float]:
-    """(threshold, measured-negative pass rate) where the gate keeps `recall` of actives.
-
-    Two gates compared at their own Youden points can differ only in where they sit
-    on the same curve. Matching the positive recall first removes that.
-    """
-    threshold = float(np.quantile(p_pos, 1.0 - recall))
-    return threshold, float((p_meas >= threshold).mean())
 
 
 def main() -> None:

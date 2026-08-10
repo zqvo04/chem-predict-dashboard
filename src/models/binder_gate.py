@@ -105,6 +105,60 @@ def _fit(X: np.ndarray, y: np.ndarray) -> HistGradientBoostingClassifier:
     return model
 
 
+def build_gate(positives: list[str], negatives: list[str]) -> HistGradientBoostingClassifier:
+    """Fit a gate from explicit class members. Reads no cache and writes none.
+
+    The deployed gate is a cached file with a fixed training set. Audits that need
+    a gate refit on a different class definition — the A/B on the negative class,
+    the two-part model's pre-cut refit — build one here instead.
+    """
+    smiles = list(positives) + list(negatives)
+    y = np.concatenate([np.ones(len(positives)), np.zeros(len(negatives))])
+    X, mask = morgan_matrix(smiles)
+    return _fit(X, y[mask])
+
+
+def proba_aligned(model, smiles: list[str]) -> np.ndarray:
+    """P(binder) aligned with input; NaN where a SMILES fails to parse.
+
+    Same contract as `BinderGate.predict_proba`, but for a raw model rather than a
+    cached bundle. Alignment matters to any caller that pairs the score back to a
+    row: the two-part model multiplies it into a per-molecule regression.
+    """
+    smiles = list(smiles)
+    X, mask = morgan_matrix(smiles)
+    out = np.full(len(smiles), np.nan)
+    if X.shape[0]:
+        out[mask] = model.predict_proba(X)[:, 1]
+    return out
+
+
+def youden_threshold(model, positives: list[str], negatives: list[str]) -> float:
+    """Youden's J on held-out positives vs held-out presumed negatives.
+
+    Deliberately not computed on the measured negatives: a threshold tuned on the
+    population it is then judged against is not a measurement.
+    """
+    p_pos, p_neg = proba_aligned(model, positives), proba_aligned(model, negatives)
+    p_pos, p_neg = p_pos[~np.isnan(p_pos)], p_neg[~np.isnan(p_neg)]
+    y = np.concatenate([np.ones(len(p_pos)), np.zeros(len(p_neg))])
+    fpr, tpr, thresholds = roc_curve(y, np.concatenate([p_pos, p_neg]))
+    return float(thresholds[np.argmax(tpr - fpr)])
+
+
+def at_matched_recall(scores_neg: np.ndarray, scores_pos: np.ndarray,
+                      recall: float) -> tuple[float, float]:
+    """(threshold, negative pass rate) where the score keeps `recall` of positives.
+
+    Two scores compared at their own operating points can differ only in where they
+    sit on the same curve. Matching the positive recall first removes that. It asks
+    nothing about what the score means, so it serves gate probabilities and potency
+    predictions alike.
+    """
+    threshold = float(np.quantile(scores_pos, 1.0 - recall))
+    return threshold, float((scores_neg >= threshold).mean())
+
+
 def _dataset(panel: PanelSpec, use_cache: bool = True) -> tuple[list[str], np.ndarray]:
     """Combined (smiles, label) with 1 = panel binder, 0 = matched presumed-inactive."""
     pos = sorted(positive_smiles(panel, use_cache=use_cache))
