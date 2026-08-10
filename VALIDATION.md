@@ -1314,3 +1314,76 @@ and every number downstream of it (G0).
 ```bash
 python scripts/two_part_audit.py
 ```
+
+---
+
+## Assay type and time split — both audits, now offline (2026-08-10)
+
+`scripts/assay_time_audit.py` has existed since the funnel was built and had never
+run from a clean checkout: it reads `pchembl_kikd` and `year_first` from
+`build_isoform_dataset`, and the committed JAK parquets predate both columns.
+Deriving them from the evidence store rather than rebuilding a deployed asset (G0)
+is what made these numbers available.
+
+### Audit 1 — the gap is partly an assay-pooling artefact
+
+The training label pools IC50, Ki, Kd and EC50. An IC50 depends on the assay's ATP
+concentration and JAK1/2/3 do not share an ATP Km, so a gap assembled from IC50s
+can carry an assay artefact. The Ki/Kd subset removes that confound — and is also
+~10× smaller, which is why the control exists.
+
+| set | n | Spearman (difference) | Spearman (direct) | top-decile enrichment | base |
+|---|---:|---:|---:|---:|---:|
+| all types, as deployed | 3,624 | 0.797 ± 0.041 | 0.816 ± 0.044 | 4.54 ± 0.56 (74 % of ceiling) | 16.4 % |
+| **CONTROL** — all types cut to n=384 | 384 | 0.664 ± 0.025 | 0.694 ± 0.025 | 3.96 ± 0.16 (62 %) | 15.5 % |
+| Ki/Kd only (ATP-independent) | 384 | **0.330 ± 0.171** | **0.440 ± 0.145** | 1.44 ± 1.93 (14 %) | 9.6 % |
+
+**The confound is shown, not ruled out.** Sample size alone takes the correlation
+from 0.797 to 0.664. The Ki/Kd subset falls a further 0.33 beyond that, and its
+top-decile enrichment collapses to 14 % of its own ceiling — no enrichment worth
+the name. Read against the control, the headline 0.798 is carried in part by
+pooled assay conditions rather than by selectivity the model predicts.
+
+This is a limit on the same axis STATE.md section 4c already narrowed: the gap
+claim survives a scaffold split only in the sense that a 1-NN lookup matches it,
+and it survives assay matching only weakly. Caveats that keep this from being
+fatal: n=384 with a 9.6 % base rate is a thin measurement, the ±0.171 spread is
+large, and Ki/Kd molecules are a different chemotype population, not a random
+sample of the deployed one.
+
+### Audit 2 — the model does generalise forward, and 2020 is the right cut
+
+Each cutoff trains on `year <= cutoff` and tests on everything later.
+
+| cutoff | train | test | Spearman | direct | enrichment | ceiling | % of max | base |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 2015 | 860 | 2,752 | 0.424 | 0.511 | 3.11 | 5.39 | 58 % | 18.6 % |
+| 2016 | 1,227 | 2,385 | 0.589 | 0.500 | 3.89 | 5.00 | 78 % | 20.0 % |
+| 2017 | 1,353 | 2,259 | 0.495 | 0.483 | 3.77 | 4.92 | 77 % | 20.3 % |
+| 2018 | 1,720 | 1,892 | 0.480 | 0.640 | 3.03 | 4.65 | 65 % | 21.5 % |
+| 2019 | 2,089 | 1,523 | 0.724 | 0.747 | 3.19 | 3.98 | 80 % | 25.1 % |
+| **2020** | 2,534 | **1,078** | **0.734** | 0.731 | 2.53 | 2.94 | **86 %** | 34.0 % |
+
+Reference, scaffold split on the same data: Spearman 0.797 ± 0.041, enrichment
+4.54× (74 % of its 6.1× ceiling), train n ≈ 2,899.
+
+At the 2020 cut the train set (2,534) is close to the scaffold reference's (2,899),
+so the two are comparable, and the time split costs about 0.06 of Spearman while
+reaching a *higher* fraction of its own enrichment ceiling (86 % vs 74 %). The
+model predicts chemistry that did not exist at training time.
+
+**This closes ROADMAP open question 2.** The trade the roadmap asked about is
+visible in the table: 2018 leaves a 1,892-molecule oracle but a much weaker model
+(Spearman 0.480, 65 % of ceiling), while 2020 leaves 1,078 and 0.734 at 86 %. The
+cut already in use is the better one on both the model axis and the ceiling-relative
+enrichment, and the 1,078 is exactly `TimeSplitOracle`'s population.
+
+Raw enrichment falls with the cutoff for a reason that is not model quality: the
+base selective rate rises from 18.6 % to 34.0 %, which caps enrichment at 2.94×.
+Read % of max, not the raw multiplier.
+
+### Reproduce
+
+```bash
+python scripts/assay_time_audit.py
+```
